@@ -1,0 +1,104 @@
+import 'package:provider/provider.dart';
+import 'package:lucide_icons/lucide_icons.dart';
+import '../providers/buyer_data_provider.dart'; // مسار محدث
+
+class HomeSectionsGrid extends StatelessWidget {
+  const HomeSectionsGrid({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<BuyerDataProvider>(
+      builder: (context, provider, child) {
+        // نعتمد على حالة التحميل العامة إذا كانت الفئات فارغة
+        if (provider.isLoading && provider.categories.isEmpty) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(20.0),
+              child: CircularProgressIndicator(color: Color(0xFF43b97f)),
+            ),
+          );
+        }
+
+        if (provider.categories.isEmpty) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(20.0),
+              child: Text('لا توجد أقسام متاحة حالياً', style: TextStyle(color: Colors.grey)),
+            ),
+          );
+        }
+
+        // عرض الفئات كصفوف أفقية قابلة للتمرير (Chips)
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          child: Row(
+            children: provider.categories.map((cat) {
+              final color = _getColorForCategory(cat.name);
+              return Container(
+                margin: const 
+                EdgeInsets.only(left: 
+                10), child: ActionChip(
+                  avatar: 
+                  Icon(_getIconForCategory(cat.name), 
+                  size: 18, color: 
+                  color), label: Text(
+                    cat.name, style: 
+                    const 
+                    TextStyle(fontSize: 
+                    14, fontWeight: 
+                    FontWeight.w600, 
+                    color: 
+                    Colors.black87),
+                  ), onPressed: () { 
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: 
+                      Text('تم 
+                      النقر على 
+                      فئة: 
+                      ${cat.name}')),
+                    );
+                  },
+                  backgroundColor: 
+                  color.withOpacity(0.1), 
+                  side: 
+                  BorderSide(color: 
+                  color.withOpacity(0.4)), 
+                  padding: const 
+                  EdgeInsets.symmetric(horizontal: 
+                  12, vertical: 8), 
+                  shape: 
+                  RoundedRectangleBorder(borderRadius: 
+                  BorderRadius.circular(20)),
+                ), );
+            }).toList(),
+          ), );
+      },
+    );
+  }
+  // دوال مساعدة لتعيين 
+  // الألوان والأيقونات 
+  // بناءً على اسم الفئة
+  Color _getColorForCategory(String 
+  name) {
+    if (name.contains('سوبر 
+    ماركت')) return const 
+    Color(0xFF43b97f); if 
+    (name.contains('خضروات')) 
+    return const Color(0xFFff9800); if 
+    (name.contains('لحوم')) return 
+    const Color(0xFFf44336); return 
+    Colors.blueGrey;
+  }
+  IconData _getIconForCategory(String 
+  name) {
+    if (name.contains('سوبر 
+    ماركت')) return 
+    LucideIcons.shoppingBag; if 
+    (name.contains('خضروات')) 
+    return LucideIcons.leaf; if 
+    (name.contains('لحوم')) return 
+    LucideIcons.chefHat; return 
+    LucideIcons.tag;
+  }
+}
