@@ -1,16 +1,11 @@
-// lib/widgets/login_form_widget.dart (تم تصحيح الأخطاء النهائية)
+// lib/widgets/login_form_widget.dart (تم تصحيح منطق التوجيه)
 
 import 'package:flutter/material.dart';
 import 'package:my_test_app/helpers/auth_service.dart';
-
-// ❌ تم التعليق مؤقتاً لحل خطأ "No such file or directory" ❌
-// import 'package:my_test_app/screens/seller/seller_home_screen.dart'; 
-
-import 'package:my_test_app/screens/consumer_store_screen.dart';
-
-// ⭐️ تم تصحيح الخطأ: إزالة "package:" المكررة ⭐️
+// ❌ تم إزالة استيراد الشاشات غير الضرورية هنا (SellerHomeScreen, ConsumerStoreScreen, BuyerHomeScreen)
+// لأننا لن نستخدمها مباشرة
 import 'package:my_test_app/screens/forgot_password_screen.dart';
-import 'package:my_test_app/screens/buyer/buyer_home_screen.dart';
+
 
 class LoginFormWidget extends StatefulWidget {
   const LoginFormWidget({super.key});
@@ -38,6 +33,7 @@ class _LoginFormWidgetState extends State<LoginFormWidget> {
     });
 
     try {
+      // 1. تنفيذ عملية تسجيل الدخول وتخزين بيانات المستخدم والدور في SharedPreferences
       final userRole = await _authService.signInWithEmailAndPassword(_email, _password);
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -50,17 +46,14 @@ class _LoginFormWidgetState extends State<LoginFormWidget> {
       await Future.delayed(const Duration(milliseconds: 1500));
       if (!mounted) return;
 
-      // 2. التوجيه بناءً على الدور
-      Widget nextScreen;
-      
-      // 💡 استخدام شاشة المشتري مؤقتاً للبائع
-      if (userRole == "seller") nextScreen = BuyerHomeScreen(); 
-      else if (userRole == "consumer") nextScreen = ConsumerStoreScreen();
-      else nextScreen = BuyerHomeScreen();
-
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => nextScreen),
+      // 🎯🎯🎯 التعديل الحاسم: التوجيه دائماً إلى المسار الرئيسي (/) 🎯🎯🎯
+      // هذا يسمح لـ AuthWrapper في main.dart بالتعامل مع التوجيه بناءً على الدور
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        '/', // المسار الرئيسي الذي يذهب إلى AuthWrapper
+        (route) => false, // لإزالة كل المسارات السابقة
       );
+
+      // ❌ تم حذف كل منطق التوجيه المحلي الذي كان يحدد nextScreen
 
     } on String catch (e) {
       String message;
@@ -124,8 +117,7 @@ class _LoginFormWidgetState extends State<LoginFormWidget> {
             child: TextButton(
               onPressed: () {
                 Navigator.of(context).push(
-                  // ⭐️ تم تصحيح الخطأ: إزالة 'const' من هنا ⭐️
-                  MaterialPageRoute(builder: (context) => ForgotPasswordScreen()),
+                  MaterialPageRoute(builder: (context) => const ForgotPasswordScreen()),
                 );
               },
               child: Text(
@@ -142,7 +134,6 @@ class _LoginFormWidgetState extends State<LoginFormWidget> {
 
           // ⭐️ زر تسجيل الدخول ⭐️
           Container(
-// ... (باقي الكود يبقى كما هو دون تغيير) ...
             width: 250,
             height: 50,
             decoration: BoxDecoration(
@@ -219,6 +210,10 @@ class _LoginFormWidgetState extends State<LoginFormWidget> {
     );
   }
 }
+
+// ---------------------------------------------------------------------
+// --- مكون حقل الإدخال ---
+// ---------------------------------------------------------------------
 
 class _InputGroup extends StatelessWidget {
   final IconData icon;

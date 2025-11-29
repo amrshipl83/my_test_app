@@ -3,11 +3,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:my_test_app/data_sources/add_offer_data_source.dart';
-import 'package:my_test_app/models/offer_model.dart';// ⭐️ استيراد النموذج المركزي بدلاً من التعريف المؤقت ⭐️
+import 'package:my_test_app/models/offer_model.dart';
 import 'package:my_test_app/models/select_item_model.dart';
 import 'package:my_test_app/widgets/form_widgets.dart';
 
-// تم إزالة تعريف SelectItemModel المؤقت من هنا
 class AddOfferScreen extends StatefulWidget {
   const AddOfferScreen({super.key});
 
@@ -52,6 +51,11 @@ class _AddOfferScreenState extends State<AddOfferScreen> {
     } catch (e) {
       return null;
     }
+  }
+
+  // ⭐️ دالة مساعدة لتصحيح تحذيرات الألوان (استخدام withAlpha بدلاً من withOpacity المهمل) ⭐️
+  Color _withAlpha(Color color, double opacity) {
+    return color.withAlpha((255 * opacity).round().clamp(0, 255));
   }
 
   @override
@@ -114,7 +118,7 @@ class _AddOfferScreenState extends State<AddOfferScreen> {
     });
     try {
       final subCats = await _dataSource.loadSubCategories(mainId);
-      if (!mounted) return; // Fix: use context only after checking mounted
+      if (!mounted) return;
 
       setState(() => _subCategories = subCats);
     } catch (e) {
@@ -131,9 +135,8 @@ class _AddOfferScreenState extends State<AddOfferScreen> {
       _availableUnits = [];
     });
     try {
-      // ⚠️ يجب التأكد أن دالة loadProducts في Data Source تعيد List<SelectItemModel> الموحدة
       final result = await _dataSource.loadProducts(subId, _currentSellerId);
-      if (!mounted) return; // Fix: use context only after checking mounted
+      if (!mounted) return;
 
       setState(() {
         _products = result['allProducts'] as List<SelectItemModel>;
@@ -244,9 +247,36 @@ class _AddOfferScreenState extends State<AddOfferScreen> {
     }
   }
 
-  // ⭐️ دالة مساعدة لتصحيح تحذيرات الألوان ⭐️
-  Color _withAlpha(Color color, double opacity) {
-    return color.withAlpha((255 * opacity).round().clamp(0, 255));
+  // ⭐️ دالة مساعدة لبناء كارت قسم (Section Card) ⭐️
+  Widget _buildSectionCard({required String title, required List<Widget> children}) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 25),
+      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: primaryColor,
+              ),
+            ),
+            const Divider(height: 25, thickness: 1.5),
+            ...children.map((w) => Padding(
+                  padding: const EdgeInsets.only(bottom: 15.0),
+                  child: w,
+                )).toList(),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -260,25 +290,13 @@ class _AddOfferScreenState extends State<AddOfferScreen> {
     final selectedProduct = _findItemById(_products, _selectedProductId);
 
     final messageColor = _isSuccess ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.error;
+    final primaryColor = Theme.of(context).colorScheme.primary;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Center(
         child: Container(
           constraints: const BoxConstraints(maxWidth: 800),
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Theme.of(context).cardColor,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                // ⭐️ تصحيح: استخدام withAlpha بدلاً من withOpacity المهمل ⭐️
-                color: _withAlpha(Theme.of(context).shadowColor, 0.1),
-                blurRadius: 20,
-                offset: const Offset(0, 5),
-              ),
-            ],
-          ),
           child: Form(
             key: _formKey,
             child: Column(
@@ -287,159 +305,158 @@ class _AddOfferScreenState extends State<AddOfferScreen> {
                 // رسالة الحالة
                 if (_message != null && _message!.isNotEmpty)
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 20.0),
+                    padding: const EdgeInsets.only(bottom: 25.0),
                     child: Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        // ⭐️ تصحيح: استخدام withAlpha بدلاً من withOpacity المهمل ⭐️
                         color: _withAlpha(messageColor, 0.1),
                         border: Border.all(color: messageColor),
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(
                         _message!,
                         textAlign: TextAlign.center,
-                        style: TextStyle(color: messageColor, fontSize: 16),
+                        style: TextStyle(color: messageColor, fontSize: 16, fontWeight: FontWeight.w500),
                       ),
                     ),
                   ),
 
-                // 1. القسم الرئيسي (Items Type: SelectItemModel, Value Type: String ID)
-                // 🛠️ تم التعديل لاستخدام CustomSelectBox<T, V>
-                CustomSelectBox<SelectItemModel, String>(
-                  label: 'القسم الرئيسي:',
-                  hintText: 'اختر قسماً رئيسياً',
-                  items: _mainCategories,
-                  // القيمة المختارة هي الـ ID المخزنة في حالة الـ String
-                  selectedValue: _selectedMainCategoryId,
-                  itemLabel: (item) => item.name,
-                  // نستخدم itemValueGetter لاستخراج الـ ID الذي سيتم تمريره كـ Value في القائمة المنسدلة
-                  itemValueGetter: (item) => item.id,
-                  onChanged: (String? id) {
-                    setState(() {
-                      _selectedMainCategoryId = id; // الآن نستقبل ID مباشرة
+                // 🌟🌟 الكارت الأول: تحديد المنتج والوحدة 🌟🌟
+                _buildSectionCard(
+                  title: 'تحديد المنتج والوحدة',
+                  children: [
+                    // 1. القسم الرئيسي
+                    CustomSelectBox<SelectItemModel, String>(
+                      label: 'القسم الرئيسي:',
+                      hintText: 'اختر قسماً رئيسياً',
+                      items: _mainCategories,
+                      selectedValue: _selectedMainCategoryId,
+                      itemLabel: (item) => item.name,
+                      itemValueGetter: (item) => item.id,
+                      onChanged: (String? id) {
+                        setState(() {
+                          _selectedMainCategoryId = id;
+                          _selectedSubCategoryId = null;
+                          _selectedProductId = null;
+                          _selectedUnitName = null;
+                          _subCategories = [];
+                          _products = [];
+                          _availableUnits = [];
 
-                      // إعادة تعيين الحالات الفرعية
-                      _selectedSubCategoryId = null;
-                      _selectedProductId = null;
-                      _selectedUnitName = null;
-                      _subCategories = [];
-                      _products = [];
-                      _availableUnits = [];
+                          if (_selectedMainCategoryId != null) _loadSubCategories(_selectedMainCategoryId!);
+                        });
+                      },
+                    ),
 
-                      if (_selectedMainCategoryId != null) _loadSubCategories(_selectedMainCategoryId!);
-                    });
-                  },
+                    // 2. القسم الفرعي
+                    CustomSelectBox<SelectItemModel, String>(
+                      label: 'القسم الفرعي:',
+                      hintText: (selectedMainCategory == null) ? 'الرجاء اختيار القسم الرئيسي أولاً' : 'اختر قسماً فرعياً',
+                      items: _subCategories,
+                      selectedValue: _selectedSubCategoryId,
+                      itemLabel: (item) => item.name,
+                      itemValueGetter: (item) => item.id,
+                      onChanged: (_subCategories.isEmpty)
+                          ? (String? id) {}
+                          : (String? id) {
+                              setState(() {
+                                _selectedSubCategoryId = id;
+                                _selectedProductId = null;
+                                _products = [];
+                                _availableUnits = [];
+
+                                if (_selectedSubCategoryId != null) _loadProducts(_selectedSubCategoryId!);
+                              });
+                            },
+                    ),
+
+                    // 3. المنتج
+                    CustomSelectBox<SelectItemModel, String>(
+                      label: 'المنتج:',
+                      hintText: (selectedSubCategory == null) ? 'الرجاء اختيار القسم الفرعي أولاً' : 'اختر منتجاً',
+                      items: _products,
+                      selectedValue: _selectedProductId,
+                      itemLabel: (item) => item.name,
+                      itemValueGetter: (item) => item.id,
+                      onChanged: (_products.isEmpty)
+                          ? (String? id) {}
+                          : (String? id) {
+                              setState(() {
+                                _selectedProductId = id;
+
+                                if (_selectedProductId != null) _loadAvailableUnits(_selectedProductId!);
+                              });
+                            },
+                    ),
+
+                    // 4. الوحدة المتاحة
+                    CustomSelectBox<String, String>(
+                      label: 'الوحدة المتاحة لهذا الصنف:',
+                      hintText: (selectedProduct == null) ? 'الرجاء اختيار المنتج أولاً' : (_availableUnits.isEmpty ? 'لا توجد وحدات متاحة لإضافة عرض' : 'اختر وحدة'),
+                      items: _availableUnits,
+                      selectedValue: _selectedUnitName,
+                      itemLabel: (item) => item,
+                      onChanged: (_availableUnits.isEmpty)
+                          ? (String? value) {}
+                          : (String? value) {
+                              setState(() => _selectedUnitName = value);
+                            },
+                    ),
+                  ],
                 ),
 
-                // 2. القسم الفرعي
-                // 🛠️ تم التعديل لاستخدام CustomSelectBox<T, V>
-                CustomSelectBox<SelectItemModel, String>(
-                  label: 'القسم الفرعي:',
-                  hintText: (selectedMainCategory == null) ? 'الرجاء اختيار القسم الرئيسي أولاً' : 'اختر قسماً فرعياً',
-                  items: _subCategories,
-                  selectedValue: _selectedSubCategoryId, // القيمة المختارة هي الـ ID
-                  itemLabel: (item) => item.name,
-                  itemValueGetter: (item) => item.id,
-                  // 🛑 التصحيح 1: استبدال null بدالة فارغة (String? id) {}
-                  onChanged: (_subCategories.isEmpty)
-                      ? (String? id) {} // 💡 دالة فارغة لتجنب خطأ النوع
-                      : (String? id) { // الآن نستقبل ID مباشرة
-                          setState(() {
-                            _selectedSubCategoryId = id;
+                // 🌟🌟 الكارت الثاني: تفاصيل العرض 🌟🌟
+                _buildSectionCard(
+                  title: 'تحديد سعر وكمية العرض',
+                  children: [
+                    // 5. السعر
+                    CustomInputField(
+                      label: 'السعر (لكل وحدة مختارة):',
+                      controller: _priceController,
+                      keyboardType: TextInputType.number,
+                      hintText: 'مثال: 15.50',
+                      validator: (value) => (value == null || value.isEmpty || double.tryParse(value) == null || double.parse(value) <= 0) ? 'الرجاء إدخال سعر صحيح.' : null,
+                    ),
 
-                            _selectedProductId = null;
-                            _products = [];
-                            _availableUnits = [];
+                    // 6. الكمية
+                    CustomInputField(
+                      label: 'الكمية المتاحة للبيع:',
+                      controller: _quantityController,
+                      keyboardType: TextInputType.number,
+                      hintText: 'مثال: 100',
+                      validator: (value) => (value == null || value.isEmpty || int.tryParse(value) == null || int.parse(value) <= 0) ? 'الرجاء إدخال كمية صحيحة.' : null,
+                    ),
 
-                            if (_selectedSubCategoryId != null) _loadProducts(_selectedSubCategoryId!);
-                          });
-                        },
+                    // 7. الحد الأدنى للطلب
+                    CustomInputField(
+                      label: 'الحد الأدنى للطلب لهذا الصنف (اختياري):',
+                      controller: _minOrderController,
+                      keyboardType: TextInputType.number,
+                      hintText: 'مثال: 5',
+                      validator: (value) {
+                        if (value == null || value.isEmpty) return null;
+                        if (int.tryParse(value) == null || int.parse(value) <= 0) return 'الرجاء إدخال قيمة صحيحة أو ترك الحقل فارغاً.';
+                        return null;
+                      }
+                    ),
+
+                    // 8. الحد الأقصى للطلب
+                    CustomInputField(
+                      label: 'الحد الأقصى للطلب لهذا الصنف (اختياري):',
+                      controller: _maxOrderController,
+                      keyboardType: TextInputType.number,
+                      hintText: 'مثال: 50',
+                      validator: (value) {
+                        if (value == null || value.isEmpty) return null;
+                        if (int.tryParse(value) == null || int.parse(value) <= 0) return 'الرجاء إدخال قيمة صحيحة أو ترك الحقل فارغاً.';
+                        return null;
+                      }
+                    ),
+                  ],
                 ),
 
-                // 3. المنتج
-                // 🛠️ تم التعديل لاستخدام CustomSelectBox<T, V>
-                CustomSelectBox<SelectItemModel, String>(
-                  label: 'المنتج:',
-                  hintText: (selectedSubCategory == null) ? 'الرجاء اختيار القسم الفرعي أولاً' : 'اختر منتجاً',
-                  items: _products,
-                  selectedValue: _selectedProductId, // القيمة المختارة هي الـ ID
-                  itemLabel: (item) => item.name,
-                  itemValueGetter: (item) => item.id,
-                  // 🛑 التصحيح 2: استبدال null بدالة فارغة (String? id) {}
-                  onChanged: (_products.isEmpty)
-                      ? (String? id) {} // 💡 دالة فارغة لتجنب خطأ النوع
-                      : (String? id) { // الآن نستقبل ID مباشرة
-                          setState(() {
-                            _selectedProductId = id;
 
-                            if (_selectedProductId != null) _loadAvailableUnits(_selectedProductId!);
-                          });
-                        },
-                ),
-
-                // 4. الوحدة المتاحة (هنا نستخدم String كـ T و V)
-                // 🛠️ تم التعديل لاستخدام CustomSelectBox<T, V> (حيث T=V=String)
-                CustomSelectBox<String, String>(
-                  label: 'الوحدة المتاحة لهذا الصنف:',
-                  hintText: (selectedProduct == null) ? 'الرجاء اختيار المنتج أولاً' : (_availableUnits.isEmpty ? 'لا توجد وحدات متاحة لإضافة عرض' : 'اختر وحدة'),
-                  items: _availableUnits,
-                  selectedValue: _selectedUnitName,
-                  itemLabel: (item) => item,
-                  // لا حاجة لـ itemValueGetter لأن T و V هما String
-                  // 🛑 التصحيح 3: استبدال null بدالة فارغة (String? value) {}
-                  onChanged: (_availableUnits.isEmpty)
-                      ? (String? value) {} // 💡 دالة فارغة لتجنب خطأ النوع
-                      : (String? value) {
-                          setState(() => _selectedUnitName = value);
-                        },
-                ),
-
-                // 5. السعر
-                CustomInputField(
-                  label: 'السعر (لكل وحدة مختارة):',
-                  controller: _priceController,
-                  keyboardType: TextInputType.number,
-                  hintText: 'مثال: 15.50',
-                  validator: (value) => (value == null || value.isEmpty || double.tryParse(value) == null || double.parse(value) <= 0) ? 'الرجاء إدخال سعر صحيح.' : null,
-                ),
-
-                // 6. الكمية
-                CustomInputField(
-                  label: 'الكمية المتاحة للبيع:',
-                  controller: _quantityController,
-                  keyboardType: TextInputType.number,
-                  hintText: 'مثال: 100',
-                  validator: (value) => (value == null || value.isEmpty || int.tryParse(value) == null || int.parse(value) <= 0) ? 'الرجاء إدخال كمية صحيحة.' : null,
-                ),
-
-                // 7. الحد الأدنى للطلب
-                CustomInputField(
-                  label: 'الحد الأدنى للطلب لهذا الصنف (اختياري):',
-                  controller: _minOrderController,
-                  keyboardType: TextInputType.number,
-                  hintText: 'مثال: 5',
-                  validator: (value) {
-                    if (value == null || value.isEmpty) return null;
-                    if (int.tryParse(value) == null || int.parse(value) <= 0) return 'الرجاء إدخال قيمة صحيحة أو ترك الحقل فارغاً.';
-                    return null;
-                  }
-                ),
-
-                // 8. الحد الأقصى للطلب
-                CustomInputField(
-                  label: 'الحد الأقصى للطلب لهذا الصنف (اختياري):',
-                  controller: _maxOrderController,
-                  keyboardType: TextInputType.number,
-                  hintText: 'مثال: 50',
-                  validator: (value) {
-                    if (value == null || value.isEmpty) return null;
-                    if (int.tryParse(value) == null || int.parse(value) <= 0) return 'الرجاء إدخال قيمة صحيحة أو ترك الحقل فارغاً.';
-                    return null;
-                  }
-                ),
-
-                const SizedBox(height: 30),
+                const SizedBox(height: 10),
 
                 // زر الإرسال
                 ElevatedButton.icon(
@@ -447,9 +464,9 @@ class _AddOfferScreenState extends State<AddOfferScreen> {
                   icon: const Icon(Icons.add_circle_outline, size: 24, color: Colors.white),
                   label: const Text('إضافة العرض', style: TextStyle(fontSize: 18, color: Colors.white)),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 30),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    backgroundColor: primaryColor,
+                    padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 30),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     elevation: 5,
                   ),
                 ),

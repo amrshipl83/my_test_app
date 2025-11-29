@@ -1,7 +1,5 @@
 // المسار: lib/widgets/buyer_header_widget.dart
 import 'package:flutter/material.dart';
-// لم نعد نحتاج إلى استيراد LucideIcons
-// import 'package:lucide_icons/lucide_icons.dart'; 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -22,7 +20,7 @@ class BuyerHeaderWidget extends StatelessWidget {
     required this.onLogout,
   });
 
-  // --- بناء المودال المؤقتة ---
+  // --- بناء المودال المؤقتة --- (لا تغيير)
   static void _showNewOrdersModal(BuildContext context) {
     Navigator.pop(context); // إغلاق الـ Drawer أولاً
     showDialog(
@@ -50,7 +48,36 @@ class BuyerHeaderWidget extends StatelessWidget {
     );
   }
 
-  // --- بناء القائمة الجانبية (Sidebar / Drawer) ---
+  // --- دالة مساعدة لـ ListTile (تحسين M3) ---
+  static Widget _buildDrawerTile(Function(String) navigate, Map<String, dynamic> item, Color color) {
+    // 💡 استخدام FontWeight.w600 لاسم العنصر
+    final textStyle = TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: color);
+
+    return ListTile(
+      leading: Icon(item['icon'] as IconData, color: color),
+      title: Text(item['title'] as String, style: textStyle),
+      trailing: (item['notificationCount'] is int && item['notificationCount'] > 0)
+          ? Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              // 💡 تصميم M3 للنوتيفيكيشن (حواف مستديرة أكثر وخط سميك)
+              decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(16)),
+              child: Text(
+                '${item['notificationCount']}',
+                style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+              ),
+            )
+          : null,
+      onTap: () {
+        if (item['onTap'] != null) {
+          item['onTap']();
+        } else if (item['route'] != null) {
+          navigate(item['route'] as String);
+        }
+      },
+    );
+  }
+
+  // --- بناء القائمة الجانبية (Sidebar / Drawer) --- (تحسين M3)
   static Widget buildSidebar({
     required BuildContext context,
     required VoidCallback onLogout,
@@ -64,137 +91,186 @@ class BuyerHeaderWidget extends StatelessWidget {
       Navigator.of(context).pushNamed(route);
     }
 
+    // 💡 الألوان: اللون الرئيسي للروابط في الـ Drawer
+    const Color primaryColor = Color(0xFF2c3e50);
+    // 💡 لون التمييز لطلبات الدليفري
+    const Color highlightColor = Color(0xFFC62828); // أحمر غامق
+
     final List<Map<String, dynamic>> navItems = [
-      // ✅ أيقونة Material: واجهة متجر دائرية
       {'title': 'التجار', 'icon': Icons.storefront_rounded, 'route': '/traders'},
-      // ✅ أيقونة Material: محفظة دائرية
       {'title': 'محفظتى', 'icon': Icons.account_balance_wallet_rounded, 'route': '/goals'},
-      // ✅ أيقونة Material: شاحنة دائرية
-      if (deliverySettingsAvailable)
-        {'title': 'خدمة الدليفري', 'icon': Icons.local_shipping_rounded, 'route': '/deliverySettings'},
-      // ✅ أيقونة Material: تغيير السعر دائرية (بديل Landmark)
-      if (deliveryPricesAvailable)
-        {'title': 'إدارة أسعار الدليفري', 'icon': Icons.price_change_rounded, 'route': '/deliveryPrices'},
-      if (deliveryIsActive)
-        {
-          // ✅ أيقونة Material: حقيبة تسوق دائرية (بديل Package)
-          'title': 'طلبات الدليفري',
-          'icon': Icons.shopping_bag_rounded,
-          'onTap': () => _showNewOrdersModal(context),
-          'notificationCount': newOrdersCount,
-        },
-      // ✅ أيقونة Material: حساب دائري
       {'title': 'حسابي', 'icon': Icons.account_circle_rounded, 'route': '/myDetails'},
-      // ✅ أيقونة Material: معلومات دائرية
       {'title': 'من نحن', 'icon': Icons.info_outline_rounded, 'route': '/about'},
-      // ✅ أيقونة Material: ملف دائرية
       {'title': 'الخصوصية والاستخدام', 'icon': Icons.description_rounded, 'route': '/privacy'},
     ];
 
+    final List<Map<String, dynamic>> deliveryItems = [];
+
+    if (deliverySettingsAvailable) {
+      deliveryItems.add({'title': 'خدمة الدليفري', 'icon': Icons.local_shipping_rounded, 'route': '/deliverySettings'});
+    }
+    if (deliveryPricesAvailable) {
+      deliveryItems.add({'title': 'إدارة أسعار الدليفري', 'icon': Icons.price_change_rounded, 'route': '/deliveryPrices'});
+    }
+    if (deliveryIsActive) {
+      deliveryItems.add({
+        'title': 'طلبات الدليفري',
+        'icon': Icons.shopping_bag_rounded,
+        'onTap': () => _showNewOrdersModal(context),
+        'notificationCount': newOrdersCount,
+      });
+    }
+
     return Drawer(
-      child: Container(
-        color: Colors.white,
-        child: Column(
-          children: [
-            const DrawerHeader(
-              decoration: BoxDecoration(gradient: LinearGradient(colors: [Color(0xFF2c3e50), Color(0xFF4CAF50)], begin: Alignment.centerRight, end: Alignment.centerLeft)),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisAlignment: MainAxisAlignment.center,
-                // ✅ أيقونة Material: متجر
-                children: [Icon(Icons.store_rounded, size: 40, color: Colors.white), SizedBox(height: 8), 
-                  Text('أسواق أكسب', textAlign: TextAlign.center, style: TextStyle(fontSize: 24, color: Colors.white, fontWeight: FontWeight.bold)),
-                  Text('تسوق بسهولة وأمان',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white70, fontSize: 14)),
+      child: Column(
+        children: [
+          // 💡 التحسين M3: الـ DrawerHeader مع التدرج اللوني ولكن بتنسيق أفضل
+          const DrawerHeader(
+            // 💡 تصميم الرأس الحالي قوي بصرياً ومناسب
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF2c3e50), Color(0xFF4CAF50)],
+                begin: Alignment.centerRight,
+                end: Alignment.centerLeft,
+              ),
+            ),
+            padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0), // Padding أنظف
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.store_rounded, size: 40, color: Colors.white),
+                SizedBox(height: 8),
+                Text(
+                  'أسواق أكسب',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 24, color: Colors.white, fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  'تسوق بسهولة وأمان',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                // --- المجموعة الأولى: المشتري الأساسي ---
+                for (var item in navItems.sublist(0, 3)) _buildDrawerTile(navigateTo, item, primaryColor),
+                
+                // --- فاصل M3 ---
+                const Divider(height: 1, thickness: 1, indent: 16, endIndent: 16),
+
+                // --- المجموعة الثانية: وظائف الدليفري/التاجر (المنطق محفوظ) ---
+                if (deliveryItems.isNotEmpty) ...[
+                  for (var item in deliveryItems)
+                    _buildDrawerTile(
+                      navigateTo,
+                      item,
+                      // تمييز طلبات الدليفري بلون مختلف للفت الانتباه
+                      item['title'] == 'طلبات الدليفري' ? highlightColor : primaryColor,
+                    ),
+                  // فاصل M3 بعد مجموعة الدليفري
+                  const Divider(height: 1, thickness: 1, indent: 16, endIndent: 16),
                 ],
-              ),
+
+                // --- المجموعة الثالثة: المعلومات والمساعدة ---
+                for (var item in navItems.sublist(3)) _buildDrawerTile(navigateTo, item, primaryColor),
+
+                // --- تسجيل الخروج ---
+                ListTile(
+                  leading: const Icon(Icons.logout_rounded, color: highlightColor),
+                  title: const Text('تسجيل الخروج', style: TextStyle(fontSize: 16, color: highlightColor, fontWeight: FontWeight.w600)),
+                  onTap: onLogout,
+                ),
+              ],
             ),
-            Expanded(
-              child: ListView(
-                padding: EdgeInsets.zero,
-                children: navItems.map((item) {
-                  return ListTile(
-                    leading: Icon(item['icon'] as IconData, color: const Color(0xFF2c3e50)),
-                    title: Text(item['title'] as String, style: const TextStyle(fontSize: 16)),
-                    trailing: (item['notificationCount'] is int && item['notificationCount'] > 0)
-                        ? Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(12)),
-                            child: Text('${item['notificationCount']}', style: const TextStyle(color: Colors.white, fontSize: 12)),
-                          )
-                        : null,
-                    onTap: () {
-                      if (item['onTap'] != null) { item['onTap'](); }
-                      else { navigateTo(item['route'] as String); }
-                    },
-                  );
-                }).toList(),
-              ),
-            ),
-            const Divider(),
-            ListTile(
-              // ✅ أيقونة Material: تسجيل خروج
-              leading: const Icon(Icons.logout_rounded, color: Colors.red),
-              title: const Text('تسجيل الخروج', style: TextStyle(fontSize: 16, color: Colors.red)),
-              onTap: onLogout,
-            ),
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 20.0),
-              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                // ✅ أيقونة Material: رسالة
-                Icon(Icons.message_rounded, size: 28, color: Color(0xFF4CAF50)), SizedBox(width: 20),
-                // ✅ أيقونة Material: فيسبوك (إذا كانت متوفرة في إصدارك، وإلا استخدم أيقونة عامة)
+          ),
+          // 💡 الروابط الاجتماعية (تحسين M3 في الـ Padding)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 24.0), // زيادة الـ Padding السفلي
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: const [
+                Icon(Icons.message_rounded, size: 28, color: Color(0xFF4CAF50)),
+                SizedBox(width: 24), // زيادة المسافة بين الأيقونات
                 Icon(Icons.facebook, size: 28, color: Color(0xFF4CAF50)),
-              ]),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  // --- بناء الرأس العلوي (Top Header) ---
+  // --- بناء الرأس العلوي (Top Header) --- (تحسين M3)
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.only(top: 15, bottom: 15, right: 15, left: 15),
+      // 💡 التحسين: زيادة الـ Padding العلوي قليلاً ليتناسب مع شريط الحالة
+      padding: const EdgeInsets.only(top: 35, bottom: 15, right: 15, left: 15),
       decoration: const BoxDecoration(
-        gradient: LinearGradient(colors: [Color(0xFF2c3e50), Color(0xFF4CAF50)], begin: Alignment.centerRight, end: Alignment.centerLeft),
+        gradient: LinearGradient(
+          colors: [Color(0xFF2c3e50), Color(0xFF4CAF50)],
+          begin: Alignment.centerRight,
+          end: Alignment.centerLeft,
+        ),
+        // 💡 إضافة ظل خفيف للرأس ليبرز عن محتوى الصفحة
+        boxShadow: [BoxShadow(color: Colors.black38, blurRadius: 4, offset: Offset(0, 2))],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
+              // 1. زر القائمة (Menu Toggle)
               InkWell(
                 onTap: onMenuToggle,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(10),
                 child: Padding(
-                  padding: const EdgeInsets.all(5.0),
+                  padding: const EdgeInsets.all(8.0),
                   child: Stack(
                     clipBehavior: Clip.none,
                     children: [
-                      // ✅ أيقونة Material: قائمة
-                      const Icon(Icons.menu_rounded, size: 28, color: Colors.white),
-                      if (menuNotificationDotActive) Positioned(top: -2, right: -2, child: Container(width: 8, height: 8, decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle))),
+                      const Icon(Icons.menu_rounded, size: 30, color: Colors.white), // أيقونة أكبر قليلاً
+                      if (menuNotificationDotActive)
+                        Positioned(
+                          top: -1,
+                          right: -1,
+                          child: Container(
+                            width: 10,
+                            height: 10,
+                            decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                          ), // نقطة أكبر وأكثر وضوحاً
+                        ),
                     ],
                   ),
                 ),
               ),
+              // 2. اسم التطبيق
               const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // ✅ أيقونة Material: متجر
-                  Icon(Icons.store_rounded, size: 28, color: Color(0xFF4CAF50)), 
+                  Icon(Icons.store_rounded, size: 28, color: Colors.white), // تغيير لون الأيقونة إلى أبيض
                   SizedBox(width: 8),
                   Text('أسواق أكسب', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
                 ],
               ),
-              // ✅ أيقونة Material: شمس (شفافة)
-              const Icon(Icons.wb_sunny_rounded, size: 28, color: Colors.transparent),
+              // 3. مساحة احتياطية لموازنة زر القائمة
+              const SizedBox(width: 46),
             ],
           ),
           const SizedBox(height: 10),
-          Text(userName, style: const TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.w500)),
+          // 4. رسالة الترحيب
+          Text(
+            userName,
+            textAlign: TextAlign.right,
+            style: const TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.w500),
+          ),
         ],
       ),
     );

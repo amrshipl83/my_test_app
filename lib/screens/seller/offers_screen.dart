@@ -1,11 +1,11 @@
-// lib/screens/seller/offers_screen.dart (النسخة النهائية والمُصحَّحة)
+// lib/screens/seller/offers_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-// 🛠️ تم إزالة الاستيراد غير الضروري لـ 'flutter/foundation.dart'
 import 'package:my_test_app/data_sources/offer_data_source.dart';
 import 'package:my_test_app/models/offer_model.dart';
-import 'package:my_test_app/widgets/form_widgets.dart';
+import 'package:my_test_app/widgets/form_widgets.dart'; // افترض أن هذا هو مكان الـ CustomInputField والـ CustomSelectBox
 
 class OffersScreen extends StatefulWidget {
   const OffersScreen({super.key});
@@ -75,7 +75,7 @@ class _OffersScreenState extends State<OffersScreen> {
     _applyFilters();
   }
 
-  // ⭐️ التصحيح الوظيفي: تقبل dynamic من CustomSelectBox ⭐️
+  // التصحيح الوظيفي: تقبل dynamic من CustomSelectBox
   void _onStatusFilterChanged(dynamic value) {
     _statusFilter = (value as String?) ?? '';
     _applyFilters();
@@ -102,7 +102,7 @@ class _OffersScreenState extends State<OffersScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // 1. Page Header and Actions
+              // 1. Page Header and Actions (تم تحسين التصميم)
               _buildPageHeader(context),
 
               const SizedBox(height: 20),
@@ -121,51 +121,56 @@ class _OffersScreenState extends State<OffersScreen> {
     );
   }
 
+  // ⭐️ دالة مُعدَّلة لتحسين التصميم وإصلاح التجاوز ⭐️
   Widget _buildPageHeader(BuildContext context) {
-    // ... (هذا الويدجت يبقى كما هو)
-    return Card(
-      elevation: 5,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('عروضي', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
-            Row(
-              children: [
-                // زر تصدير إلى إكسل
-                TextButton.icon(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('جاري تصدير العروض إلى إكسل...')));
-                  },
-                  icon: const Icon(Icons.file_download, color: Colors.white),
-                  label: const Text('تصدير إلى إكسل', style: TextStyle(color: Colors.white)),
-                  style: TextButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.tertiary),
-                ),
-                const SizedBox(width: 10),
-                // زر إنشاء عرض جديد
-                ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).pushNamed('/seller/add-offer');
-                  },
-                  icon: const Icon(Icons.add_circle_outline, color: Colors.white),
-                  label: const Text('إنشاء عرض جديد', style: TextStyle(color: Colors.white)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                  ),
-                ),
-              ],
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // عنوان الصفحة
+          Text(
+            'عروضي',
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.primary, // لون أساسي للعناوين
             ),
-          ],
-        ),
+          ),
+          Row(
+            children: [
+              // زر تصدير إلى إكسل (ثانوي)
+              OutlinedButton.icon(
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('جاري تصدير العروض إلى إكسل...')));
+                },
+                icon: const Icon(Icons.file_download),
+                label: const Text('تصدير إكسل'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                  side: BorderSide(color: Theme.of(context).colorScheme.tertiary),
+                ),
+              ),
+              const SizedBox(width: 10),
+              // زر إنشاء عرض جديد (أساسي)
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.of(context).pushNamed('/seller/add-offer');
+                },
+                icon: const Icon(Icons.add_circle_outline, color: Colors.white),
+                label: const Text('إنشاء عرض جديد', style: TextStyle(color: Colors.white)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildFilterSection(BuildContext context) {
-    // ... (هذا الويدجت يبقى كما هو)
     return Card(
       elevation: 5,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -192,8 +197,8 @@ class _OffersScreenState extends State<OffersScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 5.0),
               child: SizedBox(
                 width: 150,
-                // 🛠️ التصحيح: تم تغيير CustomSelectBox<String> إلى CustomSelectBox<String, String>
-                child: CustomSelectBox<String, String>( 
+                // التصحيح: تم تغيير CustomSelectBox<String> إلى CustomSelectBox<String, String>
+                child: CustomSelectBox<String, String>(
                   label: 'الحالة:',
                   hintText: 'الكل',
                   items: const ['active', 'inactive'],
@@ -220,7 +225,7 @@ class _OffersScreenState extends State<OffersScreen> {
       return const Center(child: Text('لا توجد عروض متاحة حالياً.', style: TextStyle(fontSize: 18)));
     }
 
-    // 💡 الآن نعرض قائمة من البطاقات المُنظَّمة عمودياً
+    // الآن نعرض قائمة من البطاقات المُنظَّمة عمودياً
     return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -229,7 +234,7 @@ class _OffersScreenState extends State<OffersScreen> {
         final offer = _filteredOffers[index];
         return _OfferItemCard(
           offer: offer,
-          onViewDetails: _showEditModal, // ⭐️ نستخدم onEdit القديمة كدالة لعرض التفاصيل ⭐️
+          onViewDetails: _showEditModal, // نستخدم onEdit القديمة كدالة لعرض التفاصيل
         );
       },
     );
@@ -237,11 +242,11 @@ class _OffersScreenState extends State<OffersScreen> {
 }
 
 // ----------------------------------------------------
-// 💡 ويدجت لعرض البطاقة المُصغَّرة (Compact Card)
+// 💡 ويدجت لعرض البطاقة المُصغَّرة (Compact Card) - مُحسَّن التصميم والمُصحَّح
 // ----------------------------------------------------
 class _OfferItemCard extends StatelessWidget {
   final ProductOfferModel offer;
-  final Function(ProductOfferModel) onViewDetails; // ⭐️ تغيير اسم الدالة للتعبير عن الوظيفة الجديدة ⭐️
+  final Function(ProductOfferModel) onViewDetails;
   const _OfferItemCard({
     required this.offer,
     required this.onViewDetails,
@@ -252,39 +257,43 @@ class _OfferItemCard extends StatelessWidget {
     final availableStock = offer.units.isNotEmpty ? offer.units[0].availableStock : 0;
     final isLowStock = availableStock <= (offer.lowStockThreshold ?? 0) && (offer.lowStockThreshold ?? 0) > 0;
 
-    final priceAndUnit = offer.units.isNotEmpty ?
-    '${offer.units[0].price.toStringAsFixed(2)} ج.م / ${offer.units[0].unitName}' :
-    'غير متوفر';
+    final priceValue = offer.units.isNotEmpty ? offer.units[0].price.toStringAsFixed(2) : 'N/A';
+    final unitName = offer.units.isNotEmpty ? offer.units[0].unitName : 'وحدة';
+    
+    // ⭐️ تصحيح خطأ الصورة: توفير رابط احتياطي في حالة القيمة الفارغة (null) ⭐️
+    final String imageUrl = offer.imageUrl ?? 'https://via.placeholder.com/70?text=No+Image';
 
     return Card(
       elevation: 3,
       margin: const EdgeInsets.only(bottom: 15),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        // إضافة Border للتحذير من انخفاض المخزون
+        borderRadius: BorderRadius.circular(15), // زيادة استدارة الحواف
         side: isLowStock ? BorderSide(color: Theme.of(context).colorScheme.error, width: 2) : BorderSide.none,
       ),
-      // ⭐️ استخدام InkWell لجعل البطاقة قابلة للنقر ⭐️
       child: InkWell(
         onTap: () => onViewDetails(offer),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(15),
         child: Padding(
-          padding: const EdgeInsets.all(15),
+          padding: const EdgeInsets.all(12),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // 1. الصورة
+              // 1. الصورة (أكبر قليلاً)
               ClipRRect(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(10),
                 child: Image.network(
-                  offer.imageUrl,
-                  width: 50,
-                  height: 50,
+                  // ⭐️ استخدام المتغير المصحح imageUrl ⭐️
+                  imageUrl,
+                  width: 70, // تم تكبير الصورة
+                  height: 70,
                   fit: BoxFit.cover,
                   errorBuilder: (context, error, stackTrace) => Container(
-                    width: 50, height: 50,
-                    color: Colors.grey.shade200,
-                    child: const Icon(Icons.image, size: 30, color: Colors.grey),
+                    width: 70, height: 70,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      border: Border.all(color: Colors.grey.shade300)
+                    ),
+                    child: const Icon(Icons.image_not_supported, size: 30, color: Colors.grey),
                   ),
                 ),
               ),
@@ -296,29 +305,46 @@ class _OfferItemCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // اسم المنتج (أكثر بروزاً)
                     Text(
                       offer.productName,
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
-                      maxLines: 1,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      priceAndUnit,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.primary),
+                    const SizedBox(height: 8),
+
+                    // السعر والوحدة (أكثر بروزاً ولون أساسي)
+                    Row(
+                      children: [
+                        Icon(Icons.payments, size: 18, color: Theme.of(context).colorScheme.primary),
+                        const SizedBox(width: 5),
+                        Text(
+                          '$priceValue ج.م / $unitName',
+                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            color: Theme.of(context).colorScheme.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 6),
+
                     // المخزون المتاح
                     Row(
                       children: [
-                        Icon(Icons.inventory, size: 16, color: isLowStock ? Theme.of(context).colorScheme.error : Colors.grey),
-
+                        Icon(Icons.inventory_2, size: 16, color: isLowStock ? Theme.of(context).colorScheme.error : Colors.grey.shade600),
                         const SizedBox(width: 5),
-
-                        Text('المخزون: ', style: Theme.of(context).textTheme.bodySmall),
+                        Text(
+                          'المخزون: ',
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey.shade600),
+                        ),
                         Text(
                           availableStock.toString(),
-                          style: TextStyle(color: isLowStock ? Theme.of(context).colorScheme.error : null, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            color: isLowStock ? Theme.of(context).colorScheme.error : Colors.black,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ],
                     ),
@@ -326,11 +352,8 @@ class _OfferItemCard extends StatelessWidget {
                 ),
               ),
 
-              // 3. الحالة
-              Align(
-                alignment: Alignment.topCenter,
-                child: _buildStatusBadge(context, offer.status),
-              ),
+              // 3. الحالة (Badge)
+              _buildStatusBadge(context, offer.status),
             ],
           ),
         ),
@@ -338,24 +361,22 @@ class _OfferItemCard extends StatelessWidget {
     );
   }
 
+  // دالة مساعدة لبناء شارة الحالة
   Widget _buildStatusBadge(BuildContext context, String status) {
-    // ... (هذا الويدجت يبقى كما هو)
     final bool isActive = status == 'active';
     final Color color = isActive ? Colors.green : Colors.grey;
     final String text = isActive ? 'نشط' : 'غير نشط';
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), // زيادة حجم الـ Padding
       decoration: BoxDecoration(
-        // 🛠️ تصحيح deprecated_member_use: استخدام Color(color.value).withOpacity(0.1) لتجنب التحذير
         color: Color(color.value).withOpacity(0.1),
         borderRadius: BorderRadius.circular(20),
-        // 🛠️ تصحيح deprecated_member_use: استخدام Color(color.value).withOpacity(0.5) لتجنب التحذير
         border: Border.all(color: Color(color.value).withOpacity(0.5)),
       ),
       child: Text(
         text,
-        style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12),
+        style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 13), // زيادة حجم الخط
       ),
     );
   }
@@ -364,7 +385,6 @@ class _OfferItemCard extends StatelessWidget {
 // ----------------------------------------------------
 // 💡 ويدجت نافذة التفاصيل/التعديل (_EditOfferModal)
 // ----------------------------------------------------
-
 class _EditOfferModal extends StatefulWidget {
   final ProductOfferModel offer;
   final OfferDataSource dataSource;
@@ -407,7 +427,7 @@ class __EditOfferModalState extends State<_EditOfferModal> {
     }).toList();
 
     if (_unitsToEdit.isEmpty) {
-      _unitsToEdit.add({'unitName': '', 'price': '', 'availableStock': '0'});
+      _unitsToEdit.add({'unitName': 'افتراضي', 'price': '', 'availableStock': '0'});
     }
   }
 
@@ -456,6 +476,7 @@ class __EditOfferModalState extends State<_EditOfferModal> {
         final index = entry.key;
         final map = entry.value;
 
+        // فقط الوحدة الرئيسية (index 0) هي التي تتحكم في المخزون الرئيسي الذي تم تعديله في الحقل العلوي
         final stock = (index == 0)
             ? newStock
             : (int.tryParse(map['availableStock'] ?? '0') ?? 0);
@@ -496,7 +517,6 @@ class __EditOfferModalState extends State<_EditOfferModal> {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حفظ التغييرات بنجاح!')));
       }
     } catch (e) {
-      // 🛠️ تم استبدال print بـ debugPrint لتصحيح avoid_print
       debugPrint('Error updating offer: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('حدث خطأ أثناء حفظ التعديلات: $e')));
@@ -510,7 +530,7 @@ class __EditOfferModalState extends State<_EditOfferModal> {
     }
   }
 
-  // ⭐️ إضافة دالة الحذف ⭐️
+  // إضافة دالة الحذف
   Future<void> _handleDelete() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -582,7 +602,7 @@ class __EditOfferModalState extends State<_EditOfferModal> {
 
               // 4. الكمية المتاحة للمبيعات (Stock)
               CustomInputField(
-                label: 'الكمية المتاحة للمبيعات:',
+                label: 'الكمية المتاحة للمبيعات (للوحدة الرئيسية):',
                 controller: _stockController,
                 keyboardType: TextInputType.number,
                 hintText: 'مثال: 100',
@@ -625,8 +645,8 @@ class __EditOfferModalState extends State<_EditOfferModal> {
               ),
 
               // 8. الحالة
-              // 🛠️ التصحيح: تم تغيير CustomSelectBox<String> إلى CustomSelectBox<String, String>
-              CustomSelectBox<String, String>( 
+              // التصحيح: تم تغيير CustomSelectBox<String> إلى CustomSelectBox<String, String>
+              CustomSelectBox<String, String>(
                 label: 'الحالة:',
                 hintText: 'اختر الحالة',
                 items: const ['active', 'inactive'],
@@ -643,7 +663,7 @@ class __EditOfferModalState extends State<_EditOfferModal> {
         ),
       ),
       actions: [
-        // ⭐️ زر الحذف الآن داخل النافذة المنبثقة ⭐️
+        // زر الحذف الآن داخل النافذة المنبثقة
         TextButton(
           onPressed: _handleDelete,
           child: const Text('حذف العرض', style: TextStyle(color: Colors.red)),
@@ -673,7 +693,7 @@ class __EditOfferModalState extends State<_EditOfferModal> {
       children: [
         Text(label, style: Theme.of(context).textTheme.titleSmall),
         const SizedBox(height: 5),
-        // 🛠️ تصحيح deprecated_member_use في _EditOfferModal
+        // تصحيح deprecated_member_use في _EditOfferModal
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
@@ -688,7 +708,7 @@ class __EditOfferModalState extends State<_EditOfferModal> {
     );
   }
 
-  // ويدجت مساعد لعرض الوحدات الديناميكية
+  // ويدجت مساعد لعرض الوحدات الديناميكية (مُحسَّن)
   Widget _buildUnitsContainer() {
     return Column(
       children: List.generate(_unitsToEdit.length, (index) {
@@ -698,9 +718,11 @@ class __EditOfferModalState extends State<_EditOfferModal> {
         return Padding(
           padding: const EdgeInsets.only(bottom: 10.0),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               // حقل اسم الوحدة
               Expanded(
+                flex: 3,
                 child: Padding(
                   padding: const EdgeInsets.only(right: 8.0),
                   child: TextFormField(
@@ -713,6 +735,7 @@ class __EditOfferModalState extends State<_EditOfferModal> {
               ),
               // حقل السعر
               Expanded(
+                flex: 2,
                 child: Padding(
                   padding: const EdgeInsets.only(left: 8.0),
                   child: TextFormField(
@@ -726,10 +749,13 @@ class __EditOfferModalState extends State<_EditOfferModal> {
               ),
               // زر الحذف
               if (isRemovable)
-                IconButton(
-                  icon: const Icon(Icons.remove_circle, color: Colors.red),
-                  onPressed: () => _removeUnit(index),
-                  tooltip: 'حذف الوحدة',
+                Container(
+                  padding: const EdgeInsets.only(bottom: 5.0),
+                  child: IconButton(
+                    icon: const Icon(Icons.remove_circle, color: Colors.red),
+                    onPressed: () => _removeUnit(index),
+                    tooltip: 'حذف الوحدة',
+                  ),
                 ),
             ],
           ),

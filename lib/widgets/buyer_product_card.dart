@@ -3,10 +3,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:my_test_app/widgets/quantity_control.dart';
-import 'package:google_fonts/google_fonts.dart'; // 💡 استدعاء Google Fonts
+import 'package:google_fonts/google_fonts.dart';
 
 import 'package:my_test_app/utils/offer_data_model.dart';
 import 'package:my_test_app/providers/product_offers_provider.dart';
+// 🆕 [التعديل 1]: استيراد CartProvider
+import 'package:my_test_app/providers/cart_provider.dart';
 
 class BuyerProductCard extends StatefulWidget {
   final String productId;
@@ -33,31 +35,58 @@ class _BuyerProductCardState extends State<BuyerProductCard> {
     });
   }
 
-  // 💥💥 التصحيح الأول: نقل الدالة لداخل الـ State Class 💥💥
   // 💡 دالة تغيير الكمية لتستدعي الـ Provider
   void _onQuantityChanged(int newQty) {
     Provider.of<ProductOffersProvider>(context, listen: false)
         .updateQuantity(newQty);
   }
 
-  // 💥💥 التصحيح الثاني: نقل الدالة لداخل الـ State Class 💥💥
-  // 💡 دالة الإضافة للسلة لاستخدام بيانات الـ Provider
-  void _addToCart() {
+  // 💡 [التعديل 2]: دالة الإضافة للسلة لاستخدام بيانات الـ CartProvider
+  void _addToCart() async { // جعل الدالة asynchronous
     final offersProvider = Provider.of<ProductOffersProvider>(context, listen: false);
     final selectedOffer = offersProvider.selectedOffer;
     final currentQuantity = offersProvider.currentQuantity;
 
     if (selectedOffer == null || currentQuantity == 0) return;
 
-    // 💥 هنا يجب تطبيق منطق حفظ السلة
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('تم إضافة ${currentQuantity} من ${widget.productData['name']} إلى السلة.'),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
+    // استدعاء دالة addItemToCart من CartProvider
+    try {
+      final cartProvider = Provider.of<CartProvider>(context, listen: false);
 
+      await cartProvider.addItemToCart(
+        selectedOffer.offerId,
+        selectedOffer.sellerId,
+        selectedOffer.sellerName,
+        widget.productData['name'] ?? 'منتج غير معروف', // اسم المنتج
+        selectedOffer.price,
+        selectedOffer.unitName,
+        selectedOffer.unitIndex ?? 0, // ✅ تم التصحيح: توفير قيمة افتراضية (0) في حال كانت null
+        currentQuantity,
+      );
+
+      // رسالة نجاح بعد الإضافة وإعادة الحساب
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('✅ تم إضافة ${currentQuantity} من ${widget.productData['name']} إلى السلة.'),
+          duration: const Duration(seconds: 2),
+          backgroundColor: Colors.green, // لون مختلف للنجاح
+        ),
+      );
+
+      // 💡 [اختياري]: إعادة تعيين الكمية في واجهة بطاقة المنتج إلى 1 بعد الإضافة
+      offersProvider.updateQuantity(selectedOffer.minQty ?? 1);
+
+    } catch (e) {
+      // رسالة خطأ في حال فشل الإضافة
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ حدث خطأ أثناء إضافة المنتج: $e'),
+          duration: const Duration(seconds: 3),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -74,46 +103,48 @@ class _BuyerProductCardState extends State<BuyerProductCard> {
     final bool isAddToCartDisabled = selectedOffer == null || currentQuantity < (selectedOffer.minQty ?? 1);
 
     return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       margin: EdgeInsets.zero,
+      color: Colors.white,
       child: Padding(
-        padding: const EdgeInsets.all(10.0),
+        // 💡 [معالجة الـ Overflow 1]: تقليل الـ Padding العام للبطاقة من 10 إلى 8
+        padding: const EdgeInsets.all(8.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // 1. الصورة الدائرية
+            // 1. الصورة: تغيير من دائري إلى مستطيل/مربع بزوايا مستديرة
             InkWell(
               onTap: () {
                 // يجب تعريف مسار /productDetails
               },
               child: Container(
-                width: 100,
-                height: 100,
+                width: double.infinity,
+                // 💡 [معالجة الـ Overflow 2]: تقليل ارتفاع الصورة قليلاً من 120 إلى 110
+                height: 110,
                 decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Theme.of(context).primaryColor, width: 3),
-                  boxShadow: [
-                    BoxShadow(color: Theme.of(context).shadowColor.withOpacity(0.1), blurRadius: 8)
-                  ],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade200, width: 1),
                 ),
-                child: ClipOval(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
                   child: Image.network(
                     imageUrl,
-                    fit: BoxFit.cover,
+                    fit: BoxFit.contain,
                     loadingBuilder: (context, child, loadingProgress) {
                       if (loadingProgress == null) return child;
                       return const Center(child: CircularProgressIndicator());
                     },
-                    errorBuilder: (context, error, stackTrace) => const Center(
-                      child: Icon(Icons.shopping_bag, size: 40, color: Colors.grey),
+                    errorBuilder: (context, error, stackTrace) => Center(
+                      child: Icon(Icons.shopping_bag, size: 40, color: Colors.grey.shade400),
                     ),
                   ),
                 ),
               ),
             ),
 
+            // 💡 [معالجة الـ Overflow 3]: تقليل المسافة بعد الصورة من 10 إلى 8
             const SizedBox(height: 8),
 
             // 2. اسم المنتج
@@ -122,11 +153,16 @@ class _BuyerProductCardState extends State<BuyerProductCard> {
               textAlign: TextAlign.center,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+              style: GoogleFonts.cairo(
+                fontWeight: FontWeight.w700,
+                fontSize: 16,
+                color: Colors.black87,
+              ),
             ),
 
             // 3. اختيار العرض
-            const SizedBox(height: 5),
+            // 💡 [معالجة الـ Overflow 4]: تقليل المسافة قبل العرض من 8 إلى 6
+            const SizedBox(height: 6),
             isLoadingOffers
                 ? const LinearProgressIndicator()
                 : InkWell(
@@ -134,10 +170,11 @@ class _BuyerProductCardState extends State<BuyerProductCard> {
                       _showOfferSelectionModal(context, availableOffers, selectedOffer, offersProvider);
                     },
                     child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8), // تقليل الـ padding الداخلي
                       decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.shade300, width: 1.0),
+                        borderRadius: BorderRadius.circular(10),
+                        color: Colors.grey.shade100,
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -145,23 +182,24 @@ class _BuyerProductCardState extends State<BuyerProductCard> {
                           Expanded(
                             child: Text(
                               selectedOffer == null
-                                ? 'لا عروض متاحة'
-                                : '${selectedOffer.price} ج - ${selectedOffer.unitName}',
+                                  ? 'لا عروض متاحة'
+                                  : '${selectedOffer.price} ج | ${selectedOffer.unitName}',
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: selectedOffer == null ? Colors.red : Theme.of(context).colorScheme.secondary,
+                              style: GoogleFonts.cairo(
+                                color: selectedOffer == null ? Colors.red : Theme.of(context).primaryColor,
                                 fontWeight: FontWeight.bold,
-                                fontSize: 13,
+                                fontSize: 13, // تقليل حجم الخط قليلاً
                               ),
                             ),
                           ),
-                          const Icon(Icons.arrow_drop_down, color: Colors.grey),
+                          const Icon(Icons.arrow_drop_down, color: Colors.grey, size: 20), // تقليل حجم الأيقونة
                         ],
                       ),
                     ),
                   ),
 
+            // 💡 [معالجة الـ Overflow 5]: تقليل المسافة قبل التحكم في الكمية من 12 إلى 8
             const SizedBox(height: 8),
 
             // 4. التحكم في الكمية
@@ -169,29 +207,31 @@ class _BuyerProductCardState extends State<BuyerProductCard> {
               initialQuantity: currentQuantity,
               minQuantity: selectedOffer?.minQty ?? 1,
               maxStock: selectedOffer?.stock ?? 0,
-              onQuantityChanged: _onQuantityChanged, // ✅ تم تصحيح الـ Getter هنا
+              onQuantityChanged: _onQuantityChanged,
               isDisabled: selectedOffer == null || selectedOffer.stock == 0,
             ),
 
-            // 5. زر الإضافة إلى السلة 💡 تحسين التصميم والخط
+            // 5. زر الإضافة إلى السلة
+            // 💡 [معالجة الـ Overflow 6]: تقليل المسافة قبل الزر من 12 إلى 8
+            const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: isAddToCartDisabled ? null : _addToCart, // ✅ تم تصحيح الـ Getter هنا
-                icon: const Icon(Icons.add_shopping_cart, size: 16),
+                onPressed: isAddToCartDisabled ? null : _addToCart,
+                icon: const Icon(Icons.add_shopping_cart, size: 16), // تقليل حجم أيقونة السلة
                 label: Text(
                   'أضف إلى السلة',
-                  style: GoogleFonts.notoSansArabic(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold
+                  style: GoogleFonts.cairo(
+                    fontSize: 14, // تقليل حجم الخط قليلاً
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: isAddToCartDisabled ? Colors.grey : Theme.of(context).primaryColor,
+                  backgroundColor: isAddToCartDisabled ? Colors.grey.shade400 : Theme.of(context).primaryColor,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  elevation: 6,
+                  padding: const EdgeInsets.symmetric(vertical: 10), // تقليل الـ padding العمودي للزر من 12 إلى 10
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 4,
                 ),
               ),
             ),
@@ -201,7 +241,7 @@ class _BuyerProductCardState extends State<BuyerProductCard> {
     );
   }
 
-  // 💥 دالة عرض نموذج اختيار العرض (BottomSheet) - تصميم احترافي و Text.rich
+  // ... (دالة _showOfferSelectionModal تبقى كما هي دون تغيير)
   void _showOfferSelectionModal(BuildContext context, List<OfferModel> availableOffers, OfferModel? selectedOffer, ProductOffersProvider provider) {
     if (availableOffers.isEmpty) return;
 
@@ -209,7 +249,7 @@ class _BuyerProductCardState extends State<BuyerProductCard> {
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
       ),
       builder: (modalContext) {
         return SingleChildScrollView(
@@ -223,15 +263,15 @@ class _BuyerProductCardState extends State<BuyerProductCard> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 15.0, vertical: 10),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 15.0, vertical: 10),
                 child: Text(
                   'اختيار عرض المنتج',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: GoogleFonts.cairo(fontSize: 19, fontWeight: FontWeight.bold, color: Colors.black87),
                   textAlign: TextAlign.center,
                 ),
               ),
-              const Divider(),
+              const Divider(thickness: 1.5, endIndent: 15, indent: 15),
 
               // قائمة العروض بتصميم البطاقات
               ...availableOffers.map((offer) {
@@ -239,9 +279,13 @@ class _BuyerProductCardState extends State<BuyerProductCard> {
                 final bool isDisabled = offer.disabled;
 
                 return Card(
-                  elevation: isSelected ? 4 : 1,
-                  color: isSelected ? Theme.of(context).primaryColor.withOpacity(0.1) : null,
+                  elevation: isSelected ? 6 : 2,
+                  color: isSelected ? Theme.of(context).primaryColor.withOpacity(0.1) : Colors.white,
                   margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: isSelected ? BorderSide(color: Theme.of(context).primaryColor, width: 1.5) : BorderSide.none,
+                  ),
                   child: InkWell(
                     onTap: isDisabled
                         ? null
@@ -250,7 +294,7 @@ class _BuyerProductCardState extends State<BuyerProductCard> {
                             Navigator.pop(modalContext);
                           },
                     child: Padding(
-                      padding: const EdgeInsets.all(12.0),
+                      padding: const EdgeInsets.all(15.0),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -258,26 +302,30 @@ class _BuyerProductCardState extends State<BuyerProductCard> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
-                                '${offer.unitName} - ${offer.sellerName}',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 15,
-                                  color: isDisabled ? Colors.grey : Colors.black,
+                              Expanded(
+                                child: Text(
+                                  '${offer.unitName} - ${offer.sellerName}',
+                                  style: GoogleFonts.cairo(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 16,
+                                    color: isDisabled ? Colors.grey : Colors.black,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                               if (isSelected)
-                                Icon(Icons.check_circle, color: Theme.of(context).primaryColor, size: 24),
+                                Icon(Icons.check_circle, color: Theme.of(context).primaryColor, size: 26),
                             ],
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 6),
 
                           // 2. السعر والمخزون
                           Text.rich(
                             TextSpan(
                               children: [
                                 const TextSpan(text: 'السعر: ', style: TextStyle(fontWeight: FontWeight.normal, color: Colors.grey)),
-                                TextSpan(text: '${offer.price} ج', style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.secondary, fontSize: 16)),
+                                TextSpan(text: '${offer.price} ج', style: GoogleFonts.cairo(fontWeight: FontWeight.bold, color: Colors.red.shade700, fontSize: 18)),
                                 const TextSpan(text: ' | ', style: TextStyle(color: Colors.grey)),
                                 const TextSpan(text: 'متوفر: ', style: TextStyle(fontWeight: FontWeight.normal, color: Colors.grey)),
                                 TextSpan(
@@ -285,12 +333,12 @@ class _BuyerProductCardState extends State<BuyerProductCard> {
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     color: offer.stock > 0 ? Colors.green.shade600 : Colors.red.shade600,
-                                  )
+                                  ),
                                 ),
                                 const TextSpan(text: ' | الحد الأدنى: ', style: TextStyle(color: Colors.grey)),
                                 TextSpan(text: '${offer.minQty}'),
-                              ]
-                            )
+                              ],
+                            ),
                           ),
                         ],
                       ),

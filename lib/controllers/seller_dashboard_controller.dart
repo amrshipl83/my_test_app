@@ -23,7 +23,7 @@ class SellerDashboardController with ChangeNotifier {
 
   bool _isLoading = true;
   String? _errorMessage;
-  String? _sellerName;
+  String? _sellerName; // يُستخدم لتمرير الاسم إلى الموديل
 
   // حالة الوضع الليلي (Dark Mode)
   bool _isDarkMode = false;
@@ -37,6 +37,9 @@ class SellerDashboardController with ChangeNotifier {
   bool get isDarkMode => _isDarkMode;
   // 🛠️ واجهة عامة لقائمة مناطق التوصيل
   List<DeliveryAreaModel> get deliveryAreas => _deliveryAreas;
+  
+  // 🟢 إضافة ID البائع كـ Getter (يُستخدم في SellerScreen لتمريره للشريط الجانبي)
+  String get sellerId => _auth.currentUser?.uid ?? ''; 
 
   SellerDashboardController() {
     _loadDarkModePreference();
@@ -45,6 +48,7 @@ class SellerDashboardController with ChangeNotifier {
   // --- منطق الوضع الليلي (Dark Mode) ---
 
   void _loadDarkModePreference() {
+    // 💡 منطق تحميل تفضيلات الوضع الليلي
     notifyListeners();
   }
 
@@ -57,26 +61,11 @@ class SellerDashboardController with ChangeNotifier {
   // --- منطق مناطق التوصيل (Delivery Areas Logic) ---
   // ----------------------------------------------------------------------
 
-  // 🛠️ دالة جلب مناطق التوصيل - تستخدم الآن لقراءة جميع المناطق المتاحة (من GeoJSON أو ثابت)
-  // 💡 لم يتم تصحيح هذه الدالة لأن مصدرها (GeoJSON) غير موجود لدينا، لكن نفترض أنها تعمل.
-  // ملاحظة: تم إزالة sellerId من وسيطات الدالة لتعكس أنها تجلب *جميع* المناطق المتاحة وليس المناطق المختارة فقط
+  // 🛠️ دالة جلب مناطق التوصيل (المتاحة)
   Future<void> fetchDeliveryAreas() async {
     _errorMessage = null;
     try {
-      // 💡 بما أن هذه الدالة يجب أن تجلب جميع المناطق المتاحة (للعرض)،
-      // يجب أن يكون لديك دالة في DataSource تجلب جميع المناطق المتاحة (مثلاً من ثابت أو ملف GeoJSON).
-      // لكن لضمان استمرار عمل الكود، سنتركها تستدعي دالة fetchAreas التي اعتدنا عليها (بالرغم من أنها تجلب المناطق المختارة)
-      // *لأغراض التصحيح:* يجب أن تستدعي هذه الدالة وظيفة تجلب جميع المناطق المتاحة.
-      
-      // ❌ في تطبيق حقيقي: يجب أن يتم استدعاء دالة تجلب *جميع* المناطق المتاحة هنا.
-      // ✅ لعدم كسر البناء: نستدعي دالة الـ DataSource التي كنا نستخدمها (مع تمرير أي ID إذا كانت تتطلبه):
-      // _deliveryAreas = await _deliveryAreaDataSource.fetchAllAvailableAreas(); 
-      
-      // سنفترض مؤقتاً أنه لا يوجد مناطق يجب تحميلها هنا ما لم تكن هناك وظيفة إضافية.
-      // 💡 سنتركها فارغة مؤقتاً لتجنب الخطأ
-      
-      // 💡 التصحيح: يجب أن نقوم بتحميل بيانات البائع أولاً قبل أن نحاول الحصول على المناطق المختارة
-      
+      // 💡 منطق جلب جميع المناطق المتاحة (يجب أن يتم تنفيذه)
     } catch (e) {
       _errorMessage = 'خطأ في جلب مناطق التوصيل.';
       debugPrint('Error fetching delivery areas: $e');
@@ -84,7 +73,6 @@ class SellerDashboardController with ChangeNotifier {
   }
 
   // 🛠️ دالة تحديث مناطق التوصيل
-  // ⭐️ التصحيح 1: تغيير نوع الوسيط من List<DeliveryAreaModel> إلى List<String>
   Future<bool> updateDeliveryAreas(List<String> selectedAreaIds) async {
     if (_auth.currentUser == null) {
       _errorMessage = 'يجب تسجيل الدخول لتحديث مناطق التوصيل.';
@@ -97,21 +85,13 @@ class SellerDashboardController with ChangeNotifier {
     bool success = false;
 
     try {
-      // ⭐️ التصحيح 2: تحويل قائمة IDs (Strings) إلى نماذج (Models) قبل الإرسال إلى DataSource
-      // نستخدم 'id' و 'code' و 'name' بنفس قيمة الـ String المحفوظة، كما تم تصحيحه في DataSource.
       final newAreas = selectedAreaIds.map((id) => DeliveryAreaModel(
         id: id,
         code: id,
         name: id,
       )).toList();
-      
-      // نستخدم مصدر البيانات لتحديث المناطق في Firestore
+
       await _deliveryAreaDataSource.updateAreas(sellerId, newAreas);
-
-      // ❌ تم إزالة: _deliveryAreas = newAreas;
-      // 💡 بعد الحفظ يجب إعادة تحميل البيانات لضمان تحديثها بشكل صحيح في الشاشة.
-      // لكننا لن نفعل ذلك الآن لتجنب التعقيد، الشاشة ستعتمد على إعادة الاستدعاء.
-
       _errorMessage = 'تم تحديث مناطق التوصيل بنجاح.';
       success = true;
     } on FirebaseException catch (e) {
@@ -129,14 +109,14 @@ class SellerDashboardController with ChangeNotifier {
   // ----------------------------------------------------------------------
   // --- منطق جلب بيانات البائع (للحصول على المناطق المحفوظة) ---
   // ----------------------------------------------------------------------
-  // 💡 يجب إضافة هذه الدالة لأنها ضرورية لجلب قائمة المناطق المحفوظة للبائع الحالي
+  
   Map<String, dynamic>? _sellerData;
   Map<String, dynamic>? get sellerData => _sellerData;
-  
+
   // 🛠️ دالة جلب بيانات البائع
   Future<void> fetchSellerData() async {
     if (_auth.currentUser == null) return;
-    
+
     try {
       final userDoc = await _db.collection("sellers").doc(_auth.currentUser!.uid).get();
       if (userDoc.exists) {
@@ -148,9 +128,8 @@ class SellerDashboardController with ChangeNotifier {
       debugPrint('Error fetching seller data: $e');
       _sellerData = null;
     }
-    // لا نستخدم notifyListeners() هنا لأن الشاشة تعتمد على دالة loadDashboardData للقيام بذلك.
   }
-  
+
   // ----------------------------------------------------------------------
   // --- منطق جلب البيانات من Firebase ---
   // ----------------------------------------------------------------------
@@ -195,17 +174,16 @@ class SellerDashboardController with ChangeNotifier {
         }
       }
 
-      // 🛠️ استدعاء دالة جلب مناطق التوصيل هنا (والتي يجب أن تجلب *كل* المناطق)
-      // 💡 تم تغيير التابع ليطابق التغيير في الدالة
-      await fetchDeliveryAreas(); 
-      // 💡 يجب استدعاء fetchSellerData هنا أيضاً لجلب المناطق المختارة
+      await fetchDeliveryAreas();
       await fetchSellerData();
 
+      // 🟢🟢 حل خطأ sellerName: تمرير _sellerName المحفوظ في الكنترولر 🟢🟢
       _data = SellerDashboardData(
         totalOrders: totalOrders,
         completedSalesAmount: completedSales,
         pendingOrdersCount: pendingOrders,
         newOrdersCount: newOrders,
+        sellerName: _sellerName ?? 'البائع', // ⭐️ تم تصحيح هذا السطر
       );
     } on FirebaseException catch (e) {
       _errorMessage = 'خطأ في جلب بيانات لوحة التحكم: ${e.code}';
@@ -231,7 +209,8 @@ class SellerDashboardController with ChangeNotifier {
           if (userDoc.exists) {
             final userData = userDoc.data();
             if (userData?['role'] == 'seller' && userData?['status'] == 'active') {
-              _sellerName = userData?['fullname'] as String?;
+              // ⭐️ تعيين الاسم هنا ليتم استخدامه في loadDashboardData
+              _sellerName = userData?['fullname'] as String?; 
               await loadDashboardData(user.uid); // تحميل البيانات ومناطق التوصيل
             } else {
               _signOutAndRedirect(context, "ليس لديك صلاحية للدخول أو حسابك غير مفعل.");
@@ -252,7 +231,7 @@ class SellerDashboardController with ChangeNotifier {
     if (!context.mounted) return;
 
     await _auth.signOut();
-    
+
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
 

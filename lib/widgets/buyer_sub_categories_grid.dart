@@ -2,6 +2,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+// 💡 استيراد Google Fonts
+import 'package:google_fonts/google_fonts.dart';
 
 class BuyerSubCategoriesGrid extends StatelessWidget {
   final String mainCategoryId;
@@ -13,12 +15,13 @@ class BuyerSubCategoriesGrid extends StatelessWidget {
     super.key,
     required this.mainCategoryId,
   });
-  
+
   // بناء بطاقة القسم الفرعي (بتصميم دائري)
   Widget _buildSubCategoryCard(BuildContext context, Map<String, dynamic> data, String subCategoryId) {
     final name = data['name'] as String? ?? 'قسم فرعي';
     final imageUrl = data['imageUrl'] as String? ?? '';
-    
+    final primaryColor = Theme.of(context).primaryColor; // اللون الأخضر الموحد
+
     final onTap = () {
       // التوجيه إلى صفحة المنتجات (تم تعريفه في main.dart)
       Navigator.of(context).pushNamed(
@@ -37,13 +40,15 @@ class BuyerSubCategoriesGrid extends StatelessWidget {
             width: 90, // حجم الدائرة
             height: 90,
             decoration: BoxDecoration(
-              color: Theme.of(context).cardColor,
-              shape: BoxShape.circle, // ⬅️ هذا هو المفتاح للشكل الدائري
+              color: Colors.white, // خلفية بيضاء ثابتة
+              shape: BoxShape.circle,
               boxShadow: [
+                // 💡 [تحسين 1]: تطبيق ظل ناعم وأكثر انتشاراً
                 BoxShadow(
-                  color: Theme.of(context).shadowColor.withOpacity(0.15),
+                  color: Colors.black.withOpacity(0.1), // ظل أغمق قليلاً
+                  spreadRadius: 0.5,
                   blurRadius: 10,
-                  offset: const Offset(0, 5),
+                  offset: const Offset(0, 3), // ظل سفلي
                 ),
               ],
             ),
@@ -58,15 +63,17 @@ class BuyerSubCategoriesGrid extends StatelessWidget {
                       // معالج الأخطاء في حال فشل تحميل الصورة
                       errorBuilder: (context, error, stackTrace) => Container(
                         color: Colors.grey.shade200,
-                        child: const Center(
-                          child: Icon(Icons.category_rounded, size: 40, color: Color(0xFF4A6491)),
+                        child: Center(
+                          // 💡 [تحسين 3]: استخدام اللون الأساسي الموحد للأيقونة الاحتياطية
+                          child: Icon(Icons.category_rounded, size: 40, color: primaryColor),
                         ),
                       ),
                     )
                   : Container(
                       color: Colors.grey.shade200,
-                      child: const Center(
-                        child: Icon(Icons.category_rounded, size: 40, color: Color(0xFF4A6491)),
+                      child: Center(
+                        // 💡 [تحسين 3]: استخدام اللون الأساسي الموحد للأيقونة الاحتياطية
+                        child: Icon(Icons.category_rounded, size: 40, color: primaryColor),
                       ),
                     ),
             ),
@@ -80,10 +87,11 @@ class BuyerSubCategoriesGrid extends StatelessWidget {
             child: Text(
               name,
               textAlign: TextAlign.center,
-              style: TextStyle(
+              // 💡 [تحسين 2]: استخدام خط Cairo الموحد
+              style: GoogleFonts.cairo(
                 fontWeight: FontWeight.w600,
                 fontSize: 13,
-                color: Theme.of(context).textTheme.bodyLarge?.color,
+                color: Colors.black87, // لون نص داكن واضح
               ),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -101,7 +109,7 @@ class BuyerSubCategoriesGrid extends StatelessWidget {
       .where('mainId', isEqualTo: mainCategoryId)
       .where('status', isEqualTo: 'active')
       .orderBy('order', descending: false);
-      
+
     return StreamBuilder<QuerySnapshot>(
       stream: subCategoriesQuery.snapshots(),
       builder: (context, snapshot) {
@@ -111,7 +119,8 @@ class BuyerSubCategoriesGrid extends StatelessWidget {
               padding: EdgeInsets.all(20.0),
               child: Column(
                 children: [
-                  CircularProgressIndicator(color: Color(0xFF4A6491)),
+                  // 💡 [تحسين]: استخدام CircularProgressIndicator بلون التطبيق الأساسي
+                  CircularProgressIndicator(),
                   SizedBox(height: 10),
                   Text('جاري تحميل الأقسام الفرعية...', style: TextStyle(fontSize: 16)),
                 ],
@@ -140,10 +149,10 @@ class BuyerSubCategoriesGrid extends StatelessWidget {
           physics: const NeverScrollableScrollPhysics(),
           itemCount: subCategories.length,
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3, // ⬅️ 3 أعمدة مناسبة لتصميم الدوائر
+            crossAxisCount: 3,
             crossAxisSpacing: 10,
             mainAxisSpacing: 15,
-            childAspectRatio: 0.8, // ⬅️ نسبة مناسبة للدوائر مع عنوان أسفلها
+            childAspectRatio: 0.8,
           ),
           itemBuilder: (context, index) {
             final doc = subCategories[index];
