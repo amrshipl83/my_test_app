@@ -6,6 +6,12 @@ workflows:
       flutter: stable
       java: 17
     scripts:
+      - name: Clear caches
+        script: |
+          flutter clean
+          rm -rf $CM_BUILD_DIR/build
+          rm -rf $CM_BUILD_DIR/.gradle
+
       - name: Get Flutter dependencies
         script: flutter pub get
 
