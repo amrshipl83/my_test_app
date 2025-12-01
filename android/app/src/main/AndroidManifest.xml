@@ -1,7 +1,8 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.aksabeg500">
+
     <uses-permission android:name="android.permission.INTERNET"/>
-    
+
     <application
         android:label="my_test_app"
         android:name="${applicationName}"
@@ -28,6 +29,7 @@
             android:name="flutterEmbedding"
             android:value="2" />
     </application>
+
     <queries>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>

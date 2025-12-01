@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.my_test_app"
+    namespace = "com.aksabeg500"   // بدل com.example.my_test_app
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -20,7 +20,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.my_test_app"
+        applicationId = "com.aksabeg500"  // بدل com.example.my_test_app
         minSdk = 23                         // firebase messaging يتطلب 23 أو أعلى
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
