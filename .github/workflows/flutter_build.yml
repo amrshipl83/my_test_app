@@ -9,7 +9,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: 🧩 Checkout Code
         uses: actions/checkout@v4
@@ -22,10 +21,21 @@ jobs:
       - name: 📦 Install Dependencies
         run: flutter pub get
 
+      # ⚡ Build Debug APK
+      - name: 🐞 Build Debug APK
+        run: flutter build apk --debug
+
+      - name: 📤 Upload Debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug
+          path: build/app/outputs/flutter-apk/app-debug.apk
+
+      # ⚡ Build Release APK
       - name: 🏗️ Build Release APK
         run: flutter build apk --release
 
-      - name: 📤 Upload APK
+      - name: 📤 Upload Release APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release
