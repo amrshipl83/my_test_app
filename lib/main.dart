@@ -37,6 +37,9 @@ import 'package:my_test_app/screens/buyer/traders_screen.dart';
 import 'package:my_test_app/screens/buyer/trader_offers_screen.dart';
 // 🆕🆕 نهاية استيرادات شاشات التجار الجديدة 🆕 🆕
 
+// 🟢🟢 سطر جديد: استيراد شاشة تفاصيل المنتج 🟢🟢
+import 'package:my_test_app/screens/product_details_screen.dart'; 
+
 // 💡 استيرادات الثيم والمزودات (تم نقلها للأعلى لتجنب الخطأ) 💡
 import 'package:my_test_app/theme/app_theme.dart';
 import 'package:my_test_app/providers/buyer_data_provider.dart';
@@ -201,7 +204,37 @@ class MyApp extends StatelessWidget {
           },
           // 🆕 استخدام onGenerateRoute لفك الـ Map الخاص بـ '/products' و '/traderOffers'
           onGenerateRoute: (settings) {
-            // 🚀 التعديل الجديد 1: إضافة مسار إضافة المنتجات مع الـ Provider 🚀
+            
+            // 🆕🆕 التعديل الجديد 1: إضافة مسار تفاصيل المنتج 🆕🆕
+            if (settings.name == '/productDetails') {
+              String? productId;
+              String? offerId;
+
+              // حالة الضغط على بانر (targetId هو productId)
+              if (settings.arguments is String) {
+                productId = settings.arguments as String;
+              } 
+              // حالة الضغط على رابط منتج كامل (Map يحتوي على productId و offerId)
+              else if (settings.arguments is Map<String, dynamic>) {
+                final args = settings.arguments as Map<String, dynamic>;
+                productId = args['productId'] as String?;
+                offerId = args['offerId'] as String?;
+              }
+
+              if (productId != null && productId.isNotEmpty) {
+                return MaterialPageRoute(
+                  builder: (context) {
+                    return ProductDetailsScreen(
+                      productId: productId,
+                      offerId: offerId, // يتم تمرير offerId حتى لو كان null
+                    );
+                  },
+                );
+              }
+              return null; // إذا لم يتم العثور على productId صالح
+            }
+            
+            // 🚀 التعديل الجديد 2: إضافة مسار إضافة المنتجات مع الـ Provider 🚀
             if (settings.name == ProductOfferScreen.routeName) {
               return MaterialPageRoute(
                 builder: (context) {
@@ -356,5 +389,5 @@ class PostRegistrationMessageScreen extends StatelessWidget {
         ),
       ),
     );
-  }
+  }                                             
 }
