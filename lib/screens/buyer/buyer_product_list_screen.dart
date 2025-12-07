@@ -6,7 +6,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 // 🆕 استدعاء المكونات الجديدة
 import 'package:my_test_app/widgets/buyer_product_header.dart';
 import 'package:my_test_app/widgets/product_list_grid.dart';
-import 'package:my_test_app/widgets/buyer_bottom_nav_bar.dart';
+
+// ❌ إزالة استدعاء شريط التنقل القديم
+// import 'package:my_test_app/widgets/buyer_bottom_nav_bar.dart'; 
+// 🚀 استدعاء الشريط السفلي الموحد الجديد
+import 'package:my_test_app/widgets/category_bottom_nav_bar.dart'; 
 
 // 💥💥 التعديل الأول: استدعاء بانر الشركات المصنعة 💥💥
 import 'package:my_test_app/widgets/manufacturers_banner.dart';
@@ -128,8 +132,9 @@ class _BuyerProductListScreenState extends State<BuyerProductListScreen> {
         ],
       ),
 
-      // 3. شريط التنقل السفلي
-      bottomNavigationBar: BuyerBottomNavBar(),
+      // 🚀 التعديل الأهم: استخدام شريط التنقل الموحد
+      bottomNavigationBar: const CategoryBottomNavBar(),
     );
   }
 }
+

@@ -1,156 +1,148 @@
-// المسار: lib/widgets/manufacturers_banner.dart
-
+// المسار: lib/widgets/manufacturers_banner.dart        
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:my_test_app/providers/manufacturers_provider.dart';
 import 'package:my_test_app/models/manufacturer_model.dart';
-import 'package:google_fonts/google_fonts.dart'; // 💡 استدعاء Google Fonts لتحسين الخط
-
+import 'package:google_fonts/google_fonts.dart';
+import 'package:sizer/sizer.dart';
 class ManufacturersBanner extends StatefulWidget {
-  // 💡 دالة يتم استدعاؤها عند اختيار شركة مصنعة
-  final Function(String? id) onManufacturerSelected;
-
+  final Function(String? id) onManufacturerSelected;      
   const ManufacturersBanner({
     super.key,
-    required this.onManufacturerSelected, // حقل مطلوب
-  });
-
+    required this.onManufacturerSelected,               
+  });                                                   
   @override
   State<ManufacturersBanner> createState() => _ManufacturersBannerState();
 }
 
 class _ManufacturersBannerState extends State<ManufacturersBanner> {
+
   @override
   void initState() {
-    super.initState();
-    // جلب البيانات فور بناء الـ Widget (بعد أول إطار)
+    super.initState();                                      
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<ManufacturersProvider>(context, listen: false).fetchManufacturers();
+      Provider.of<ManufacturersProvider>(context, listen: false).fetchManufacturers();                          
     });
-  }
+  }                                                                                                             
 
-  // 💡 ويدجت بناء بطاقة الشركة المصنعة
   Widget _buildManufacturerCard(ManufacturerModel manufacturer) {
-    // 💡 [تعديل 1]: تحديد محتوى الدائرة بناءً على الـ ID
-    final bool isAllOption = manufacturer.id == 'ALL';
-
-    // 💡 تحديد لون أساسي للبطاقة (أزرق/أخضر داكن)
+    final bool isAllOption = manufacturer.id == 'ALL';  
     final Color primaryColor = Theme.of(context).primaryColor;
-    
+                                                            
+    final double radius = 9.w; 
+    final double iconSize = 0.5 * radius;
+                                                                                                                    
     final Widget iconContent;
     if (isAllOption) {
-      // 💡 إذا كان الخيار هو "عرض الكل"، نستخدم أيقونة مخصصة
       iconContent = Icon(
-        Icons.filter_list_alt, // أيقونة لتمثيل "عرض الكل" أو التصفية (أكثر حداثة من list_alt)
-        size: 32,
-        color: primaryColor, // استخدام لون التطبيق الأساسي
+        Icons.filter_list_alt,                          
+        size: iconSize,
+        color: primaryColor,                                                                                          
       );
     } else {
-      // للشركات العادية، نعرض الحرف الأول
-      iconContent = Text(
-        manufacturer.name.isNotEmpty ? manufacturer.name[0] : 'ش',
-        // 💡 [تحسين 1]: استخدام Google Fonts للحرف
-        style: GoogleFonts.cairo(
-          fontSize: 26,
-          fontWeight: FontWeight.w700,
-          color: primaryColor,
-        ),
-      );
-    }
-
-    // استخدام InkWell أو GestureDetector لالتقاط النقر
-    return InkWell(
+      iconContent = manufacturer.name.isNotEmpty
+          ? Text(
+              manufacturer.name[0],                                   
+              style: GoogleFonts.cairo(
+                fontSize: 16.sp, 
+                fontWeight: FontWeight.w700,                            
+                color: primaryColor,                                  
+              ),
+            )
+          : Icon(Icons.business, size: iconSize, color: primaryColor);
+    }                                                   
+    return InkWell(                                           
       onTap: () {
-        // استدعاء الدالة التي تم تمريرها من الشاشة الرئيسية
         widget.onManufacturerSelected(manufacturer.id);
-      },
+      },                                                      
       child: Container(
-        width: 80, // عرض ثابت للبطاقة
-        margin: const EdgeInsets.symmetric(horizontal: 4.0), // تقليل الهامش قليلاً
+        width: 25.w,                                            
+        margin: const EdgeInsets.symmetric(horizontal: 4.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // 💡 [تحسين 2]: تحسين مظهر الدائرة والظل
             Container(
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                boxShadow: [
-                  // 💡 ظل أنعم وأكثر انتشاراً
+                boxShadow: [                                              
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
-                    spreadRadius: 0.5,
-                    blurRadius: 6,
+                    color: Colors.black.withOpacity(0.1),                                                                           
+                    spreadRadius: 1,
+                    blurRadius: 8,
                     offset: const Offset(0, 3),
                   ),
-                ],
+                ],                                                    
               ),
               child: CircleAvatar(
-                radius: 32, // تكبير الدائرة قليلاً
-                backgroundColor: Colors.white, // خلفية بيضاء
-                child: iconContent, // استخدام محتوى الأيقونة المحدد مسبقاً
-              ),
+                radius: radius, 
+                backgroundColor: Colors.white,                          
+                child: iconContent,
+              ),                                                    
             ),
-            const SizedBox(height: 5),
-
-            // 💡 [تحسين 3]: تحسين مظهر اسم الشركة ومعالجة قطع النص
-            Text(
+            // 🚀 [تصحيح 3]: تقليل المسافة العمودية من 3 إلى 2 لزيادة الاحتياطي
+            const SizedBox(height: 2), // تم التعديل
+                                                                    
+            Text(                                                                                                             
               manufacturer.name,
-              textAlign: TextAlign.center,
-              maxLines: 2, // 💥💥 [تصحيح] زيادة الحد الأقصى للأسطر لمعالجة مشكلة قطع النص 💥💥
+              textAlign: TextAlign.center,              
+              maxLines: 2,                                                                                                    
               overflow: TextOverflow.ellipsis,
               style: GoogleFonts.cairo(
-                fontSize: 12,
-                fontWeight: FontWeight.w600, // سُمك الخط: Semi-Bold
-                color: Colors.black87, // لون نص داكن واضح
+                fontSize: 9.sp, 
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
               ),
             ),
           ],
-        ),
-      ),
+        ),                                                    
+      ),                                                    
     );
-  }
-
+  }                                                                                                               
   @override
-  Widget build(BuildContext context) {
-    // استخدام Consumer للاستماع للتغييرات من ManufacturersProvider
+  Widget build(BuildContext context) {                      
+    // 🚀 [تصحيح 5]: تقليل ارتفاع البانر الكلي للمرة الأخيرة من 12.h إلى 11.h
+    final double bannerHeight = 11.h; // <--- التعديل النهائي 🚀
+                                                          
     return Container(
-      // 💡 [تحسين 4]: إضافة لون خلفية خفيف للبانر نفسه ليميزه
-      color: Colors.grey.shade50, // خلفية فاتحة جدًا
-      // 💥💥 [تصحيح]: زيادة الـ Padding السفلي لزيادة المسافة عن المنتجات 💥💥
-      padding: const EdgeInsets.only(top: 5.0, bottom: 10.0), 
+      color: Colors.white,                                    
+      // زيادة الـ Padding السفلي لزيادة المسافة عن المنتجات 
+      padding: const EdgeInsets.only(top: 10.0, bottom: 10.0),                                                                                                                
       child: Consumer<ManufacturersProvider>(
         builder: (context, provider, child) {
           if (provider.isLoading) {
-            // عرض دائرة تحميل في المنتصف أثناء جلب البيانات
-            return const Center(child: CircularProgressIndicator());
+            return SizedBox(                            
+              height: bannerHeight,                                   
+              child: const Center(child: CircularProgressIndicator())
+            );                                          
           }
-
+                                                        
           if (provider.errorMessage != null) {
-            // عرض رسالة الخطأ
-            return Center(child: Text('خطأ في التحميل: ${provider.errorMessage}',
-                style: const TextStyle(color: Colors.red)));
+            return SizedBox(
+              height: bannerHeight,                     
+              child: Center(child: Text('خطأ في التحميل: ${provider.errorMessage}',
+              style: const TextStyle(color: Colors.red)))
+            );
           }
-
+                                                        
           if (provider.manufacturers.isEmpty) {
-            // إذا كانت القائمة فارغة
-            return const SizedBox.shrink();
+            return const SizedBox.shrink();                                                                               
           }
-
-          // عرض القائمة الأفقية (ListView.builder)
-          return SizedBox(
-            height: 105, // ارتفاع مناسب للبانر
+                                                                  
+          return SizedBox(                                          
+            height: bannerHeight, // استخدام الارتفاع الديناميكي المُعدل
             child: ListView.builder(
-              scrollDirection: Axis.horizontal,
+              scrollDirection: Axis.horizontal,                                                                               
+              padding: const EdgeInsets.symmetric(horizontal: 8.0),                                                                                                                   
               itemCount: provider.manufacturers.length,
-              itemBuilder: (context, index) {
-                final manufacturer = provider.manufacturers[index];
+              itemBuilder: (context, index) {           
+                final manufacturer = provider.manufacturers[index];                                             
                 return _buildManufacturerCard(manufacturer);
-              },
+              },                                        
             ),
-          );
-        },
-      ),
+          );                                            
+        },                                                    
+      ),                                                                                                            
     );
   }
 }
