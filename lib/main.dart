@@ -1,5 +1,4 @@
 // lib/main.dart
-
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
@@ -9,6 +8,8 @@ import 'package:my_test_app/firebase_options.dart';
 import 'package:sizer/sizer.dart';
 // 💡 استيراد جديد لتهيئة بيانات اللغة
 import 'package:intl/date_symbol_data_local.dart';
+// 🟢🟢 [الاستيراد الجديد]: شاشة مشترياتي 🟢🟢
+import 'package:my_test_app/screens/buyer/my_orders_screen.dart'; // ⬅️ تم إضافة هذا السطر
 
 // 💡 استيراد شاشات التوجيه 💡
 import 'package:my_test_app/screens/login_screen.dart';
@@ -18,6 +19,10 @@ import 'package:my_test_app/screens/seller_screen.dart';
 import 'package:my_test_app/screens/buyer/buyer_category_screen.dart';
 import 'package:my_test_app/screens/buyer/buyer_product_list_screen.dart';
 import 'package:my_test_app/screens/buyer/cart_screen.dart';
+// 🟢🟢 [الإضافة الجديدة]: شاشة تفاصيل حسابي 🟢🟢
+import 'package:my_test_app/screens/my_details_screen.dart'; // ⬅️ **الاستيراد المطلوب**
+// 🟢🟢 [الإضافة الجديدة]: شاشة من نحن 🟢🟢
+import 'package:my_test_app/screens/about_screen.dart'; // ⬅️ **الاستيراد الجديد**
 // 🟢🟢 سطر مضاف: استيراد شاشة إتمام الطلب 🟢🟢
 import 'package:my_test_app/screens/checkout/checkout_screen.dart';
 
@@ -27,18 +32,16 @@ import 'package:my_test_app/screens/delivery_settings_screen.dart';
 // ✅ 2. إضافة استيراد شاشة التحديث الجديدة
 import 'package:my_test_app/screens/update_delivery_settings_screen.dart';
 import 'package:my_test_app/screens/delivery_merchant_dashboard_screen.dart';
-
 // 💡💡 إضافة استيراد شاشة طلبات العملاء الجديدة 💡💡
 import 'package:my_test_app/screens/consumer_orders_screen.dart';
 
 // 🆕🆕 استيرادات شاشات التجار الجديدة 🆕🆕
 import 'package:my_test_app/screens/buyer/traders_screen.dart';
-// 🎯 الاستيراد الحقيقي:
 import 'package:my_test_app/screens/buyer/trader_offers_screen.dart';
 // 🆕🆕 نهاية استيرادات شاشات التجار الجديدة 🆕 🆕
 
 // 🟢🟢 سطر جديد: استيراد شاشة تفاصيل المنتج 🟢🟢
-import 'package:my_test_app/screens/product_details_screen.dart'; 
+import 'package:my_test_app/screens/product_details_screen.dart';
 
 // 💡 استيرادات الثيم والمزودات (تم نقلها للأعلى لتجنب الخطأ) 💡
 import 'package:my_test_app/theme/app_theme.dart';
@@ -55,8 +58,17 @@ import 'package:my_test_app/providers/product_offer_provider.dart';
 
 // 💡 يجب استيراد الـ Provider الذي سبب المشكلة:
 import 'package:my_test_app/providers/customer_orders_provider.dart';
-// 🚀🚀 إضافة استيراد شاشة إدارة عروض الدليفري الجديدة 🚀🚀
+// 🚀🚀 إضافة استيراد شاشة إدارة عروض الدليفري الجديدة  🚀🚀
 import 'package:my_test_app/screens/delivery/delivery_offers_screen.dart';
+
+// 🟢🟢 [إضافة]: استيراد شاشة المحفظة 🟢🟢
+import 'package:my_test_app/screens/buyer/wallet_screen.dart';
+// 🟢🟢 [إضافة]: استيراد الـ Provider الجديد 🟢🟢
+import 'package:my_test_app/providers/cashback_provider.dart';
+// 🟢🟢 [إضافة لحل مشكلة البحث]: استيراد شاشة البحث وتصنيف المستخدم 🟢🟢
+import 'package:my_test_app/screens/search/search_screen.dart'; // المسار الصحيح
+import 'package:my_test_app/models/user_role.dart'; // ⬅️ افترض أن UserRole موجود هنا
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -64,7 +76,6 @@ void main() async {
   // 🚨🚨 إضافة كود تسجيل أخطاء Flutter في SharedPreferences 🚨🚨
   FlutterError.onError = (FlutterErrorDetails details) async {
     FlutterError.presentError(details);
-
     // تخزين الخطأ في SharedPreferences
     final prefs = await SharedPreferences.getInstance();
     // نستخدم details.toString() أو details.exception.toString() لتسجيل النص الكامل للخطأ
@@ -81,7 +92,6 @@ void main() async {
     // يمكن تجاهل الخطأ في حالة عدم توفر البيانات، لكن من الأفضل رؤيته في وضع التطوير
     debugPrint('🚨 Error initializing Date Formatting for Arabic: $e');
   }
-
   try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
@@ -93,7 +103,6 @@ void main() async {
   runApp(
     MultiProvider(
       providers: [
-
         ChangeNotifierProvider(
           create: (context) => BuyerDataProvider(),
         ),
@@ -106,20 +115,22 @@ void main() async {
         ChangeNotifierProvider(
           create: (context) => SellerDashboardController(),
         ),
-
         // 🟢🟢 التصحيح: تم إلغاء تعليق وإضافة CustomerOrdersProvider 🟢🟢
         ChangeNotifierProxyProvider<BuyerDataProvider, CustomerOrdersProvider>(
           create: (context) => CustomerOrdersProvider(Provider.of<BuyerDataProvider>(context, listen: false)),
           update: (context, buyerData, previous) => CustomerOrdersProvider(buyerData),
         ),
-
-        // 🚀🚀 التصحيح السابق: إضافة ProductOfferProvider لحل مشكلة ProviderNotFoundException  🚀🚀
+        // 🚀🚀 التصحيح السابق: إضافة ProductOfferProvider لحل مشكلة ProviderNotFoundException 🚀🚀
         ChangeNotifierProxyProvider<BuyerDataProvider, ProductOfferProvider>(
           // نستخدم BuyerDataProvider لتهيئة المنتج في الـ Provider
           create: (context) => ProductOfferProvider(Provider.of<BuyerDataProvider>(context, listen: false)),
           update: (context, buyerData, previous) => ProductOfferProvider(buyerData),
         ),
-
+        // 🟢🟢 [إضــافــة]: CashbackProvider 🟢🟢
+        ChangeNotifierProxyProvider<BuyerDataProvider, CashbackProvider>(
+          create: (context) => CashbackProvider(Provider.of<BuyerDataProvider>(context, listen: false)),
+          update: (context, buyerData, previous) => CashbackProvider(buyerData),
+        ),
         // -----------------------------------------------------------------
       ],
       child: const MyApp(),
@@ -134,7 +145,6 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return Sizer(
       builder: (context, orientation, deviceType) {
-
         return MaterialApp(
           title: 'My Test App',
           debugShowCheckedModeBanner: false,
@@ -176,7 +186,7 @@ class MyApp extends StatelessWidget {
             );
           },
 
-          // ⭐️⭐️ تعريف المسارات المُسمّاة 'routes' ⭐️⭐️
+          // ⭐️⭐️ تعريف المسارات المُسمّاة 'routes' ⭐️ ⭐️
 
           initialRoute: '/',
           routes: {
@@ -186,6 +196,9 @@ class MyApp extends StatelessWidget {
             SellerScreen.routeName: (context) => const SellerScreen(),
             CartScreen.routeName: (context) => const CartScreen(),
             CheckoutScreen.routeName: (context) => const CheckoutScreen(),
+
+            // 🟢🟢 [الإضافة الجديدة]: مسار شاشة مشترياتي 🟢🟢
+            MyOrdersScreen.routeName: (context) => const MyOrdersScreen(), // ⬅️ تم إضافة المسار
 
             // ✅ المسار القديم: يحافظ على فتح شاشة الإعدادات الأولية
             '/deliverySettings': (context) => const DeliverySettingsScreen(),
@@ -198,13 +211,33 @@ class MyApp extends StatelessWidget {
             // 🚀🚀 إضافة مسار شاشة إدارة عروض الدليفري الجديدة 🚀🚀
             DeliveryOffersScreen.routeName: (context) => const DeliveryOffersScreen(),
 
+            // 🟢🟢 [إضـافة المسار الجديد]: مسار شاشة "حسابي" 🟢🟢
+            '/myDetails': (context) => const MyDetailsScreen(), // ⬅️ **تم الربط هنا**
+            
+            // 🟢🟢 [إضـافة المسار الجديد]: مسار شاشة "من نحن" 🟢🟢
+            '/about': (context) => const AboutScreen(), // ⬅️ **تم الربط هنا**
+
             TradersScreen.routeName: (context) => const TradersScreen(),
             '/register': (context) => const NewClientScreen(),
             '/post_registration_message': (context) => const PostRegistrationMessageScreen(),
+
+            // 🟢🟢 [إضــافــة]: مسار المحفظة (مُصحح الآن في buyer_header_widget) 🟢🟢
+            '/wallet': (context) => const WalletScreen(),
+
+            // 🟢 [إضافة لحل مشكلة البحث]: تسجيل مسار البحث وتمرير الـ Role 🟢
+            SearchScreen.routeName: (context) {
+              final buyerData = Provider.of<BuyerDataProvider>(context, listen: false);
+
+              // تحويل الـ Classification إلى UserRole Enum
+              final role = buyerData.userClassification == 'seller'
+                  ? UserRole.buyer // يفترض أن التاجر (seller) يبحث كـ Buyer
+                  : UserRole.consumer;
+              return SearchScreen(userRole: role);
+            },
           },
+
           // 🆕 استخدام onGenerateRoute لفك الـ Map الخاص بـ '/products' و '/traderOffers'
           onGenerateRoute: (settings) {
-            
             // 🆕🆕 التعديل الجديد 1: إضافة مسار تفاصيل المنتج 🆕🆕
             if (settings.name == '/productDetails') {
               String? productId;
@@ -213,14 +246,13 @@ class MyApp extends StatelessWidget {
               // حالة الضغط على بانر (targetId هو productId)
               if (settings.arguments is String) {
                 productId = settings.arguments as String;
-              } 
+              }
               // حالة الضغط على رابط منتج كامل (Map يحتوي على productId و offerId)
               else if (settings.arguments is Map<String, dynamic>) {
                 final args = settings.arguments as Map<String, dynamic>;
                 productId = args['productId'] as String?;
                 offerId = args['offerId'] as String?;
               }
-
               if (productId != null && productId.isNotEmpty) {
                 return MaterialPageRoute(
                   builder: (context) {
@@ -233,7 +265,6 @@ class MyApp extends StatelessWidget {
               }
               return null; // إذا لم يتم العثور على productId صالح
             }
-            
             // 🚀 التعديل الجديد 2: إضافة مسار إضافة المنتجات مع الـ Provider 🚀
             if (settings.name == ProductOfferScreen.routeName) {
               return MaterialPageRoute(
@@ -243,7 +274,6 @@ class MyApp extends StatelessWidget {
                 },
               );
             }
-
             // 2. المسارات القديمة في onGenerateRoute
             if (settings.name == TraderOffersScreen.routeName) {
               final sellerId = settings.arguments as String? ?? '';
@@ -270,7 +300,6 @@ class MyApp extends StatelessWidget {
                 builder: (context) => BuyerCategoryScreen(mainCategoryId: mainCategoryId),
               );
             }
-
             return null;
           },
         );
@@ -281,6 +310,7 @@ class MyApp extends StatelessWidget {
 
 // ⭐️⭐️ الـ Wrapper الذي يعكس منطق onAuthStateChanged في Flutter ⭐️⭐️
 class AuthWrapper extends StatefulWidget {
+  // ... (الكود لا يتغير)
   const AuthWrapper({super.key});
 
   @override
@@ -288,6 +318,7 @@ class AuthWrapper extends StatefulWidget {
 }
 
 class _AuthWrapperState extends State<AuthWrapper> {
+  // ... (الكود لا يتغير)
   Future<LoggedInUser?>? _userFuture;
   @override
   void initState() {
@@ -340,12 +371,10 @@ class _AuthWrapperState extends State<AuthWrapper> {
     );
   }
 }
-
 // 💡 شاشة رسالة ما بعد التسجيل (لإظهار النجاح أو حالة الانتظار)
 class PostRegistrationMessageScreen extends StatelessWidget {
 
   const PostRegistrationMessageScreen({super.key});
-
   @override
   Widget build(BuildContext context) {
     final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
@@ -389,5 +418,5 @@ class PostRegistrationMessageScreen extends StatelessWidget {
         ),
       ),
     );
-  }                                             
+  }
 }

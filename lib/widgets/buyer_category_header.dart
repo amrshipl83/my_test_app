@@ -14,6 +14,12 @@ class BuyerCategoryHeader extends StatelessWidget implements PreferredSizeWidget
     required this.isLoading,
   });
 
+  // 💡 دالة التوجيه إلى شاشة السلة
+  void _navigateToCart(BuildContext context) {
+    // المسار المؤكد لشاشة السلة هو '/cart'
+    Navigator.of(context).pushNamed('/cart');
+  }
+
   @override
   Widget build(BuildContext context) {
     // 💡 الحصول على اللون الأساسي الموحد من الثيم
@@ -23,7 +29,7 @@ class BuyerCategoryHeader extends StatelessWidget implements PreferredSizeWidget
       // 💡 [تحسين 1]: استخدام اللون الأساسي الأخضر الموحد
       backgroundColor: primaryColor,
       foregroundColor: Colors.white,
-      
+
       // 💡 [تحسين 2]: إضافة شكل دائري ناعم للأسفل
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.only(
@@ -33,7 +39,7 @@ class BuyerCategoryHeader extends StatelessWidget implements PreferredSizeWidget
       ),
       elevation: 4, // ظل معتدل
 
-      // زر العودة (المنطق لم يتغير)
+      // زر العودة (المنطق لم يتغير) - يظهر على اليسار في RTL
       leading: IconButton(
         icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
         onPressed: () {
@@ -41,28 +47,44 @@ class BuyerCategoryHeader extends StatelessWidget implements PreferredSizeWidget
         },
       ),
 
-      // العنوان
-      title: isLoading
-          ? const LinearProgressIndicator(color: Colors.white)
-          : Text(
-              title,
-              // 💡 [تحسين 3]: استخدام خط Cairo الموحد
-              style: GoogleFonts.cairo(
+      // العنوان (يحتوي الآن على مؤشر التحميل)
+      title: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            title,
+            // 💡 [تحسين 3]: استخدام خط Cairo الموحد
+            style: GoogleFonts.cairo(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          // 💡 [تحسين 4]: وضع شريط التقدم الخطي تحت العنوان عند التحميل
+          if (isLoading)
+            const SizedBox(
+              height: 4, // تقليل ارتفاع المؤشر لجعله أرق
+              child: LinearProgressIndicator(
                 color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.w700, // استخدام w700 بدلاً من bold لتوحيد الوزن
+                backgroundColor: Colors.white38,
               ),
             ),
+        ],
+      ),
       centerTitle: true,
 
-      // زر البحث (المنطق لم يتغير)
+      // 🚀 التعديل: الإبقاء على أيقونة السلة فقط
       actions: [
         IconButton(
-          icon: const Icon(Icons.search, color: Colors.white, size: 24),
+          icon: const Icon(Icons.shopping_cart, color: Colors.white, size: 24),
           onPressed: () {
-            print('Search button pressed');
+            _navigateToCart(context);
           },
         ),
+        
+        // ❌ تم حذف زر البحث
+        
         const SizedBox(width: 10),
       ],
     );

@@ -7,6 +7,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:my_test_app/widgets/buyer_category_header.dart';
 import 'package:my_test_app/widgets/buyer_sub_categories_grid.dart';
 import 'package:my_test_app/widgets/buyer_category_ads_banner.dart';
+// 🚀 استيراد الشريط السفلي المستقل الجديد
+import 'package:my_test_app/widgets/category_bottom_nav_bar.dart'; 
+
+// ❌ تم حذف استيرادات المسارات الثابتة (BuyerHomeScreen.routeName, TradersScreen.routeName, إلخ)
+// ❌ وتم حذف استيراد BuyerMobileNavWidget
+
 
 class BuyerCategoryScreen extends StatefulWidget {
   // استقبال الـ ID من الـ route arguments
@@ -57,6 +63,8 @@ class _BuyerCategoryScreenState extends State<BuyerCategoryScreen> {
     }
   }
 
+  // ❌ تم حذف دالة _handleNavigation بالكامل لأن منطق التوجيه أصبح داخل CategoryBottomNavBar.
+
   @override
   Widget build(BuildContext context) {
     // Scaffold هو الهيكل الأساسي للشاشة
@@ -74,18 +82,17 @@ class _BuyerCategoryScreenState extends State<BuyerCategoryScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // 🚀 التعديل: نقل البانر الإعلاني ليكون في الأعلى
+                BuyerCategoryAdsBanner(),
+
+                const SizedBox(height: 30),
+
                 // 2. استدعاء المكون الثاني: شبكة الأقسام الفرعية
                 BuyerSubCategoriesGrid(mainCategoryId: widget.mainCategoryId),
 
                 const SizedBox(height: 30),
 
-                // 3. استدعاء المكون الثالث: البانر الإعلاني الصغير
-                // تم حذف 'const' لتصحيح خطأ 'Not a constant expression' السابق.
-                BuyerCategoryAdsBanner(), 
-
-                const SizedBox(height: 20),
-
-                // هنا يمكن إضافة قائمة المنتجات المرتبطة مباشرة بالقسم الرئيسي (Category Products List)
+                // 3. مساحة المنتجات المرتبطة (تأتي في الأسفل)
                 const Center(
                   child: Text(
                     'قائمة المنتجات المرتبطة مباشرة (سيتم بناؤها لاحقاً)',
@@ -98,8 +105,8 @@ class _BuyerCategoryScreenState extends State<BuyerCategoryScreen> {
             ),
           ),
 
-      // هنا سيتم إضافة الـ Bottom Navigation Bar لاحقًا إذا لزم الأمر
-      // BottomNavigationBar: const BuyerBottomNavBar(),
+      // 🚀 التعديل: استخدام الشريط السفلي المستقل
+      bottomNavigationBar: const CategoryBottomNavBar(),
     );
   }
 }

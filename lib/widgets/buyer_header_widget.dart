@@ -1,10 +1,30 @@
 // المسار: lib/widgets/buyer_header_widget.dart
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:google_fonts/google_fonts.dart'; // 💡 إضافة الخطوط لتحسين المظهر
 
 // تعريفات Firebase (مضمنة هنا لجعله وحدة مستقلة)
 final FirebaseAuth _auth = FirebaseAuth.instance;
+
+// 🚨 [التعديل النهائي الصحيح]: استخدام رابط الجذر فقط (بدون index.html)
+const String _privacyPolicyUrl = 'https://papaya-boba-6d2ebd.netlify.app/';
+
+// 💡 الدالة المساعدة لفتح الرابط الخارجي (باستخدام url_launcher)
+void _launchUrlExternal(BuildContext context, String url) async {
+  final Uri uri = Uri.parse(url);
+  if (await canLaunchUrl(uri)) {
+    // نستخدم وضع خارجي (externalApplication) لفتح متصفح النظام
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  } else {
+    // رسالة خطأ للمستخدم في حالة فشل فتح الرابط
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('عذراً، لا يمكن فتح رابط السياسة حالياً.')),
+    );
+  }
+}
 
 class BuyerHeaderWidget extends StatelessWidget {
   final VoidCallback onMenuToggle;
@@ -20,7 +40,7 @@ class BuyerHeaderWidget extends StatelessWidget {
     required this.onLogout,
   });
 
-  // --- بناء المودال المؤقتة --- (لا تغيير)
+  // --- بناء المودال المؤقتة ---
   static void _showNewOrdersModal(BuildContext context) {
     Navigator.pop(context); // إغلاق الـ Drawer أولاً
     showDialog(
@@ -37,7 +57,7 @@ class BuyerHeaderWidget extends StatelessWidget {
                 onPressed: () {
                   Navigator.of(context).pop();
                   // توجيه لصفحة افتراضية
-                  Navigator.of(context).pushNamed('/conOrders');
+                  Navigator.of(context).pushNamed('/con-orders');
                 },
                 child: const Text('عرض كل الطلبات'),
               ),
@@ -49,9 +69,9 @@ class BuyerHeaderWidget extends StatelessWidget {
   }
 
   // --- دالة مساعدة لـ ListTile (تحسين M3) ---
-  static Widget _buildDrawerTile(Function(String) navigate, Map<String, dynamic> item, Color color) {
-    // 💡 استخدام FontWeight.w600 لاسم العنصر
-    final textStyle = TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: color);
+  static Widget _buildDrawerTile(Function(String) navigate, Map<String, dynamic> item, Color color, BuildContext context) {
+    // 💡 استخدام GoogleFonts و FontWeight.w600 لاسم العنصر
+    final textStyle = GoogleFonts.notoSansArabic(fontSize: 16, fontWeight: FontWeight.w600, color: color);
 
     return ListTile(
       leading: Icon(item['icon'] as IconData, color: color),
@@ -69,6 +89,7 @@ class BuyerHeaderWidget extends StatelessWidget {
           : null,
       onTap: () {
         if (item['onTap'] != null) {
+          // 🚨 استدعاء onTap المعرف في navItems
           item['onTap']();
         } else if (item['route'] != null) {
           navigate(item['route'] as String);
@@ -77,7 +98,7 @@ class BuyerHeaderWidget extends StatelessWidget {
     );
   }
 
-  // --- بناء القائمة الجانبية (Sidebar / Drawer) --- (تحسين M3)
+  // --- بناء القائمة الجانبية (Sidebar / Drawer) --- (تحسين M3 وترتيب الأيقونات)
   static Widget buildSidebar({
     required BuildContext context,
     required VoidCallback onLogout,
@@ -91,17 +112,15 @@ class BuyerHeaderWidget extends StatelessWidget {
       Navigator.of(context).pushNamed(route);
     }
 
-    // 💡 الألوان: اللون الرئيسي للروابط في الـ Drawer
     const Color primaryColor = Color(0xFF2c3e50);
-    // 💡 لون التمييز لطلبات الدليفري
+    const Color accentColor = Color(0xFF4CAF50); // الأخضر
     const Color highlightColor = Color(0xFFC62828); // أحمر غامق
 
-    final List<Map<String, dynamic>> navItems = [
+    // 🟢 [إعادة ترتيب الأيقونات - الجزء العلوي]
+    final List<Map<String, dynamic>> mainNavItems = [
       {'title': 'التجار', 'icon': Icons.storefront_rounded, 'route': '/traders'},
-      {'title': 'محفظتى', 'icon': Icons.account_balance_wallet_rounded, 'route': '/goals'},
-      {'title': 'حسابي', 'icon': Icons.account_circle_rounded, 'route': '/myDetails'},
+      {'title': 'محفظتى', 'icon': Icons.account_balance_wallet_rounded, 'route': '/wallet'},
       {'title': 'من نحن', 'icon': Icons.info_outline_rounded, 'route': '/about'},
-      {'title': 'الخصوصية والاستخدام', 'icon': Icons.description_rounded, 'route': '/privacy'},
     ];
 
     final List<Map<String, dynamic>> deliveryItems = [];
@@ -121,48 +140,63 @@ class BuyerHeaderWidget extends StatelessWidget {
       });
     }
 
+    // 🟢 [إعادة ترتيب الأيقونات - الجزء السفلي]
+    final List<Map<String, dynamic>> bottomNavItems = [
+      {'title': 'حسابي', 'icon': Icons.account_circle_rounded, 'route': '/myDetails'},
+      {'title': 'الخصوصية وشروط الاستخدام',
+        'icon': Icons.description_rounded,
+        'onTap': () {
+          Navigator.pop(context); // إغلاق الـ Drawer
+          // استخدام الدالة المساعدة لفتح الرابط الثابت المصحح
+          _launchUrlExternal(context, _privacyPolicyUrl);
+        }
+      },
+    ];
+
     return Drawer(
       child: Column(
         children: [
-          // 💡 التحسين M3: الـ DrawerHeader مع التدرج اللوني ولكن بتنسيق أفضل
-          const DrawerHeader(
-            // 💡 تصميم الرأس الحالي قوي بصرياً ومناسب
+          // 💡 الـ DrawerHeader (تحسين M3)
+          DrawerHeader(
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [Color(0xFF2c3e50), Color(0xFF4CAF50)],
+                colors: [primaryColor, accentColor],
                 begin: Alignment.centerRight,
                 end: Alignment.centerLeft,
               ),
             ),
-            padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0), // Padding أنظف
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.store_rounded, size: 40, color: Colors.white),
-                SizedBox(height: 8),
+                const Icon(Icons.store_rounded, size: 40, color: Colors.white),
+                const SizedBox(height: 8),
                 Text(
                   'أسواق أكسب',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 24, color: Colors.white, fontWeight: FontWeight.bold),
+                  style: GoogleFonts.notoSansArabic(fontSize: 24, color: Colors.white, fontWeight: FontWeight.bold),
                 ),
                 Text(
                   'تسوق بسهولة وأمان',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                  style: GoogleFonts.notoSansArabic(color: Colors.white70, fontSize: 14),
                 ),
               ],
             ),
           ),
+
           Expanded(
             child: ListView(
               padding: EdgeInsets.zero,
               children: [
                 // --- المجموعة الأولى: المشتري الأساسي ---
-                for (var item in navItems.sublist(0, 3)) _buildDrawerTile(navigateTo, item, primaryColor),
-                
-                // --- فاصل M3 ---
+                for (var item in mainNavItems) _buildDrawerTile(navigateTo, item, primaryColor, context),
+
+                // --- فاصل M3 للتنظيم ---
+                const SizedBox(height: 10),
                 const Divider(height: 1, thickness: 1, indent: 16, endIndent: 16),
+                const SizedBox(height: 10),
 
                 // --- المجموعة الثانية: وظائف الدليفري/التاجر (المنطق محفوظ) ---
                 if (deliveryItems.isNotEmpty) ...[
@@ -172,32 +206,39 @@ class BuyerHeaderWidget extends StatelessWidget {
                       item,
                       // تمييز طلبات الدليفري بلون مختلف للفت الانتباه
                       item['title'] == 'طلبات الدليفري' ? highlightColor : primaryColor,
+                      context
                     ),
                   // فاصل M3 بعد مجموعة الدليفري
+                  const SizedBox(height: 10),
                   const Divider(height: 1, thickness: 1, indent: 16, endIndent: 16),
+                  const SizedBox(height: 10),
                 ],
 
-                // --- المجموعة الثالثة: المعلومات والمساعدة ---
-                for (var item in navItems.sublist(3)) _buildDrawerTile(navigateTo, item, primaryColor),
-
-                // --- تسجيل الخروج ---
-                ListTile(
-                  leading: const Icon(Icons.logout_rounded, color: highlightColor),
-                  title: const Text('تسجيل الخروج', style: TextStyle(fontSize: 16, color: highlightColor, fontWeight: FontWeight.w600)),
-                  onTap: onLogout,
-                ),
+                // --- المجموعة الثالثة: المعلومات الشخصية والخصوصية (تم نقلها للأسفل) ---
+                for (var item in bottomNavItems) _buildDrawerTile(navigateTo, item, primaryColor, context),
               ],
             ),
           ),
-          // 💡 الروابط الاجتماعية (تحسين M3 في الـ Padding)
+
+          // --- تسجيل الخروج (مفصول في الأسفل) ---
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 24.0), // زيادة الـ Padding السفلي
+            padding: const EdgeInsets.only(bottom: 24.0, top: 10.0), // زيادة الـ Padding السفلي
+            child: ListTile(
+              leading: const Icon(Icons.logout_rounded, color: highlightColor),
+              title: Text('تسجيل الخروج', style: GoogleFonts.notoSansArabic(fontSize: 16, color: highlightColor, fontWeight: FontWeight.w700)), // خط سميك للتأكيد
+              onTap: onLogout,
+            ),
+          ),
+
+          // 💡 الروابط الاجتماعية
+          Padding(
+            padding: const EdgeInsets.only(bottom: 24.0), // زيادة الـ Padding السفلي
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: const [
-                Icon(Icons.message_rounded, size: 28, color: Color(0xFF4CAF50)),
-                SizedBox(width: 24), // زيادة المسافة بين الأيقونات
-                Icon(Icons.facebook, size: 28, color: Color(0xFF4CAF50)),
+                Icon(Icons.message_rounded, size: 28, color: accentColor), // استخدام اللون الأخضر
+                SizedBox(width: 24),
+                Icon(Icons.facebook, size: 28, color: accentColor),
               ],
             ),
           ),
@@ -206,20 +247,28 @@ class BuyerHeaderWidget extends StatelessWidget {
     );
   }
 
-  // --- بناء الرأس العلوي (Top Header) --- (تحسين M3)
+  // --- بناء الرأس العلوي (Top Header) --- (التصحيح النهائي للتنسيق والألوان)
   @override
   Widget build(BuildContext context) {
+    // 💡 الألوان الأصلية
+    const Color primaryColor = Color(0xFF2c3e50);
+    const Color accentColor = Color(0xFF4CAF50);
+    
     return Container(
-      // 💡 التحسين: زيادة الـ Padding العلوي قليلاً ليتناسب مع شريط الحالة
-      padding: const EdgeInsets.only(top: 35, bottom: 15, right: 15, left: 15),
+      // 🚀 التعديل: تقليص الارتفاع والحواف المنحنية (تم الحفاظ عليها)
+      padding: const EdgeInsets.only(top: 45, bottom: 10, right: 15, left: 15), 
       decoration: const BoxDecoration(
+        // ✅ التصحيح: العودة إلى التدرج اللوني بين primaryColor و accentColor فقط
         gradient: LinearGradient(
-          colors: [Color(0xFF2c3e50), Color(0xFF4CAF50)],
-          begin: Alignment.centerRight,
-          end: Alignment.centerLeft,
+          colors: [primaryColor, accentColor], // الأخضر الغامق -> الأخضر الفاتح
+          begin: Alignment.topRight,
+          end: Alignment.bottomLeft,   
         ),
-        // 💡 إضافة ظل خفيف للرأس ليبرز عن محتوى الصفحة
         boxShadow: [BoxShadow(color: Colors.black38, blurRadius: 4, offset: Offset(0, 2))],
+        // ✅ الحواف المنحنية في الأسفل (تم الحفاظ عليها)
+        borderRadius: BorderRadius.vertical(
+          bottom: Radius.circular(25), // حواف منحنية أنيقة
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -232,11 +281,11 @@ class BuyerHeaderWidget extends StatelessWidget {
                 onTap: onMenuToggle,
                 borderRadius: BorderRadius.circular(10),
                 child: Padding(
-                  padding: const EdgeInsets.all(8.0),
+                  padding: const EdgeInsets.all(6.0), 
                   child: Stack(
                     clipBehavior: Clip.none,
                     children: [
-                      const Icon(Icons.menu_rounded, size: 30, color: Colors.white), // أيقونة أكبر قليلاً
+                      const Icon(Icons.menu_rounded, size: 28, color: Colors.white), 
                       if (menuNotificationDotActive)
                         Positioned(
                           top: -1,
@@ -245,31 +294,36 @@ class BuyerHeaderWidget extends StatelessWidget {
                             width: 10,
                             height: 10,
                             decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
-                          ), // نقطة أكبر وأكثر وضوحاً
+                          ),
                         ),
                     ],
                   ),
                 ),
               ),
+
               // 2. اسم التطبيق
               const Row(
-                mainAxisSize: MainAxisSize.min,
+                mainAxisSize: MainAxisSize.min, 
                 children: [
-                  Icon(Icons.store_rounded, size: 28, color: Colors.white), // تغيير لون الأيقونة إلى أبيض
-                  SizedBox(width: 8),
-                  Text('أسواق أكسب', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
+                  Icon(Icons.store_rounded, size: 24, color: Colors.white), 
+                  SizedBox(width: 6),
+                  Text('أسواق أكسب', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)), 
                 ],
               ),
-              // 3. مساحة احتياطية لموازنة زر القائمة
-              const SizedBox(width: 46),
+
+              // 3. مساحة احتياطية
+              const SizedBox(width: 40),
             ],
           ),
-          const SizedBox(height: 10),
+
           // 4. رسالة الترحيب
-          Text(
-            userName,
-            textAlign: TextAlign.right,
-            style: const TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.w500),
+          Padding(
+            padding: const EdgeInsets.only(right: 5.0, top: 5.0),
+            child: Text(
+              userName,
+              textAlign: TextAlign.right,
+              style: GoogleFonts.notoSansArabic(fontSize: 15, color: Colors.white, fontWeight: FontWeight.w500),
+            ),
           ),
         ],
       ),
