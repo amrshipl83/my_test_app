@@ -67,10 +67,17 @@ class ProductOfferModel {
     final List<dynamic> unitsData = data['units'] ?? [];
     final unitsList = unitsData.map((e) => OfferUnitModel.fromJson(e as Map<String, dynamic>)).toList();
 
+    // 🟢 [التصحيح الرئيسي]: قراءة sellerId/ownerId من البيانات
+    final determinedSellerId = data['sellerId'] ?? data['ownerId'] ?? '';
+    
+    // 🟢 [تعديل إضافي]: قراءة SellerName بناءً على المفاتيح المحتملة
+    final determinedSellerName = data['sellerName'] ?? data['ownerName'] ?? 'بائع';
+
+
     return ProductOfferModel(
       id: id,
-      sellerId: data['sellerId'] ?? '',
-      sellerName: data['sellerName'] ?? 'بائع',
+      sellerId: determinedSellerId, // 🟢 تم تعيين قيمة غير فارغة إذا كان ownerId موجوداً
+      sellerName: determinedSellerName, // 🟢 تم التعيين
       productId: data['productId'] ?? '',
       productName: data['productName'] ?? 'غير معروف',
       imageUrl: null, // 💡 التعديل: يتم تعيينه إلى null وسيتم تحديثه لاحقاً
@@ -86,7 +93,8 @@ class ProductOfferModel {
 
   Map<String, dynamic> toJson() {
     final data = <String, dynamic>{
-      'sellerId': sellerId,
+      // نستخدم sellerId/sellerName هنا لأنهم الحقول الرئيسية للنموذج
+      'sellerId': sellerId, 
       'sellerName': sellerName,
       'productId': productId,
       'productName': productName,
@@ -96,7 +104,6 @@ class ProductOfferModel {
       'createdAt': createdAt ?? FieldValue.serverTimestamp(),
     };
     // 💡 التعديل: لا نحفظ imageUrl في Firestore لأنه يتم جلبه من مستند المنتجات
-    // إذا كان هناك سبب لحفظه، فسيتم إضافته هنا: if (imageUrl != null) data['imageUrl'] = imageUrl;
 
     if (minOrder != null) data['minOrder'] = minOrder;
     if (maxOrder != null) data['maxOrder'] = maxOrder;
@@ -110,4 +117,3 @@ class ProductOfferModel {
     imageUrl = url;
   }
 }
-
