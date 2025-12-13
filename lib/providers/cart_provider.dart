@@ -11,7 +11,7 @@ import 'dart:math';
 class CartItem {
   final String offerId;
   // 🔥🔥 التعديل 1: إضافة حقل productId
-  final String productId; 
+  final String productId;
   final String sellerId;
   final String sellerName;
   final String name;
@@ -40,7 +40,7 @@ class CartItem {
   Map<String, dynamic> toJson() => {
     'offerId': offerId,
     // 🔥🔥 التعديل 2: تضمين productId في الـ JSON
-    'productId': productId, 
+    'productId': productId,
     'sellerId': sellerId,
     'sellerName': sellerName,
     'name': name,
@@ -49,14 +49,14 @@ class CartItem {
     'unitIndex': unitIndex,
     'quantity': quantity,
     'isGift': isGift,
-    'imageUrl': imageUrl, // 🟢🟢 تم تضمين الصورة 🟢🟢
+    'imageUrl': imageUrl, // 🟢🟢 تم تضمين الصورة 🟢 🟢
   };
 
   factory CartItem.fromJson(Map<String, dynamic> json) {
     return CartItem(
       offerId: json['offerId'] as String,
       // 🔥🔥 التعديل 3: قراءة productId من الـ JSON (مع توافق رجعي)
-      productId: json['productId'] as String? ?? json['offerId'] as String, 
+      productId: json['productId'] as String? ?? json['offerId'] as String,
       sellerId: json['sellerId'] as String,
       sellerName: json['sellerName'] as String,
       name: json['name'] as String,
@@ -101,6 +101,7 @@ class CartProvider with ChangeNotifier {
   // Caching
   final Map<String, Map<String, dynamic>> _sellerRulesCache = {};
   final Map<String, List<Map<String, dynamic>>> _giftPromosCache = {};
+
   // الإجماليات
   double _totalProductsAmount = 0.0;
   double _totalDeliveryFees = 0.0;
@@ -114,14 +115,17 @@ class CartProvider with ChangeNotifier {
   double get totalDeliveryFees => _totalDeliveryFees;
   double get finalTotal => _totalProductsAmount + _totalDeliveryFees;
   bool get hasCheckoutErrors => _hasCheckoutErrors;
-
   int get cartTotalItems => _cartItems.where((item) => !item.isGift).length;
+
+  // 🎯 [تصحيح الخطأ 3]: إضافة Getter itemCount المطلوب
+  int get itemCount => cartTotalItems; // اسم مستعار بسيط
+  
   int get cartTotalQuantity {
     return _cartItems.where((item) => !item.isGift).fold(0, (sum, item) => sum + item.quantity);
   }
   bool get isCartEmpty => _cartItems.where((item) => !item.isGift).isEmpty;
 
-  // 🟢🟢 New Getter: التحقق من وجود طلب دفع معلق 🟢🟢
+  // 🟢🟢 New Getter: التحقق من وجود طلب دفع معلق 🟢 🟢
   Future<bool> get hasPendingCheckout async {
       final prefs = await SharedPreferences.getInstance();
       final checkoutJson = prefs.getString('checkoutOrders');
@@ -134,7 +138,7 @@ class CartProvider with ChangeNotifier {
           }
       }
       return false;
-  }
+    }
 
   // ------------------------------------------
   // 1. دوال جلب القواعد (الاتصال بـ Firestore)
@@ -155,12 +159,12 @@ class CartProvider with ChangeNotifier {
 
         // 🛑 القاعدة 1: إذا كان الدور 'buyer'، نعتمد على نتيجة 'sellers' فقط وننتهي.
         if (buyerRole == 'buyer') {
-          final rules = { 'minTotal': finalMinTotal, 'deliveryFee': finalDeliveryFee };
-          _sellerRulesCache[sellerId] = rules;
-          return rules;
+            final rules = { 'minTotal': finalMinTotal, 'deliveryFee': finalDeliveryFee };
+            _sellerRulesCache[sellerId] = rules;
+            return rules;
+          }
         }
-      }
-    } catch (e) {
+      } catch (e) {
       debugPrint('Firestore Error fetching from sellers: $e');
     }
 
@@ -238,7 +242,7 @@ class CartProvider with ChangeNotifier {
         final itemMatch = sellerData.items.firstWhere(
             (item) => item.offerId == triggerOfferId && item.unit == triggerUnitName,
             orElse: () => CartItem(offerId: '', productId: '', sellerId: '', sellerName: '', name: '', price: 0, unit: '', unitIndex: -1, quantity: 0, imageUrl: '')
-        );
+          );
         if (itemMatch.offerId.isNotEmpty) {
           final timesTriggered = (itemMatch.quantity / requiredQtyBase).floor();
           final totalGiftedQty = timesTriggered * giftPerBase;
@@ -251,7 +255,7 @@ class CartProvider with ChangeNotifier {
       if (giftedQuantity > 0) {
         final giftOfferId = promo['giftOfferId'] as String? ?? 'N/A';
         final giftProductId = promo['giftProductId'] as String? ?? giftOfferId; // 🔥 التعديل 7
-        
+
         giftedItems.add(CartItem(
           isGift: true,
           name: promo['giftProductName'] as String? ?? 'هدية',
@@ -292,14 +296,14 @@ class CartProvider with ChangeNotifier {
           actualAvailableStock = (data['availableQuantity'] as num?)?.toInt() ?? 0;
         }
       } else {
-         final marketOfferDoc = await _db.collection('marketOffer').doc(offerId).get();
+        final marketOfferDoc = await _db.collection('marketOffer').doc(offerId).get();
          if (marketOfferDoc.exists) {
             final data = marketOfferDoc.data()!;
             productMinQty = (data['minOrder'] as num?)?.toInt() ?? 1;
             productMaxQty = (data['maxOrder'] as num?)?.toInt() ?? 9999;
             actualAvailableStock = (data['availableQuantity'] as num?)?.toInt() ?? 0;
-        } else {
-             actualAvailableStock = 0;
+          } else {
+            actualAvailableStock = 0;
          }
       }
     } catch (error) {
@@ -381,6 +385,7 @@ class CartProvider with ChangeNotifier {
     for (var sellerId in tempSellersOrders.keys) {
       final sellerData = tempSellersOrders[sellerId]!;
 
+
       // جلب القواعد (الآن تتصل بـ Firestore)
       final rules = await _getSellerBusinessRules(sellerId, userRole);
       sellerData.minOrderTotal = (rules['minTotal'] as num? ?? 0.0).toDouble();
@@ -426,19 +431,20 @@ class CartProvider with ChangeNotifier {
   // 4. دوال التحكم في السلة والتفاعل (تم تعديل addItemToCart)
   // ------------------------------------------
   // 💡 إضافة منتج جديد أو تحديث منتج موجود
-  Future<void> addItemToCart(
-    String offerId,
+  // 🎯 [تصحيح الخطأ 2]: تحويل الدالة إلى وسائط مسماة
+  Future<void> addItemToCart({
+    required String offerId,
     // 🔥🔥 التعديل 4: إضافة productId كمعامل للدالة
-    String productId, 
-    String sellerId,
-    String sellerName,
-    String name,
-    double price,
-    String unit,
-    int unitIndex,
-    int quantityToAdd,
-    String imageUrl,
-  ) async {
+    required String productId,
+    required String sellerId,
+    required String sellerName,
+    required String name,
+    required double price,
+    required String unit,
+    required int unitIndex,
+    int quantityToAdd = 1,
+    required String imageUrl,
+  }) async {
     _cartItems.removeWhere((item) => item.isGift); // تنظيف الهدايا القديمة
 
     final index = _cartItems.indexWhere(
@@ -451,7 +457,7 @@ class CartProvider with ChangeNotifier {
       final newItem = CartItem(
         offerId: offerId,
         // 🔥🔥 التعديل 5: تمرير productId عند إنشاء العنصر
-        productId: productId, 
+        productId: productId,
         sellerId: sellerId,
         sellerName: sellerName,
         name: name,
@@ -475,6 +481,7 @@ class CartProvider with ChangeNotifier {
     if (index == -1) return;
 
     final newQty = _cartItems[index].quantity + delta;
+
     if (newQty <= 0) {
       await removeItem(_cartItems[index]);
       return;
@@ -544,7 +551,7 @@ class CartProvider with ChangeNotifier {
           ordersToProceed.add(CartItem(
             offerId: 'DELIVERY_FEE_${sellerData.sellerId}',
             // 🔥🔥 التعديل 6: تمرير قيمة لـ productId لرسوم التوصيل
-            productId: 'DELIVERY_FEE', 
+            productId: 'DELIVERY_FEE',
             sellerId: sellerData.sellerId,
             sellerName: sellerData.sellerName,
             name: "رسوم التوصيل",
@@ -598,7 +605,7 @@ class CartProvider with ChangeNotifier {
     }
   }
 
-  // 🟢🟢 دالة جديدة: إلغاء وحذف طلب الدفع المعلق 🟢🟢
+  // 🟢🟢 دالة جديدة: إلغاء وحذف طلب الدفع المعلق 🟢 🟢
   Future<void> cancelPendingCheckout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('checkoutOrders');

@@ -9,23 +9,23 @@ import 'package:sizer/sizer.dart';
 // 💡 استيراد جديد لتهيئة بيانات اللغة
 import 'package:intl/date_symbol_data_local.dart';
 // 🟢🟢 [الاستيراد الجديد]: شاشة مشترياتي 🟢🟢
-import 'package:my_test_app/screens/buyer/my_orders_screen.dart'; // ⬅️ تم إضافة هذا السطر
+import 'package:my_test_app/screens/buyer/my_orders_screen.dart';
 // 💡 استيراد شاشات التوجيه 💡
 import 'package:my_test_app/screens/login_screen.dart';
 import 'package:my_test_app/screens/auth/new_client_screen.dart';
 import 'package:my_test_app/screens/buyer/buyer_home_screen.dart'; // مسار المشتري القديم
 import 'package:my_test_app/screens/seller_screen.dart';
 // 🆕🆕 [إضافة شاشة المستهلك الجديدة] 🆕🆕
-import 'package:my_test_app/screens/consumer/consumer_home_screen.dart'; // ⬅️ **الاستيراد المطلوب**
+import 'package:my_test_app/screens/consumer/consumer_home_screen.dart';
 // 🎯🎯 [إضافة شاشة بحث المستهلك الجديدة] 🎯🎯
-import 'package:my_test_app/screens/consumer/consumer_store_search_screen.dart'; // ⬅️ **الاستيراد الذي أضفناه الآن**
+import 'package:my_test_app/screens/consumer/consumer_store_search_screen.dart';
 import 'package:my_test_app/screens/buyer/buyer_category_screen.dart';
 import 'package:my_test_app/screens/buyer/buyer_product_list_screen.dart';
 import 'package:my_test_app/screens/buyer/cart_screen.dart';
 // 🟢🟢 [الإضافة الجديدة]: شاشة تفاصيل حسابي 🟢🟢
-import 'package:my_test_app/screens/my_details_screen.dart'; // ⬅️ **الاستيراد المطلوب**
+import 'package:my_test_app/screens/my_details_screen.dart';
 // 🟢🟢 [الإضافة الجديدة]: شاشة من نحن 🟢🟢
-import 'package:my_test_app/screens/about_screen.dart'; // ⬅️ **الاستيراد الجديد**
+import 'package:my_test_app/screens/about_screen.dart';
 // 🟢🟢 سطر مضاف: استيراد شاشة إتمام الطلب 🟢🟢
 import 'package:my_test_app/screens/checkout/checkout_screen.dart';
 // 🎯🎯 استيرادات شاشات الدليفري المخصصة 🎯🎯
@@ -42,9 +42,15 @@ import 'package:my_test_app/screens/buyer/trader_offers_screen.dart';
 // 🆕🆕 نهاية استيرادات شاشات التجار الجديدة 🆕 🆕
 // 🟢🟢 سطر جديد: استيراد شاشة تفاصيل المنتج 🟢🟢
 import 'package:my_test_app/screens/product_details_screen.dart';
+// 🟢🟢 [الإضافة الجديدة]: استيراد شاشة الأقسام الفرعية 🟢🟢
+import 'package:my_test_app/screens/consumer/consumer_sub_category_screen.dart'; // ⬅️ الإضافة الجديدة
+// 🟢🟢 [إضافة استيراد]: شاشة عرض منتجات المستهلك الجديدة 🟢🟢
+import 'package:my_test_app/screens/consumer/ConsumerProductListScreen.dart'; // ⬅️ **الإضافة الجديدة هنا**
 
 // 💡 استيرادات الثيم والمزودات (تم نقلها للأعلى لتجنب الخطأ) 💡
 import 'package:my_test_app/theme/app_theme.dart';
+// 🟢🟢 [تم الإضافة]: استيراد ThemeNotifier لحل مشكلة ProviderNotFound 🟢🟢
+import 'package:my_test_app/providers/theme_notifier.dart';
 import 'package:my_test_app/providers/buyer_data_provider.dart';
 import 'package:my_test_app/providers/manufacturers_provider.dart';
 import 'package:my_test_app/providers/cart_provider.dart';
@@ -58,9 +64,8 @@ import 'package:my_test_app/providers/product_offer_provider.dart';
 
 // 💡 يجب استيراد الـ Provider الذي سبب المشكلة:
 import 'package:my_test_app/providers/customer_orders_provider.dart';
-// 🚀🚀 إضافة استيراد شاشة إدارة عروض الدليفري الجديدة  🚀🚀
+// 🚀🚀 إضافة استيراد شاشة إدارة عروض الدليفري الجديدة 🚀🚀
 import 'package:my_test_app/screens/delivery/delivery_offers_screen.dart';
-
 // 🟢🟢 [إضافة]: استيراد شاشة المحفظة 🟢🟢
 import 'package:my_test_app/screens/buyer/wallet_screen.dart';
 // 🟢🟢 [إضافة]: استيراد الـ Provider الجديد 🟢🟢
@@ -68,6 +73,10 @@ import 'package:my_test_app/providers/cashback_provider.dart';
 // 🟢🟢 [إضافة لحل مشكلة البحث]: استيراد شاشة البحث وتصنيف المستخدم 🟢🟢
 import 'package:my_test_app/screens/search/search_screen.dart'; // المسار الصحيح
 import 'package:my_test_app/models/user_role.dart'; // ⬅️ افترض أن UserRole موجود هنا
+
+// 🆕🆕 [إضـــافـــة الـــمـــســـار الـــجـــديـــد]: شاشة عروض المتجر 🆕🆕
+// 🔴 تم استبدال market_offer_screen بالاسم الصحيح
+import 'package:my_test_app/screens/consumer/MarketplaceHomeScreen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -97,10 +106,13 @@ void main() async {
   } catch (e) {
     debugPrint('🚨 FATAL FIREBASE INIT ERROR: $e');
   }
-
   runApp(
     MultiProvider(
       providers: [
+        // 🟢🟢 [التصحيح النهائي]: ThemeNotifier يتطلب قيمة أولية (ThemeMode) 🟢🟢
+        ChangeNotifierProvider(
+          create: (context) => ThemeNotifier(ThemeMode.system),
+        ),
         ChangeNotifierProvider(
           create: (context) => BuyerDataProvider(),
         ),
@@ -138,11 +150,12 @@ void main() async {
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
-
   @override
   Widget build(BuildContext context) {
+    // 💡 ملاحظة: لا يجب قراءة ThemeNotifier هنا، بل يجب قراءته في Widget لاحق
     return Sizer(
       builder: (context, orientation, deviceType) {
+        // يمكن الآن استخدام themeNotifier في أي Widget أدناه
         return MaterialApp(
           title: 'My Test App',
           debugShowCheckedModeBanner: false,
@@ -183,20 +196,18 @@ class MyApp extends StatelessWidget {
               child: child!,
             );
           },
-
           // ⭐️⭐️ تعريف المسارات المُسمّاة 'routes' ⭐️ ⭐️
           initialRoute: '/',
           routes: {
             '/': (context) => const AuthWrapper(),
             LoginScreen.routeName: (context) => const LoginScreen(),
             BuyerHomeScreen.routeName: (context) => const BuyerHomeScreen(), // مسار المشتري القديم
-
             // 🆕🆕 [تسجيل مسار المستهلك الجديد] 🆕🆕
             ConsumerHomeScreen.routeName: (context) => ConsumerHomeScreen(), // المسار الجديد
 
             // 🎯🎯 [تسجيل مسار بحث المستهلك الجديد] 🎯🎯
             ConsumerStoreSearchScreen.routeName: (context) => const ConsumerStoreSearchScreen(), // ⬅️ **تم التسجيل هنا**
-            
+
             SellerScreen.routeName: (context) => const SellerScreen(),
             CartScreen.routeName: (context) => const CartScreen(),
             CheckoutScreen.routeName: (context) => const CheckoutScreen(),
@@ -217,9 +228,7 @@ class MyApp extends StatelessWidget {
             // 🟢🟢 [إضـافة المسار الجديد]: مسار شاشة "حسابي" 🟢🟢
             '/myDetails': (context) => const MyDetailsScreen(), // ⬅️ **تم الربط هنا**
             // 🟢🟢 [إضـافة المسار الجديد]: مسار شاشة "من نحن" 🟢🟢
-            '/about': (context) => const AboutScreen(), // ⬅️ **تم الربط هنا**
-
-            TradersScreen.routeName: (context) => const TradersScreen(),
+            '/about': (context) => const AboutScreen(), // ⬅️ **تم الربط هنا** TradersScreen.routeName: (context) => const TradersScreen(),
             '/register': (context) => const NewClientScreen(),
             '/post_registration_message': (context) => const PostRegistrationMessageScreen(),
             // 🟢🟢 [إضــافــة]: مسار المحفظة (مُصحح الآن في buyer_header_widget) 🟢🟢
@@ -264,6 +273,28 @@ class MyApp extends StatelessWidget {
               }
               return null; // إذا لم يتم العثور على productId صالح
             }
+
+            // 🎯🎯 [تعديل المسار]: MarketplaceHomeScreen (شاشة عروض المتجر) 🎯🎯
+            // 🔴 تم استبدال MarketOfferScreen.routeName
+            if (settings.name == MarketplaceHomeScreen.routeName) {
+              final args = settings.arguments as Map<String, dynamic>?;
+              final storeId = args?['storeId'] as String?;
+              final storeName = args?['storeName'] as String?;
+
+              if (storeId != null && storeName != null) {
+                return MaterialPageRoute(
+                  builder: (context) {
+                    // 🔴 تم استبدال MarketOfferScreen
+                    return MarketplaceHomeScreen(
+                      currentStoreId: storeId,
+                      currentStoreName: storeName,
+                    );
+                  },
+                );
+              }
+              return null; // إذا لم يتم تمرير المعرفات بشكل صحيح
+            }
+
             // 🚀 التعديل الجديد 2: إضافة مسار إضافة المنتجات مع الـ Provider 🚀
             if (settings.name == ProductOfferScreen.routeName) {
               return MaterialPageRoute(
@@ -273,6 +304,53 @@ class MyApp extends StatelessWidget {
                 },
               );
             }
+
+            // 🆕🆕 [إضـــافـــة مـــســـار الأقـــســـام الـــفـــرعـــيـــة] 🆕🆕
+            if (settings.name == '/subcategories') {
+              final args = settings.arguments as Map<String, dynamic>?;
+              final mainCategoryId = args?['mainId'] as String?;
+              final ownerId = args?['ownerId'] as String?;
+              final mainCategoryName = args?['mainCategoryName'] as String?;
+
+              if (mainCategoryId != null && ownerId != null) {
+                return MaterialPageRoute(
+                  builder: (context) {
+                    return ConsumerSubCategoryScreen(
+                      mainCategoryId: mainCategoryId,
+                      ownerId: ownerId,
+                      mainCategoryName: mainCategoryName ?? 'الأقسام الفرعية',
+                    );
+                  },
+                );
+              }
+              return null; // فشل التوجيه إذا كانت البيانات ناقصة
+            }
+            // -----------------------------------------------------------
+
+            // 🟢🟢 [إضـــافـــة مـــســـار عـــرض مـــنـــتـــجـــات الـــمـــســـتـــهـــلـــك] 🟢🟢
+            if (settings.name == ConsumerProductListScreen.routeName) {
+              final args = settings.arguments as Map<String, dynamic>?;
+              final ownerId = args?['ownerId'] as String?;
+              final mainId = args?['mainId'] as String?;
+              final subId = args?['subId'] as String?;
+              final subCategoryName = args?['subCategoryName'] as String?;
+
+              if (ownerId != null && mainId != null && subId != null) {
+                return MaterialPageRoute(
+                  builder: (context) {
+                    return ConsumerProductListScreen(
+                      ownerId: ownerId,
+                      mainId: mainId,
+                      subId: subId,
+                      subCategoryName: subCategoryName ?? 'المنتجات',
+                    );
+                  },
+                );
+              }
+              return null; // فشل التوجيه
+            }
+            // -----------------------------------------------------------
+
             // 2. المسارات القديمة في onGenerateRoute
             if (settings.name == TraderOffersScreen.routeName) {
               final sellerId = settings.arguments as String? ?? '';
@@ -315,11 +393,9 @@ class AuthWrapper extends StatefulWidget {
   @override
   State<AuthWrapper> createState() => _AuthWrapperState();
 }
-
 class _AuthWrapperState extends State<AuthWrapper> {
   // ... (الكود لا يتغير)
   Future<LoggedInUser?>? _userFuture;
-
   @override
   void initState() {
     super.initState();
@@ -345,7 +421,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
     return null;
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -387,11 +462,9 @@ class PostRegistrationMessageScreen extends StatelessWidget {
     Future.delayed(const Duration(seconds: 3), () {
       Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
     });
-
     final String message;
     final IconData icon;
     final Color color;
-
     if (isSeller) {
       message = 'تم تسجيل حساب التاجر بنجاح.\nحسابك قيد المراجعة في انتظار النقل إلى التجار النشطين.';
       icon = Icons.pending_actions;

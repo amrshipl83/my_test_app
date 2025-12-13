@@ -1,0 +1,28 @@
+[33m9820e90[m[33m ([m[1;36mHEAD -> [m[1;32mmain[m[33m)[m New updates and fixes
+[33m2af35fe[m New updates and fixes
+[33m2759008[m New updates and fixes
+[33m06cdc01[m New updates and fixes
+[33m433630a[m Add debug APK build
+[33macc421a[m Update: optional image upload with permission handler and other fixes
+[33ma4eb535[m Update: latest fixes and improvements
+[33m9618352[m Add crash display in main.dart
+[33m715a7ac[m Fix artifact upload action
+[33mf84fb21[m Add GitHub Actions to build APK automatically
+[33m207ccfb[m Update: latest changes and fixes
+[33m44ceae5[m Refactor: Added try-catch block in AuthWrapper's _checkUserLoginStatus to prevent run-time crash when shared preferences is corrupted or initialization fails.
+[33mb28d486[m Fix: Added Firebase BOM to build.gradle.kts to resolve run-time crashes.
+[33mbfa0b20[m Final: Fix Android Manifest permissions and add missing AuthService.signOut method.
+[33m596a677[m Fix: NDK installation moved to a pre-build script command to bypass YAML validation issues.
+[33m457f6f1[m Fix: Final strict YAML format without any comments for validation fix.
+[33m282f379[m Fix: Strict YAML formatting applied to fix indentation error (final attempt).
+[33m20eeaf1[m Fix: Added required NDK version (28.2.13676358) to codemagic.yaml to resolve Gradle build failure.
+[33m25d8c43[m Update package name to com.aksabeg500 for Firebase
+[33md4fbc17[m Update Codemagic workflow and Gradle files for clean build
+[33m4003251[m Update Gradle files for Firebase & Codemagic build
+[33m8611bca[m Fix merge conflicts in app build.gradle.kts
+[33m3624624[m Save work before pull
+[33mae48cdb[m Add Codemagic config
+[33m8ed4ede[m update
+[33m1a15371[m latest updates
+[33m1ed1c70[m update
+[33m6f190be[m Initial commit from Userland
