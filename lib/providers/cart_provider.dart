@@ -1,5 +1,4 @@
 // المسار: lib/providers/cart_provider.dart
-
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -482,7 +481,7 @@ class CartProvider with ChangeNotifier {
     int quantityToAdd = 1,
     required String imageUrl,
     // 🛑 [الوسيطة المضافة]: لا يمكن تركها اختيارية بعد تعديل توقيع الدالة في buyer_product_card
-    required String userRole, 
+    required String userRole,
     // قيود الكمية (اختيارية بقيم افتراضية مرنة)
     int minOrderQuantity = 1,
     int availableStock = 9999,
@@ -494,17 +493,16 @@ class CartProvider with ChangeNotifier {
     // **ملاحظة: هذا المنطق سيؤدي إلى خطأ في مسار buyer (المشتري) كما ناقشنا**
     String verifiedSellerName = sellerName;
     if (userRole == 'consumer') {
-        try {
-          verifiedSellerName = await _dataService.fetchSupermarketNameById(sellerId);
-          print('DEBUG ADD: Verified Name SUCCESS: $verifiedSellerName');
-        } catch (e) {
-          throw 'ERROR: Failed to fetch verified seller name for $sellerId. Error: $e';
-        }
+      try {
+        verifiedSellerName = await _dataService.fetchSupermarketNameById(sellerId);
+        print('DEBUG ADD: Verified Name SUCCESS: $verifiedSellerName');
+      } catch (e) {
+        throw 'ERROR: Failed to fetch verified seller name for $sellerId. Error: $e';
+      }
     } else {
-        // نعتمد على الاسم المرسل من الواجهة في حالة buyer
-        verifiedSellerName = sellerName;
+      // نعتمد على الاسم المرسل من الواجهة في حالة buyer
+      verifiedSellerName = sellerName;
     }
-    
 
     // ==========================================================
     // 🛑 [منطق التحقق من الكمية]
@@ -516,7 +514,7 @@ class CartProvider with ChangeNotifier {
     }
 
     final index = _cartItems.indexWhere(
-      (item) => item.offerId == offerId && item.unitIndex == unitIndex,
+          (item) => item.offerId == offerId && item.unitIndex == unitIndex,
     );
 
     int existingQuantity = 0;
@@ -612,12 +610,13 @@ class CartProvider with ChangeNotifier {
   }
 
   // 💡 منطق إتمام الطلب (Checkout)
+  // 🟢 [التعديل الرئيسي]: إضافة async
   Future<void> proceedToCheckout(BuildContext context, String userRole) async {
     await loadCartAndRecalculate(userRole); // إعادة حساب أخيرة قبل المتابعة
 
     if (_hasCheckoutErrors) {
       ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('يرجى تصحيح أخطاء الكمية والمخزون قبل إتمام الطلب.')),
+        const SnackBar(content: Text('يرجى تصحيح أخطاء الكمية والمخزون قبل إتمام الطلب.')),
       );
       return;
     }
@@ -662,8 +661,9 @@ class CartProvider with ChangeNotifier {
 
     if (!allOrdersValidForCheckout) {
       String alertMessage = "تنبيه: سيتم إتمام الطلبات التي تحقق الحد الأدنى فقط.\nالطلبات غير المؤهلة:\n";
+
       for (var order in ordersToAlert) {
-            alertMessage += "  - التاجر \"${order['sellerName']}\": الإجمالي ${order['currentTotal'].toStringAsFixed(2)} جنيه (الحد الأدنى: ${order['minTotal'].toStringAsFixed(2)} جنيه)\n";
+        alertMessage += "  - التاجر \"${order['sellerName']}\": الإجمالي ${order['currentTotal'].toStringAsFixed(2)} جنيه (الحد الأدنى: ${order['minTotal'].toStringAsFixed(2)} جنيه)\n";
       }
 
       await showDialog(
@@ -708,3 +708,4 @@ class CartProvider with ChangeNotifier {
     notifyListeners();
   }
 }
+
