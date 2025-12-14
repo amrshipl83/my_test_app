@@ -9,7 +9,7 @@ import '../../providers/theme_notifier.dart'; // لتغيير الثيم
 import '../../providers/cart_provider.dart';  // لحساب السلة
 // 🟢🟢 [الإضافة الجديدة]: استيراد مسار شاشة المنتجات الجديدة 🟢🟢
 // تم تصحيح الاستيراد ليكون مطلقاً لحل مشكلة 'No such file or directory'
-import 'package:my_test_app/screens/consumer/ConsumerProductListScreen.dart'; 
+import 'package:my_test_app/screens/consumer/ConsumerProductListScreen.dart';
 
 class ConsumerSubCategoryScreen extends StatefulWidget {
   final String mainCategoryId;
@@ -61,6 +61,9 @@ class _ConsumerSubCategoryScreenState extends State<ConsumerSubCategoryScreen> {
     final cartProvider = Provider.of<CartProvider>(context);
     final themeNotifier = Provider.of<ThemeNotifier>(context);
 
+    // 🟢 [التصحيح 1]: استخدام MediaQuery للحصول على الاتجاه بدلاً من SizerUtil
+    final screenOrientation = MediaQuery.of(context).orientation;
+
     return Scaffold(
       appBar: AppBar(
         // 💡 يحاكي .top-header والـ page-title
@@ -109,7 +112,8 @@ class _ConsumerSubCategoryScreenState extends State<ConsumerSubCategoryScreen> {
           return GridView.builder(
             padding: EdgeInsets.all(4.w),
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: SizerUtil.orientation == Orientation.portrait ? 2 : 3, // 2 أو 3 أعمدة
+              // 🟢 [التصحيح 2]: استخدام screenOrientation بدلاً من SizerUtil.orientation
+              crossAxisCount: screenOrientation == Orientation.portrait ? 2 : 3, // 2 أو 3 أعمدة
               childAspectRatio: 0.85,
               crossAxisSpacing: 4.w,
               mainAxisSpacing: 4.w,

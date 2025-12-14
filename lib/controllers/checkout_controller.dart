@@ -5,18 +5,16 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
-// 🔥🔥 الإضافة الضرورية للاتصال الحقيقي بـ FireStore
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 // تعريف الألوان (لـ SnackBar)
 const Color kPrimaryColor = Color(0xFF4CAF50);
 const Color kErrorColor = Color(0xFFE74C3C);
 
-// 🎯🎯 رابط المسار الآمن (مطابق تمامًا لكود JS) 🎯🎯
 const String CASHBACK_API_ENDPOINT = 'https://l9inzh2wck.execute-api.us-east-1.amazonaws.com/div/cashback';
 
 // ===================================================================
-// دالة مساعدة لتنظيف الكائن (لحذف الحقول ذات القيمة null/undefined - مطابقة لـ removeUndefined في JS)
+// دالة مساعدة لتنظيف الكائن
 // ===================================================================
 Map<String, dynamic> removeNullValues(Map<String, dynamic> obj) {
   final Map<String, dynamic> cleanObj = {};
@@ -28,7 +26,6 @@ Map<String, dynamic> removeNullValues(Map<String, dynamic> obj) {
           cleanObj[key] = cleanedMap;
         }
       } else if (value is List) {
-        // إذا كانت قائمة، نحاول تنظيف العناصر داخلها إذا كانت خرائط
         final cleanedList = value.map((e) => e is Map<String, dynamic> ? removeNullValues(e) : e).toList();
         cleanObj[key] = cleanedList;
       } else {
@@ -51,13 +48,12 @@ class CheckoutController {
 
         final bool isConsumer = (userRole == 'consumer');
         final String usersCollectionName = isConsumer ? "consumers" : "users";
-        final String cashbackFieldName = isConsumer ? "cashbackBalance" : "cashback"; // اسم الحقل في FireStore
+        final String cashbackFieldName = isConsumer ? "cashbackBalance" : "cashback";
 
         try {
             final userDoc = await FirebaseFirestore.instance.collection(usersCollectionName).doc(userId).get();
 
             if (userDoc.exists) {
-                // جلب قيمة الحقل cashbackFieldName (سواء cashbackBalance أو cashback)
                 final fetchedAmount = (userDoc.data()?[cashbackFieldName] as num?)?.toDouble() ?? 0.0;
                 return fetchedAmount;
             }
@@ -65,21 +61,6 @@ class CheckoutController {
             print('❌ Error fetching cashback for user $userId from $usersCollectionName: $e');
         }
         return 0.0;
-    }
-
-    // دالة مساعدة لتجميع الطلبات (ضرورية لنموذج البيانات)
-    static List<Map<String, dynamic>> _groupOrdersForProcessing(List<Map<String, dynamic>> checkoutOrders) {
-          final Map<String, Map<String, dynamic>> groupedItems = {};
-
-          for (var item in checkoutOrders) {
-              final sellerId = item['sellerId'] ?? 'unknown';
-              if (!groupedItems.containsKey(sellerId)) {
-                  groupedItems[sellerId] = { 'items': [], 'subtotal': 0.0, 'sellerName': item['sellerName'] ?? 'بائع غير معروف' };
-              }
-              groupedItems[sellerId]!['items'].add(item);
-      }
-
-      return groupedItems.entries.map((entry) => entry.value..['sellerId'] = entry.key).toList();
     }
 
     // ----------------------------------------------------
@@ -101,7 +82,6 @@ class CheckoutController {
         }
 
         final String paymentMethodString = selectedPaymentMethod.toString();
-        // 💡 جلب البيانات من loggedUser
         final dynamic buyerLocation = loggedUser['location'];
         final String? rawAddress = loggedUser['address']?.toString();
         final String? rawRepCode = loggedUser['repCode']?.toString();
@@ -111,7 +91,6 @@ class CheckoutController {
         final String? repCode = (rawRepCode == null || rawRepCode.isEmpty || rawRepCode == 'null') ? null : rawRepCode;
         final String? repName = (rawRepName == null || rawRepName.isEmpty || rawRepName == 'null') ? null : rawRepName;
 
-        // ... (التحقق من العنوان)
         if (address == null || address.isEmpty) {
             ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('الرجاء إكمال بيانات العنوان قبل تأكيد الطلب.'), backgroundColor: kErrorColor)
@@ -124,7 +103,8 @@ class CheckoutController {
         final String usersCollectionName = isConsumer ? "consumers" : "users";
         final String cashbackFieldName = isConsumer ? "cashbackBalance" : "cashback";
 
-        final List<Map<String, dynamic>> groupedOrdersList = _groupOrdersForProcessing(checkoutOrders);
+        // 🎯🎯 التعديل 1: استخدام checkoutOrders مباشرة كقائمة مُجمَّعة (إلغاء التجميع المزدوج)
+        final List<Map<String, dynamic>> groupedOrdersList = checkoutOrders;
         final Map<String, Map<String, dynamic>> groupedItems = {
             for (var order in groupedOrdersList) order['sellerId'] as String: order
         };
@@ -135,7 +115,6 @@ class CheckoutController {
 
         final bool isGiftEligible = checkoutOrders.any((item) => item['isGift'] == true);
 
-        // 🔥 شرط المسار الآمن (مطابق لـ JS)
         final bool needsSecureProcessing = !isConsumer && (discountUsed > 0 || isGiftEligible);
 
         print('--- Order Processing Summary ---');
@@ -153,7 +132,6 @@ class CheckoutController {
                     double commissionRate = 0.0;
                     try {
                         final sellerSnap = await FirebaseFirestore.instance.collection("sellers").doc(sellerId).get();
-
                         if (sellerSnap.exists) {
                             final fetchedCommissionRate = sellerSnap.data()?['commissionRate'] as num?;
                             if (fetchedCommissionRate != null) {
@@ -169,6 +147,7 @@ class CheckoutController {
 
             // ===================================================================================
             // 🔥🔥 المسار الآمن: Buyer ويحتاج كاش باك أو هدية (API Gateway)
+            // ⚠️ (تم الإبقاء على منطق الحساب القديم هنا مؤقتاً لحين مراجعة Buyer)
             // ===================================================================================
             if (needsSecureProcessing) {
                 print('>>> SCENARIO 1: Buyer Order. Processing via SECURE API <<<');
@@ -178,10 +157,10 @@ class CheckoutController {
                 for (final sellerId in groupedItems.keys) {
                     final sellerOrder = groupedItems[sellerId]!;
 
-                    // حساب الإجمالي والخصم الجزئي
+                    // إعادة الحساب لمتطلبات الـ API
                     double deliveryFee = 0.0;
                     final regularItems = sellerOrder['items'].where((item) => item['isDeliveryFee'] != true && item['isGift'] != true).toList();
-                    final sellerDeliveryItem = sellerOrder['items'].firstWhere((item) => item['isDeliveryFee'] == true, orElse: () => {});
+                    final sellerDeliveryItem = sellerOrder['items'].firstWhere((item) => item['productId'] == 'DELIVERY_FEE', orElse: () => {});
 
                     if (sellerDeliveryItem.isNotEmpty) {
                         deliveryFee = (sellerDeliveryItem['price'] as num?)?.toDouble() ?? 0.0;
@@ -197,20 +176,19 @@ class CheckoutController {
                         discountPortion = (orderSubtotalWithDelivery / originalOrderTotal) * discountUsed;
                     }
 
-                    // 💡 بناء الـ payloadItems (الأصناف المدفوعة فقط)
                     final List<Map<String, dynamic>> payloadItems = [...regularItems];
                     if (sellerDeliveryItem.isNotEmpty) {
                         payloadItems.add(sellerDeliveryItem);
                     }
-
-                    // 🎯🎯 هيكل الطلب الفردي (مطابق لـ JS) 🎯🎯
+                    
                     final orderData = {
+                        // ... (بناء بيانات الطلب لـ API)
                         'sellerId': sellerId,
                         'items': payloadItems,
-                        'total': orderSubtotalWithDelivery,
+                        'total': orderSubtotalWithDelivery, // إجمالي قبل الخصم
                         'paymentMethod': paymentMethodString,
                         'status': 'new-order',
-                        'orderDate': DateTime.now().toUtc().toIso8601String(), // استخدام UTC كما هو شائع في Firebase
+                        'orderDate': DateTime.now().toUtc().toIso8601String(), 
 
                         'commissionRate': commissionRatesCache[sellerId] ?? 0.0,
                         'cashbackApplied': discountPortion,
@@ -219,7 +197,7 @@ class CheckoutController {
                         'cashbackProcessedPerOrder': false,
                         'cashbackProcessedCumulative': false,
 
-                        'buyer': { // 🎯🎯 هيكل كائن الـ buyer الداخلي (مطابق لـ JS) 🎯🎯
+                        'buyer': { 
                             'name': loggedUser['fullname'],
                             'phone': loggedUser['phone'],
                             'email': loggedUser['email'],
@@ -232,12 +210,11 @@ class CheckoutController {
                     allOrdersData.add(removeNullValues(orderData));
                 }
 
-                // 🎯🎯 هيكل الحمولة الكلية (Payload) (مطابق لـ JS) 🎯🎯
+                // ... (منطق إرسال API)
                 final payload = {
                     'userId': loggedUser['id'],
                     'cashbackToReserve': discountUsed,
                     'ordersData': allOrdersData,
-                    // 🔥🔥 التعديل الضروري: إضافة مرجع فريد لعملية الدفع
                     'checkoutId': 'CHECKOUT-${loggedUser['id']}-${DateTime.now().millisecondsSinceEpoch}',
                 };
 
@@ -247,7 +224,6 @@ class CheckoutController {
                     final response = await http.post(
                         Uri.parse(CASHBACK_API_ENDPOINT),
                         headers: { 'Content-Type': 'application/json' },
-                        // 🎯🎯 استخدام removeNullValues لضمان نظافة الحمولة 🎯🎯
                         body: json.encode(removeNullValues(payload)),
                     );
 
@@ -268,31 +244,42 @@ class CheckoutController {
                 }
             } else {
                 // ===================================================================================
-                // 💾 المسار المباشر: Direct Firestore Write
+                // 💾 المسار المباشر: Direct Firestore Write (مسار المستهلك المصحح)
                 // ===================================================================================
                 print('>>> SCENARIO 2/3: Processing via DIRECT Firestore Write <<<');
 
                 for (final sellerId in groupedItems.keys) {
                     final sellerOrder = groupedItems[sellerId]!;
 
-                    double deliveryFee = 0.0;
-                    final regularItems = sellerOrder['items'].where((item) => item['isDeliveryFee'] != true && item['isGift'] != true).toList();
-                    final sellerDeliveryItem = sellerOrder['items'].firstWhere((item) => item['isDeliveryFee'] == true, orElse: () => {});
+                    // 1. استخلاص الأصناف الأصلية
+                    final List<Map<String, dynamic>> allPaidItems = (sellerOrder['items'] as List?)?.cast<Map<String, dynamic>>() ?? []; 
 
-                    if (sellerDeliveryItem.isNotEmpty) {
-                        deliveryFee = (sellerDeliveryItem['price'] as num?)?.toDouble() ?? 0.0;
+                    // 2. 💥💥 إعادة الحساب الدقيق من الأصناف (لضمان تفكيك الإجماليات) 💥💥
+                    double calculatedSubtotalPrice = 0.0;
+                    double calculatedDeliveryFee = 0.0;
+                    
+                    for (var item in allPaidItems) {
+                        final price = (item['price'] as num?)?.toDouble() ?? 0.0;
+                        final quantity = (item['quantity'] as num?)?.toDouble() ?? 0.0;
+                        final itemTotal = price * quantity;
+
+                        // نعتمد على productId الموحد (DELIVERY_FEE) لتحديد رسوم التوصيل
+                        if (item['productId'] == 'DELIVERY_FEE') { 
+                            calculatedDeliveryFee += itemTotal;
+                        } else {
+                            // جمع أسعار المنتجات المدفوعة فقط
+                            if (!(item['isGift'] ?? false)) {
+                                calculatedSubtotalPrice += itemTotal;
+                            }
+                        }
                     }
 
-                    final List<Map<String, dynamic>> allPaidItems = [...regularItems.cast<Map<String, dynamic>>()];
-                    if (sellerDeliveryItem.isNotEmpty) {
-                        allPaidItems.add(sellerDeliveryItem.cast<String, dynamic>());
-                    }
+                    // 3. استخدام القيم المحسوبة للتفكيك
+                    final double subtotalPrice = calculatedSubtotalPrice; // ✅ إجمالي المنتجات فقط
+                    final double deliveryFee = calculatedDeliveryFee;       // ✅ رسوم التوصيل فقط
 
-                    final double subtotalPrice = regularItems.fold(
-                            0.0, (sum, item) => sum + ((item['price'] as num?)?.toDouble() ?? 0.0) * ((item['quantity'] as num?)?.toDouble() ?? 0.0)
-                    );
+                    // 4. حساب الإجمالي النهائي بعد الخصم (نقاط الكاش باك)
                     final double orderSubtotalWithDelivery = subtotalPrice + deliveryFee;
-
                     double discountPortion = 0.0;
                     if (originalOrderTotal > 0 && discountUsed > 0) {
                         discountPortion = (orderSubtotalWithDelivery / originalOrderTotal) * discountUsed;
@@ -300,11 +287,10 @@ class CheckoutController {
                     final double finalAmountForOrder = orderSubtotalWithDelivery - discountPortion;
 
                     final String sellerName = sellerOrder['sellerName'] ?? 'بائع غير معروف';
-                    final String? sellerPhone = regularItems.isNotEmpty ? regularItems.first['sellerPhone'] as String? : null;
+                    final String? sellerPhone = allPaidItems.isNotEmpty ? allPaidItems.firstWhere((item) => item['sellerPhone'] != null, orElse: () => {})['sellerPhone'] as String? : null;
 
                     Map<String, dynamic> orderData;
                     if (isConsumer) {
-                        // تذكر أنك طلبت مني تذكر اسم المجموعة 'deliverySupermarkets'
                         orderData = {
                             'customerId': loggedUser['id'],
                             'customerName': loggedUser['fullname'],
@@ -313,25 +299,28 @@ class CheckoutController {
                             'customerAddress': address,
                             'deliveryLocation': buyerLocation,
 
-                            // استخدام حقول الـ deliverySupermarkets
-                            'supermarketId': sellerId, // ownerId
-                            'supermarketName': sellerName, // supermarketName
+                            'supermarketId': sellerId,
+                            'supermarketName': sellerName,
                             'supermarketPhone': sellerPhone,
 
                             'items': allPaidItems,
+                            
+                            // 💥💥 الحقول المصححة والمفككة 💥💥
                             'deliveryFee': deliveryFee,
                             'subtotalPrice': subtotalPrice,
-
                             'finalAmount': finalAmountForOrder,
-                            'paymentMethod': paymentMethodString,
-                            'status': 'new-order',
-                            'orderDate': DateTime.now().toUtc().toIso8601String(),
 
+                            // حقول الكاش باك للباك إند
                             'pointsUsed': discountPortion,
                             'pointsEarned': 0,
                             'points_calculated': false,
+
+                            'paymentMethod': paymentMethodString,
+                            'status': 'new-order',
+                            'orderDate': DateTime.now().toUtc().toIso8601String(),
                         };
                     } else {
+                        // ... (كود البائع/Buyer - لم يتم تعديله بعد)
                         orderData = {
                             'buyer': {
                                 'id': loggedUser['id'],
@@ -367,12 +356,9 @@ class CheckoutController {
 
                     try {
                         final finalOrderData = removeNullValues(orderData);
-                        // 🔥 الكتابة الفعلية
                         final docRef = await FirebaseFirestore.instance.collection(ordersCollectionName).add(finalOrderData);
                         final String orderId = docRef.id;
                         successfulOrderIds.add(orderId);
-
-                        // 💡 دمج orderId
                         await FirebaseFirestore.instance.collection(ordersCollectionName).doc(orderId).set({ 'orderId': orderId }, SetOptions(merge: true));
 
                     } catch (e) {
@@ -380,7 +366,7 @@ class CheckoutController {
                     }
                 }
 
-                // 🔥 خصم الكاش باك الفوري
+                // خصم الكاش باك الفوري
                 if (discountUsed > 0 && successfulOrderIds.isNotEmpty) {
                     try {
                         final newCashbackBalance = currentCashback - discountUsed;

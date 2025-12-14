@@ -7,14 +7,12 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 // ✅ المكتبات المستقرة
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-
 // ----------------------------------------------------------------------
 // 0. الثوابت
 // ----------------------------------------------------------------------
 const Color primaryColor = Color(0xff28a745); // اللون الأساسي الأخضر
-
 // 🗺️ رابط بلاطات CartoDB Positron (الخلفية الفاتحة)
-const String TILE_URL = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'; 
+const String TILE_URL = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
 const List<String> TILE_SUBDOMAINS = ['a', 'b', 'c', 'd'];
 
 // قائمة أنواع الأعمال التجارية (مطابقة لـ HTML/JS)
@@ -25,13 +23,11 @@ const List<DropdownMenuItem<String>> businessTypeItems = [
   DropdownMenuItem(value: 'services', child: Text('خدمات')),
   DropdownMenuItem(value: 'other', child: Text('أخرى')),
 ];
-
 // قائمة صلاحيات المستخدم الفرعي (مطابقة لـ HTML/JS)
 const List<DropdownMenuItem<String>> subUserRoleItems = [
   DropdownMenuItem(value: 'full', child: Text('صلاحية كاملة (كتابة وقراءة)')),
   DropdownMenuItem(value: 'read_only', child: Text('صلاحية عرض فقط (قراءة)')),
 ];
-
 // ----------------------------------------------------------------------
 // 1. نماذج البيانات (Models)
 // ----------------------------------------------------------------------
@@ -69,7 +65,6 @@ class SubUser {
   final String? addedAt;
 
   SubUser({this.phone, this.role, this.addedAt});
-
   factory SubUser.fromMap(Map<String, dynamic> map) {
     return SubUser(
       phone: map['phone'] as String?,
@@ -105,31 +100,30 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
 
   String? _selectedBusinessType;
   String _selectedSubUserRole = 'full';
-
   // حالة الخريطة لـ flutter_map
   final MapController _mapController = MapController();
   LatLng? _branchLocation;
   String _branchLatLong = '0.0, 0.0';
-  String _branchAddress = 'يرجى تحديد موقع الفرع على الخريطة.';                                           
-  // لإدارة الماركر الحالي                             
+  String _branchAddress = 'يرجى تحديد موقع الفرع على الخريطة.';
+  // لإدارة الماركر الحالي
   Marker? _currentMarker;
-                                                       
-  // ----------------------------------------------------------------------                                 
+
+  // ----------------------------------------------------------------------
   // LIFECYCLE & DATA LOADING
   // ----------------------------------------------------------------------
-  @override                                            
+  @override
   void initState() {
-    super.initState();                                   
+    super.initState();
     _loadSellerData();
-  }                                                  
-  
-  @override                                            
+  }
+
+  @override
   void dispose() {
-    _merchantNameController.dispose();                   
+    _merchantNameController.dispose();
     _minOrderTotalController.dispose();
-    _deliveryFeeController.dispose();                    
+    _deliveryFeeController.dispose();
     _subUserPhoneController.dispose();
-    super.dispose();                                   
+    super.dispose();
   }
 
   Future<void> _loadSellerData() async {
@@ -139,25 +133,22 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
     try {
       final sellerRef = _firestore.collection("sellers").doc(widget.currentSellerId);
       final sellerSnap = await sellerRef.get();
-
       if (sellerSnap.exists) {
         sellerDataCache = sellerSnap.data()!;
-
         _merchantNameController.text = sellerDataCache['merchantName'] ?? '';
         _minOrderTotalController.text = (sellerDataCache['minOrderTotal'] as num? ?? 0.0).toString();
         _deliveryFeeController.text = (sellerDataCache['deliveryFee'] as num? ?? 0.0).toString();
 
         final loadedBusinessType = sellerDataCache['businessType'];
         if (loadedBusinessType != null && businessTypeItems.any((item) => item.value == loadedBusinessType)) {
-          _selectedBusinessType = loadedBusinessType;        
+          _selectedBusinessType = loadedBusinessType;
         } else {
           _selectedBusinessType = null;
-        }                                            
+        }
         final branches = (sellerDataCache['branches'] as List<dynamic>?);
         if (branches != null && branches.isNotEmpty) {
           final firstBranchMap = branches.first as Map<String, dynamic>;
           final firstBranch = Branch.fromMap(firstBranchMap);
-
           if (firstBranch.lat != null && firstBranch.long != null) {
             _branchLocation = LatLng(firstBranch.lat!, firstBranch.long!);
             _updateBranchLocation(firstBranch.lat!, firstBranch.long!, firstBranch.address);
@@ -178,14 +169,14 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
   // ----------------------------------------------------------------------
   // MAP LOGIC (Flutter Map - CartoDB Tiles)
   // ----------------------------------------------------------------------
-
   void _addMarker(double lat, double lng) async {
     setState(() {
       _currentMarker = Marker(
         point: LatLng(lat, lng),
         width: 40,
         height: 40,
-        builder: (context) => const Icon(
+        // 🟢 [التصحيح 1]: تغيير builder إلى child
+        child: const Icon(
           Icons.location_pin,
           color: primaryColor, // استخدام اللون الأساسي
           size: 40,
@@ -206,11 +197,12 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
       _branchLocation = LatLng(lat, lng);
       // يتم إنشاء الماركر وتحديثه عند تعيين الموقع الأولي من Firebase
       if (_currentMarker == null && lat != 0.0 && lng != 0.0) {
-         _currentMarker = Marker(
+        _currentMarker = Marker(
           point: LatLng(lat, lng),
           width: 40,
           height: 40,
-          builder: (context) => const Icon(
+          // 🟢 [التصحيح 1]: تغيير builder إلى child
+          child: const Icon(
             Icons.location_pin,
             color: primaryColor,
             size: 40,
@@ -229,11 +221,9 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
     setState(() {
       _isLoading = true;
     });
-
     final updates = <String, dynamic>{};
     final newMerchantName = _merchantNameController.text.trim();
     final newBusinessType = _selectedBusinessType;
-
     if (newMerchantName.isNotEmpty && newMerchantName != (sellerDataCache['merchantName'] ?? '')) {
       updates['merchantName'] = newMerchantName;
     }
@@ -286,7 +276,6 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
     final updates = <String, dynamic>{};
     updates['minOrderTotal'] = newMinOrderTotal;
     updates['deliveryFee'] = newDeliveryFee;
-
     try {
       final sellerRef = _firestore.collection("sellers").doc(widget.currentSellerId);
       await sellerRef.update(updates);
@@ -336,11 +325,10 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
 
       _showSnackBar("✅ تم إضافة فرع جديد بنجاح!");
       await _loadSellerData();
-
       // حذف الماركر المؤقت وتصفير الموقع
       setState(() {
          _currentMarker = null;
-        _updateBranchLocation(0.0, 0.0, 'يرجى تحديد موقع الفرع على الخريطة.');
+         _updateBranchLocation(0.0, 0.0, 'يرجى تحديد موقع الفرع على الخريطة.');
       });
 
 
@@ -398,7 +386,6 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
       _showSnackBar("✅ تم تسجيل المستخدم الفرعي $phone بنجاح!");
       await _loadSellerData();
       _subUserPhoneController.clear();
-
     } catch (e) {
       _showSnackBar("❌ حدث خطأ أثناء إضافة المستخدم الفرعي: $e", isError: true);
     } finally {
@@ -600,19 +587,22 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
                   ElevatedButton(
                     onPressed: _updateBusinessData,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: primaryColor,                       
-                      minimumSize: const Size(double.infinity, 50),                                                           
+                      backgroundColor: primaryColor,
+                      minimumSize: const Size(double.infinity, 50),
+
                     ),
-                    child: const Text('تحديث بيانات العمل التجاري', style: TextStyle(color: Colors.white, fontSize: 16)),                                                        
+                    child: const Text('تحديث بيانات العمل التجاري', style: TextStyle(color: Colors.white, fontSize: 16)),
+
                   ),
                   const SizedBox(height: 20),
-                                                                       
+
+
                   _buildSectionTitle('إعدادات الطلبات والعمولة'),
-                  _buildEditableSetting(                                 
+                  _buildEditableSetting(
                     label: 'الحد الأدنى للطلب (ج.م):',
                     input: TextField(
                       controller: _minOrderTotalController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),                                       
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       decoration: const InputDecoration(hintText: 'أدخل الحد الأدنى للطلب'),
                     ),
                   ),
@@ -634,6 +624,7 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
                       minimumSize: const Size(double.infinity, 50),
                     ),
                     child: const Text('تحديث إعدادات الطلبات والشحن', style: TextStyle(color: Colors.white, fontSize: 16)),
+
                   ),
                   const SizedBox(height: 20),
 
@@ -648,18 +639,21 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
                   // زر إضافة فرع جديد
                   ElevatedButton(
                     onPressed: _addBranch,
-                    style: ElevatedButton.styleFrom(                       
+                    style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xff007bff), // لون أزرق للزر الثانوي
                       minimumSize: const Size(double.infinity, 50),
                     ),
                     child: const Text('إضافة فرع جديد', style: TextStyle(color: Colors.white, fontSize: 16)),
-                  ),                                                   
-                  const SizedBox(height: 10),
 
+                  ),
+
+                  const SizedBox(height: 10),
                   const Text('الفروع المسجلة حالياً:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+
                   _buildBranchList(branches),
                   const SizedBox(height: 20),
-                                                                       
+
+
                   _buildSectionTitle('إدارة المستخدمين الفرعيين (Sub-Users)'),
                   _buildEditableSetting(
                     label: 'رقم هاتف المستخدم الجديد (للمصادقة):',
@@ -667,62 +661,72 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
                       controller: _subUserPhoneController,
                       keyboardType: TextInputType.phone,
                       decoration: const InputDecoration(hintText: '+201XXXXXXXXX'),
-                    ),                                                 
+                    ),
+
                   ),
                   _buildEditableSetting(
                     label: 'صلاحية المستخدم:',
                     input: DropdownButtonFormField<String>(
                       value: _selectedSubUserRole,
                       decoration: const InputDecoration(border: OutlineInputBorder()),
-                      items: subUserRoleItems,       
+                      items: subUserRoleItems,
                       onChanged: (value) => setState(() => _selectedSubUserRole = value ?? 'full'),
                     ),
                   ),
-                                                                       // زر إضافة مستخدم فرعي                                                                                   
+
+                  // زر إضافة مستخدم فرعي
                   ElevatedButton(
                     onPressed: _addSubUser,
-                    style: ElevatedButton.styleFrom(                       
-                      backgroundColor: const Color(0xff007bff),                                           
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xff007bff),
                       minimumSize: const Size(double.infinity, 50),
                     ),
                     child: const Text('إضافة مستخدم فرعي', style: TextStyle(color: Colors.white, fontSize: 16)),
+
                   ),
                   const SizedBox(height: 10),
-
                   const Text('المستخدمون الحاليون:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   _buildSubUserList(subUsers),
                   const SizedBox(height: 40),
 
                   _buildSectionTitle('منطقة الخطر', color: Colors.red),
                   Center(
-                    child: ElevatedButton(                                 
+                    child: ElevatedButton(
+
                       onPressed: _deleteAccount,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red, 
-                        minimumSize: const Size(double.infinity, 50),                                                           
+                        backgroundColor: Colors.red,
+                        minimumSize: const Size(double.infinity, 50),
+
                       ),
-                      child: const Text('تعطيل حسابي', style: TextStyle(color: Colors.white, fontSize: 16)),                                                                       
+                      child: const Text('تعطيل حسابي', style: TextStyle(color: Colors.white, fontSize: 16)),
+
                     ),
-                  ),                                                   
-                  const SizedBox(height: 40),        
-                ],                                                 
+                  ),
+
+                  const SizedBox(height: 40),
+                ],
+
               ),
-            ),                                           
+            ),
+
     );
-  }                                                  
+  }
+
   // ----------------------------------------------------------------------
   // HELPER WIDGETS
   // ----------------------------------------------------------------------
-                                                       
+
   LatLng _initialCenter() {
-    // إحداثيات افتراضية للقاهرة: 30.0333, 31.2357       
+    // إحداثيات افتراضية للقاهرة: 30.0333, 31.2357
     final defaultPoint = LatLng(30.0333, 31.2357);
     return _branchLocation ?? defaultPoint;
   }
 
   Widget _buildSectionTitle(String title, {Color color = primaryColor}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 15.0),                                                      
+      padding: const EdgeInsets.symmetric(vertical: 15.0),
+
       child: Text(
         title,
         style: TextStyle(
@@ -731,7 +735,8 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
           color: color,
         ),
       ),
-    );                                                 
+    );
+
   }
 
   Widget _buildSettingItem(String label, dynamic value) {
@@ -753,17 +758,20 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,        
+        crossAxisAlignment: CrossAxisAlignment.start,
+
         children: [
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.black87)),                  
+          Text(label, style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.black87)),
+
           const SizedBox(height: 8),
           input,
-          const SizedBox(height: 4),                         
+          const SizedBox(height: 4),
+
         ],
-      ),                                                 
+      ),
     );
-  }                                                  
-  
+  }
+
   Widget _buildImageUploadSection() {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -771,13 +779,15 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text('الشعار الحالي:', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.black87)),
+
           const SizedBox(height: 8),
           if (sellerDataCache['merchantLogoUrl'] != null)
             Image.network(
-              sellerDataCache['merchantLogoUrl'],                  
+              sellerDataCache['merchantLogoUrl'],
               width: 150,
               height: 150,
-              fit: BoxFit.contain,                                 
+              fit: BoxFit.contain,
+
               errorBuilder: (context, error, stackTrace) =>
                   const Icon(Icons.broken_image, size: 100, color: Colors.grey),
             ),
@@ -785,16 +795,19 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
           ElevatedButton.icon(
             onPressed: () {
               _showSnackBar("🚫 وظيفة اختيار الملف ورفعه (Cloudinary) غير مفعلة في هذا الكود.", isError: true);
+
             },
-            icon: const Icon(Icons.upload_file, color: Colors.black87),                                               
+            icon: const Icon(Icons.upload_file, color: Colors.black87),
+
             label: const Text('رفع شعار المتجر الجديد', style: TextStyle(color: Colors.black87)),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.grey.shade200,               
+              backgroundColor: Colors.grey.shade200,
               elevation: 0,
             ),
           ),
           const Text(
-            'سيتم تحديث الشعار فقط إذا اخترت ملفاً جديداً.',                                                            
+            'سيتم تحديث الشعار فقط إذا اخترت ملفاً جديداً.',
+
             style: TextStyle(fontSize: 12, color: Colors.black54, height: 2),
           ),
         ],
@@ -815,21 +828,26 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
         child: FlutterMap(
           mapController: _mapController,
           options: MapOptions(
-            center: initialCenter,
-            zoom: 12.0,
-            onTap: (tapPosition, point) {                          
-              _addMarker(point.latitude, point.longitude); // إضافة ماركر عند النقر                                   
+            // 🟢 [التصحيح 2]: تغيير center إلى initialCenter
+            initialCenter: initialCenter,
+            initialZoom: 12.0,
+            onTap: (tapPosition, point) {
+              _addMarker(point.latitude, point.longitude); // إضافة ماركر عند النقر
+
             },
           ),
-          children: [                                            
+          children: [
+
             // 🛑 الطبقة هنا تستخدم بلاطات CartoDB Positron (الفاتح)
-            TileLayer(                                             
+            TileLayer(
               urlTemplate: TILE_URL,
               subdomains: TILE_SUBDOMAINS,
-              userAgentPackageName: 'com.example.app',                                                                  
-              maxZoom: 19, 
+              userAgentPackageName: 'com.example.app',
+
+              maxZoom: 19,
             ),
-            MarkerLayer(                                           
+            MarkerLayer(
+
               markers: _currentMarker == null ? [] : [_currentMarker!],
             ),
           ],

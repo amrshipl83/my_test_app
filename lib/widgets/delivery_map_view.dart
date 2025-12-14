@@ -1,5 +1,4 @@
 // lib/widgets/delivery_map_view.dart
-
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -12,7 +11,6 @@ const String TILE_URL = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}
 const List<String> TILE_SUBDOMAINS = ['a', 'b', 'c', 'd'];
 const LatLng MAP_CENTER = LatLng(30.9, 28.5);
 const double MAP_ZOOM = 5.5;
-
 // ثابت GeoJSON File Path - تأكد من تطابقه مع pubspec.yaml
 const String GEOJSON_FILE_PATH = 'assets/OSMB-bc319d822a17aa9ad1089fc05e7d4e752460f877.geojson';
 
@@ -39,7 +37,7 @@ class _DeliveryMapViewState extends State<DeliveryMapView> {
 
   Map<String, dynamic>? _geoJsonData;
   bool _isLoading = true;
-  String? _loadingError; 
+  String? _loadingError;
 
   // ----------------------------------------------------------------------
   // LIFECYCLE
@@ -55,26 +53,26 @@ class _DeliveryMapViewState extends State<DeliveryMapView> {
   // دالة تحميل GeoJSON
   // ----------------------------------------------------------------------
   Future<void> _loadGeoJsonAndInitialize() async {
-      _geoJsonData = widget.initialGeoJsonData;
+    _geoJsonData = widget.initialGeoJsonData;
 
-      if (_geoJsonData == null) {
-          try {
-              final geoJsonString = await rootBundle.loadString(GEOJSON_FILE_PATH);
-              _geoJsonData = jsonDecode(geoJsonString) as Map<String, dynamic>;
-              _loadingError = null; 
-          } catch (e) {
-              _loadingError = '❌ فشل تحميل ملف GeoJSON من الأصول. تأكد من pubspec.yaml والمسار.'; 
-              _geoJsonData = null; 
-              print('FATAL ERROR: Failed to load GeoJSON from assets: $e');
-          }
+    if (_geoJsonData == null) {
+      try {
+        final geoJsonString = await rootBundle.loadString(GEOJSON_FILE_PATH);
+        _geoJsonData = jsonDecode(geoJsonString) as Map<String, dynamic>;
+        _loadingError = null;
+      } catch (e) {
+        _loadingError = '❌ فشل تحميل ملف GeoJSON من الأصول. تأكد من pubspec.yaml والمسار.';
+        _geoJsonData = null;
+        print('FATAL ERROR: Failed to load GeoJSON from assets: $e');
       }
+    }
 
-      setState(() {
-        _isLoading = false;
-        if (_geoJsonData != null) {
-          _updateMapAndPolygons(_selectedAreaNames);
-        }
-      });
+    setState(() {
+      _isLoading = false;
+      if (_geoJsonData != null) {
+        _updateMapAndPolygons(_selectedAreaNames);
+      }
+    });
   }
 
   @override
@@ -100,7 +98,7 @@ class _DeliveryMapViewState extends State<DeliveryMapView> {
   }
 
   void _updateMapAndPolygons(List<String> areaNames) {
-    if (_geoJsonData == null || areaNames.isEmpty) { 
+    if (_geoJsonData == null || areaNames.isEmpty) {
       setState(() {
         _polygons = [];
       });
@@ -142,8 +140,14 @@ class _DeliveryMapViewState extends State<DeliveryMapView> {
       bounds = LatLngBounds.fromPoints(allPoints);
     }
 
+    // 🟢 [التصحيح 3]: تغيير fitBounds إلى fitCamera
     if (bounds != null && bounds.south != null && bounds.north != null) {
-      _mapController.fitBounds(bounds, options: const FitBoundsOptions(padding: EdgeInsets.all(50)));
+      _mapController.fitCamera(
+        CameraFit.bounds(
+          bounds: bounds,
+          padding: const EdgeInsets.all(50),
+        ),
+      );
     }
   }
 
@@ -163,7 +167,7 @@ class _DeliveryMapViewState extends State<DeliveryMapView> {
         child: Padding(
           padding: const EdgeInsets.all(20.0),
           child: Text(
-            _loadingError!, 
+            _loadingError!,
             textAlign: TextAlign.center,
             style: const TextStyle(color: Colors.red, fontSize: 16, fontWeight: FontWeight.bold),
           ),
@@ -175,19 +179,17 @@ class _DeliveryMapViewState extends State<DeliveryMapView> {
 
     // استخراج أسماء المناطق (باستخدام حقل 'name' المؤكد)
     final List<String> allAreaNames = features
-        .map((f) => f['properties']['name'] as String?) 
+        .map((f) => f['properties']['name'] as String?)
         .where((name) => name != null && name.isNotEmpty)
         .cast<String>()
         .toList();
-    
-    // ✅ التشخيص: عدد المناطق المستخرجة
-    final int areaCount = allAreaNames.length; 
 
+    // ✅ التشخيص: عدد المناطق المستخرجة
+    final int areaCount = allAreaNames.length;
     // رسالة التشخيص البديلة (في الـ UI)
     final String hintText = areaCount == 0
         ? '⚠️ تم تحميل GeoJSON لكن لم يتم استخراج أي مناطق.'
-        : 'تم اختيار ${_selectedAreaNames.length} مناطق من أصل $areaCount'; 
-
+        : 'تم اختيار ${_selectedAreaNames.length} مناطق من أصل $areaCount';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -203,12 +205,12 @@ class _DeliveryMapViewState extends State<DeliveryMapView> {
         InkWell(
           onTap: () async {
             // هذا التأكيد يمنع فتح الحوار إذا لم يتم تحميل المناطق
-            if (areaCount == 0) return; 
+            if (areaCount == 0) return;
 
             final List<String>? result = await showDialog<List<String>>(
               context: context,
               builder: (context) => MultiSelectAreaDialog(
-                allAreas: allAreaNames, 
+                allAreas: allAreaNames,
                 initialSelection: _selectedAreaNames,
               ),
             );
@@ -221,7 +223,7 @@ class _DeliveryMapViewState extends State<DeliveryMapView> {
               value: null,
               decoration: InputDecoration(
                 border: const OutlineInputBorder(),
-                hintText: hintText, 
+                hintText: hintText,
               ),
               // يجب إبقاء items فارغًا
               items: const [],
@@ -243,15 +245,18 @@ class _DeliveryMapViewState extends State<DeliveryMapView> {
             borderRadius: BorderRadius.circular(8),
             child: FlutterMap(
               mapController: _mapController,
-              options: MapOptions( 
-                center: MAP_CENTER,
-                zoom: MAP_ZOOM,
+              options: MapOptions(
+                // 🟢 [التصحيح 1]: تغيير center إلى initialCenter
+                initialCenter: MAP_CENTER,
+                // 🟢 [التصحيح 2]: تغيير zoom إلى initialZoom
+                initialZoom: MAP_ZOOM,
               ),
               children: [
-                TileLayer(                           
+                TileLayer(
                   urlTemplate: TILE_URL,
                   subdomains: TILE_SUBDOMAINS,
                   userAgentPackageName: 'com.example.app',
+
                   maxZoom: 19,
                 ),
                 PolygonLayer(
