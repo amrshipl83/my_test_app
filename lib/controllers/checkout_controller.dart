@@ -38,7 +38,7 @@ Map<String, dynamic> removeNullValues(Map<String, dynamic> obj) {
 
 class CheckoutController {
 
-    // (دالة fetchCashback باقية كما هي)
+    // دالة جلب الكاش باك (تبقى كما هي)
     static Future<double> fetchCashback(String userId, String userRole) async {
         if (userId.isEmpty) return 0.0;
 
@@ -144,23 +144,69 @@ class CheckoutController {
         final String usersCollectionName = isConsumer ? "consumers" : "users";
         final String cashbackFieldName = isConsumer ? "cashbackBalance" : "cashback";
 
-        // استخدام القائمة النظيفة
-        final List<Map<String, dynamic>> groupedOrdersList = safeCheckoutOrders; 
+        // 🌟🌟 [التعديل الحاسم: المعالجة المسبقة وتصفية رسوم التوصيل للـ Buyer] 🌟🌟
+        final List<Map<String, dynamic>> processedCheckoutOrders = [];
+        for (var order in safeCheckoutOrders) {
+            Map<String, dynamic> processedOrder = Map.from(order);
+            final List<Map<String, dynamic>> items = (processedOrder['items'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+            
+            final List<Map<String, dynamic>> processedItems = [];
+            for (var item in items) {
+                Map<String, dynamic> processedItem = Map.from(item);
+                final double price = (processedItem['price'] as num?)?.toDouble() ?? 0.0;
+                
+                final bool isDeliveryFee = (processedItem['productId'] == 'DELIVERY_FEE' || (processedItem['isDeliveryFee'] ?? false));
+
+                // 1. منطق تعيين isGift للمنتج ذو السعر صفر (إذا لم يكن رسوم توصيل)
+                if (price <= 0.0 && !isDeliveryFee) {
+                    processedItem['isGift'] = true;
+                }
+                
+                // 2. منطق إزالة رسوم التوصيل من حمولة Buyer نهائياً
+                if (!isConsumer && isDeliveryFee) {
+                    continue; // تجاهل رسوم التوصيل ولا تضفها للقائمة المعالجة
+                }
+                
+                processedItems.add(processedItem);
+            }
+            processedOrder['items'] = processedItems;
+            processedCheckoutOrders.add(processedOrder);
+        }
+
+        // استخدام القائمة النظيفة والمعدلة الآن لتحديد الإجمالي وتحديد المسار
+        final List<Map<String, dynamic>> groupedOrdersList = processedCheckoutOrders; 
         final Map<String, Map<String, dynamic>> groupedItems = {
             for (var order in groupedOrdersList) order['sellerId'] as String: order
         };
         
+        // حساب إجمالي الطلبات المدفوعة فقط
+        double actualOrderTotal = 0.0;
+        for(var order in groupedOrdersList) {
+            final List<Map<String, dynamic>> items = (order['items'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+            for(var item in items) {
+                final price = (item['price'] as num?)?.toDouble() ?? 0.0;
+                final quantity = (item['quantity'] as num?)?.toDouble() ?? 0.0;
+                // نجمع المنتجات غير الهدايا وغير رسوم التوصيل (لأن رسوم التوصيل أزيلت بالفعل للـ Buyer)
+                if (!(item['isGift'] ?? false) && !(item['isDeliveryFee'] ?? false)) {
+                     actualOrderTotal += price * quantity;
+                }
+            }
+        }
+        
         final double discountUsed = useCashback
-            ? min(originalOrderTotal, currentCashback)
+            ? min(actualOrderTotal, currentCashback) // استخدام الإجمالي الفعلي لتحديد الخصم
             : 0.0;
 
-        // 🟢 الإصلاح 1: استخدام safeCheckoutOrders
-        final bool isGiftEligible = safeCheckoutOrders.any((item) => (item['isGift'] ?? false) == true);
+        // 🟢 تحديد eligibility بناءً على القائمة المعالجة
+        final bool isGiftEligible = processedCheckoutOrders.any((order) {
+            final List<Map<String, dynamic>> items = (order['items'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+            return items.any((item) => (item['isGift'] ?? false) == true);
+        });
 
         final bool needsSecureProcessing = !isConsumer && (discountUsed > 0 || isGiftEligible);
 
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('DIAGNOSTIC: Secure Processing Needed: $needsSecureProcessing. Cashback to use: $discountUsed'), backgroundColor: kDebugColor)
+            SnackBar(content: Text('DIAGNOSTIC: Secure Processing Needed: $needsSecureProcessing. Cashback to use: $discountUsed. Actual Total: $actualOrderTotal'), backgroundColor: kDebugColor)
         );
 
 
@@ -168,7 +214,7 @@ class CheckoutController {
             List<String> successfulOrderIds = [];
             final uniqueSellerIds = groupedItems.keys.toList();
 
-            // ⭐️ جلب نسب العمولات الحقيقية من FireStore (مجموعة sellers) - تم إرجاع هذا الجزء
+            // ⭐️ جلب نسب العمولات الحقيقية من FireStore (مجموعة sellers)
             final Map<String, double> commissionRatesCache = {};
             if (!isConsumer) {
                 for (final sellerId in uniqueSellerIds) {
@@ -199,51 +245,49 @@ class CheckoutController {
                 for (final sellerId in groupedItems.keys) {
                     final sellerOrder = groupedItems[sellerId]!;
                     
-                    // ضمان أن قائمة الأصناف داخل الطلب هي Map<String, dynamic>
+                    // safeItems تحتوي الآن على المنتجات + الهدايا المعينة مسبقاً، ورسوم التوصيل قد أزيلت
                     final List<Map<String, dynamic>> safeItems = 
                         (sellerOrder['items'] as List?)?.cast<Map>()
                         .map((item) => Map<String, dynamic>.from(item))
                         .toList() ?? [];
 
-                    double deliveryFee = 0.0;
-                    final regularItems = safeItems.where((item) => !(item['isDeliveryFee'] ?? false) && !(item['isGift'] ?? false)).toList();
-                    final sellerDeliveryItem = safeItems.firstWhere((item) => (item['productId'] == 'DELIVERY_FEE') || (item['isDeliveryFee'] == true), orElse: () => {});
-
-                    if (sellerDeliveryItem.isNotEmpty) {
-                        deliveryFee = (sellerDeliveryItem['price'] as num?)?.toDouble() ?? 0.0;
-                    }
-
-                    final double subtotalPrice = regularItems.fold(
-                            0.0, (sum, item) => sum + ((item['price'] as num?)?.toDouble() ?? 0.0) * ((item['quantity'] as num?)?.toDouble() ?? 0.0)
+                    // حساب subtotalPrice (الإجمالي قبل الخصم)
+                    final double subtotalPrice = safeItems.fold(
+                            0.0, (sum, item) {
+                                final bool isGift = (item['isGift'] ?? false);
+                                final double price = (item['price'] as num?)?.toDouble() ?? 0.0;
+                                final double quantity = (item['quantity'] as num?)?.toDouble() ?? 0.0;
+                                
+                                // نجمع فقط المنتجات غير الهدايا
+                                if (!isGift) {
+                                    return sum + (price * quantity);
+                                }
+                                return sum;
+                            }
                     );
-                    final double orderSubtotalWithDelivery = subtotalPrice + deliveryFee;
-
-                    double discountPortion = 0.0;
-                    if (originalOrderTotal > 0 && discountUsed > 0) {
-                        discountPortion = (orderSubtotalWithDelivery / originalOrderTotal) * discountUsed;
-                    }
-
-                    final List<Map<String, dynamic>> payloadItems = [...regularItems];
-                    if (sellerDeliveryItem.isNotEmpty) {
-                        payloadItems.add(sellerDeliveryItem);
-                    }
                     
+                    final double orderSubtotalWithDelivery = subtotalPrice; // الإجمالي بدون رسوم توصيل
+                    
+                    double discountPortion = 0.0;
+                    if (actualOrderTotal > 0 && discountUsed > 0) {
+                        discountPortion = (orderSubtotalWithDelivery / actualOrderTotal) * discountUsed;
+                    }
+
                     final orderData = {
                         'sellerId': sellerId,
-                        'items': payloadItems.map((item) => Map<String, dynamic>.from(item)).toList(), 
+                        'items': safeItems, // نستخدم القائمة المعالجة والمفلترة
                         'total': orderSubtotalWithDelivery,
                         'paymentMethod': paymentMethodString,
                         'status': 'new-order',
                         'orderDate': DateTime.now().toUtc().toIso8601String(), 
 
-                        // 🟢 الإصلاح 2: استخدام commissionRatesCache
                         'commissionRateSnapshot': commissionRatesCache[sellerId] ?? 0.0, 
                         'cashbackApplied': discountPortion,
                         'isCashbackUsed': discountUsed > 0,
                         'profitCalculationStatus': "PENDING",
                         'cashbackProcessedPerOrder': false,
                         'cashbackProcessedCumulative': false,
-                        'commissionRate': commissionRatesCache[sellerId] ?? 0.0, // لتوافق الحقول 
+                        'commissionRate': commissionRatesCache[sellerId] ?? 0.0,
                         
                         'buyer': { 
                             'id': safeLoggedUser['id'],
@@ -330,32 +374,27 @@ class CheckoutController {
                 for (final sellerId in groupedItems.keys) {
                     final sellerOrder = groupedItems[sellerId]!;
 
+                    // allPaidItems تحتوي الآن على المنتجات + الهدايا المعينة مسبقاً، ورسوم التوصيل قد أزيلت
                     final List<Map<String, dynamic>> allPaidItems = (sellerOrder['items'] as List?)?.cast<Map<String, dynamic>>() ?? []; 
 
                     double calculatedSubtotalPrice = 0.0;
-                    double calculatedDeliveryFee = 0.0;
                     
                     for (var item in allPaidItems) {
                         final price = (item['price'] as num?)?.toDouble() ?? 0.0;
                         final quantity = (item['quantity'] as num?)?.toDouble() ?? 0.0;
                         final itemTotal = price * quantity;
 
-                        if (item['productId'] == 'DELIVERY_FEE') { 
-                            calculatedDeliveryFee += itemTotal;
-                        } else {
-                            if (!(item['isGift'] ?? false)) {
-                                calculatedSubtotalPrice += itemTotal;
-                            }
+                        if (!(item['isGift'] ?? false)) {
+                            calculatedSubtotalPrice += itemTotal;
                         }
                     }
 
                     final double subtotalPrice = calculatedSubtotalPrice;
-                    final double deliveryFee = calculatedDeliveryFee;       
+                    final double orderSubtotalWithDelivery = subtotalPrice; // الإجمالي بدون رسوم توصيل       
 
-                    final double orderSubtotalWithDelivery = subtotalPrice + deliveryFee;
                     double discountPortion = 0.0;
-                    if (originalOrderTotal > 0 && discountUsed > 0) {
-                        discountPortion = (orderSubtotalWithDelivery / originalOrderTotal) * discountUsed;
+                    if (actualOrderTotal > 0 && discountUsed > 0) {
+                        discountPortion = (orderSubtotalWithDelivery / actualOrderTotal) * discountUsed;
                     }
                     final double finalAmountForOrder = orderSubtotalWithDelivery - discountPortion;
 
@@ -364,6 +403,7 @@ class CheckoutController {
 
                     Map<String, dynamic> orderData;
                     if (isConsumer) {
+                        // مسار Consumer (بقي كما هو لكنه يستخدم items المفلترة)
                         orderData = {
                             'customerId': safeLoggedUser['id'],
                             'customerName': customerFullname,
@@ -376,9 +416,9 @@ class CheckoutController {
                             'supermarketName': sellerName,
                             'supermarketPhone': sellerPhone,
 
-                            'items': allPaidItems,
+                            'items': allPaidItems, // القائمة المفلترة (حتى لو كانت Consumer فلن تؤثر إزالة رسوم التوصيل التي تخص Buyer)
                             
-                            'deliveryFee': deliveryFee,
+                            'deliveryFee': 0.0, // لا يمكن أن تكون هنا قيمة لـ Consumer لأن الطلب يتم هنا فقط في حالة عدم وجود خصم/هدية
                             'subtotalPrice': subtotalPrice,
                             'finalAmount': finalAmountForOrder,
 
@@ -391,7 +431,7 @@ class CheckoutController {
                             'orderDate': DateTime.now().toUtc().toIso8601String(),
                         };
                     } else {
-                        // مسار Buyer المباشر (Direct Write)
+                        // مسار Buyer المباشر (Direct Write) - المعدل
                         orderData = {
                             'buyer': {
                                 'id': safeLoggedUser['id'],
@@ -410,7 +450,6 @@ class CheckoutController {
                             'status': 'new-order',
                             'orderDate': DateTime.now().toUtc().toIso8601String(),
 
-                            // 🟢 الإصلاح 3: استخدام commissionRatesCache
                             'commissionRate': commissionRatesCache[sellerId] ?? 0.0, 
                             'isCommissionProcessed': false,
                             'unrealizedCommissionAmount': 0,
@@ -479,4 +518,3 @@ class CheckoutController {
         }
     }
 }
-
