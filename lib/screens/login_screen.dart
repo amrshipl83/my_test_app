@@ -8,7 +8,6 @@ class LoginScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ألوان البراند
     const Color primaryGreen = Color(0xFF2D9E68);
     const Color lightBg = Color(0xFFF8FAF9);
 
@@ -16,9 +15,8 @@ class LoginScreen extends StatelessWidget {
       backgroundColor: lightBg,
       body: Directionality(
         textDirection: TextDirection.rtl,
-        child: Stack( // استخدام Stack لإضافة دوائر جمالية في الخلفية
+        child: Stack(
           children: [
-            // دائرة جمالية في الخلفية
             Positioned(
               top: -100,
               right: -100,
@@ -30,59 +28,24 @@ class LoginScreen extends StatelessWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // 1. منطقة اللوجو والترحيب
-                    const Hero(
-                      tag: 'logo',
-                      child: CircleAvatar(
-                        radius: 50,
-                        backgroundColor: Colors.white,
-                        child: Padding(
-                          padding: EdgeInsets.all(12.0),
-                          child: Image(
-                            image: AssetImage('assets/images/logo2.png'),
-                            fit: BoxFit.contain,
-                          ),
-                        ),
-                      ),
-                    ),
+                    // تم حذف اللوجو بناءً على طلبك لمنع أخطاء الـ Assets
+                    const Icon(Icons.account_circle, size: 100, color: primaryGreen), 
                     const SizedBox(height: 24),
                     const Text(
                       'أهلاً بك في أكسب',
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1A1A1A),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'سجل دخولك للمتابعة',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.grey.shade600,
-                      ),
+                      style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
                     ),
                     const SizedBox(height: 40),
-
-                    // 2. كارت نموذج تسجيل الدخول
                     Container(
                       padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(28),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.04),
-                            blurRadius: 20,
-                            offset: const Offset(0, 10),
-                          ),
-                        ],
+                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 20, offset: const Offset(0, 10))],
                       ),
                       child: const LoginFormWidget(),
                     ),
                     const SizedBox(height: 32),
-
-                    // 3. الفوتر (إنشاء حساب)
                     const _FooterWidget(),
                   ],
                 ),
@@ -106,13 +69,8 @@ class _FooterWidget extends StatelessWidget {
         children: [
           TextSpan(
             text: 'إنشاء حساب جديد',
-            style: TextStyle(
-              color: Theme.of(context).primaryColor,
-              fontWeight: FontWeight.bold,
-              decoration: TextDecoration.none,
-            ),
-            recognizer: TapGestureRecognizer()
-              ..onTap = () => Navigator.of(context).pushNamed('/register'),
+            style: TextStyle(color: const Color(0xFF2D9E68), fontWeight: FontWeight.bold),
+            recognizer: TapGestureRecognizer()..onTap = () => Navigator.of(context).pushNamed('/register'),
           ),
         ],
       ),
