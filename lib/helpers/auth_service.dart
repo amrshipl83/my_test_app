@@ -10,7 +10,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthService {
   final String _notificationApiEndpoint = "https://5uex7vzy64.execute-api.us-east-1.amazonaws.com/V2/new_nofiction";
-
   late final FirebaseAuth _auth;
   late final FirebaseFirestore _db;
 
@@ -19,7 +18,6 @@ class AuthService {
     _db = FirebaseFirestore.instance;
   }
 
-  // ... (دالة signInWithEmailAndPassword تبقى كما هي بدون تغيير)
   Future<String> signInWithEmailAndPassword(String email, String password) async {
     try {
       final userCredential = await _auth.signInWithEmailAndPassword(
@@ -28,44 +26,27 @@ class AuthService {
       );
       final User? user = userCredential.user;
       if (user == null) throw Exception("user-null");
-      final uid = user.uid;
 
-      String phoneFromEmail = email.split('@')[0];
-      final userData = await _getUserDataByPhone(phoneFromEmail);
+      // البحث باستخدام الإيميل لجلب الدور الصحيح (seller, consumer, buyer)
+      final userData = await _getUserDataByEmail(email);
+      
+      final String userRole = userData['role']; 
+      final String userAddress = userData['address'] ?? '';
+      final String? userFullName = userData['fullname'] ?? userData['fullName'];
+      final String? merchantName = userData['merchantName'];
+      final String phoneToShow = userData['phone'] ?? email.split('@')[0];
 
-      final String userRole = userData['role'] is String ? userData['role'] : 'buyer';
-      final String userAddress = userData['address'] is String ? userData['address'] : '';
-      final String? userFullName = userData['fullname'] is String ? userData['fullname'] : null;
-      final String? merchantName = userData['merchantName'] is String ? userData['merchantName'] : null;
-      final String phoneToShow = userData['phone'] is String ? userData['phone'] : phoneFromEmail;
-
-      Map<String, double>? location;
-      if (userData['location'] is GeoPoint) {
-         final geoPoint = userData['location'] as GeoPoint;
-         location = {'lat': geoPoint.latitude, 'lng': geoPoint.longitude};
-      } else if (userData['location'] is Map) {
-         location = Map<String, double>.from(userData['location'] as Map);
-      }
-      if (location == null && userData['lat'] is num && userData['lng'] is num) {
-          location = { 'lat': (userData['lat'] as num).toDouble(), 'lng': (userData['lng'] as num).toDouble() };
-      }
-
+      // حفظ البيانات محلياً (نفس المفاتيح التي يتوقعها AuthWrapper في main.dart)
       await _saveUserToLocalStorage(
-        id: uid,
+        id: user.uid,
         role: userRole,
         fullname: userFullName,
         address: userAddress,
         merchantName: merchantName,
         phone: phoneToShow,
-        location: location,
       );
 
-      final fcmToken = await _requestFCMToken();
-      if (fcmToken != null) {
-        await _registerFcmEndpoint(uid, fcmToken, userRole, userAddress);
-      }
-
-      return userRole;
+      return userRole; 
     } on FirebaseAuthException catch (e) {
       throw e.code;
     } catch (e) {
@@ -73,45 +54,43 @@ class AuthService {
     }
   }
 
-  /// 🛡️ التعديل الأهم: تسجيل الخروج الآمن والكامل
   Future<void> signOut() async {
     try {
-      // 1. تسجيل الخروج من Firebase لجلسة العمل الحالية
       await _auth.signOut();
-      
-      // 2. الوصول لمساحة التخزين المحلية
       final prefs = await SharedPreferences.getInstance();
-      
-      // 3. 🎯 تنظيف جذري: مسح كل البيانات (clear) وليس فقط loggedUser
-      // لضمان عدم وجود أي تداخل بين حسابين مختلفين على نفس الجهاز
-      await prefs.clear(); 
-      
-      debugPrint("🧹 تم تنظيف الذاكرة المحلية بالكامل (Full Wipe)");
+      await prefs.clear(); // مسح كامل للذاكرة لضمان الأمان
+      debugPrint("🧹 الذاكرة نظيفة تماماً");
     } catch (e) {
-      debugPrint("🚨 فشل تسجيل الخروج: $e");
+      debugPrint("🚨 فشل الخروج: $e");
     }
   }
 
-  // ... (بقية الدوال _getUserDataByPhone و _saveUserToLocalStorage و _requestFCMToken و _registerFcmEndpoint تبقى كما هي)
-  
-  Future<Map<String, dynamic>> _getUserDataByPhone(String phone) async {
+  /// 🔍 دالة البحث المطبقة لمجموعاتك في Firestore
+  Future<Map<String, dynamic>> _getUserDataByEmail(String email) async {
+    // الترتيب هنا مهم بناءً على الأولوية
     final collections = ['sellers', 'consumers', 'users'];
-    for (var collectionName in collections) {
+
+    for (var colName in collections) {
       try {
-        final snapshot = await _db.collection(collectionName).where('phone', isEqualTo: phone).limit(1).get();
-        if (snapshot.docs.isNotEmpty) {
-          final doc = snapshot.docs.first;
-          final data = doc.data() as Map<String, dynamic>;
-          String role = 'buyer';
-          if (collectionName == 'sellers') role = 'seller';
-          else if (collectionName == 'consumers') role = 'consumer';
-          else if (collectionName == 'users' && data.containsKey('role')) {
-            role = data['role'] is String ? data['role']! : 'buyer';
+        final snap = await _db.collection(colName).where('email', isEqualTo: email).limit(1).get();
+
+        if (snap.docs.isNotEmpty) {
+          final data = snap.docs.first.data();
+          String role = 'buyer'; // القيمة الافتراضية
+
+          if (colName == 'sellers') {
+            role = 'seller';
+          } else if (colName == 'consumers') {
+            role = 'consumer';
+          } else if (colName == 'users') {
+            // 🎯 كما طلبت: مجموعة users هي للـ buyer
+            role = 'buyer'; 
           }
+          
           return {...data, 'role': role};
         }
       } catch (e) {
-        debugPrint("⚠️ فشل قراءة Firestore في $collectionName: $e");
+        debugPrint("⚠️ خطأ في قراءة $colName: $e");
       }
     }
     return {'role': 'buyer'};
@@ -124,9 +103,8 @@ class AuthService {
     String? address,
     String? merchantName,
     String? phone,
-    Map<String, double>? location,
   }) async {
-    final userDataToStore = {
+    final data = {
       'id': id,
       'ownerId': id,
       'role': role,
@@ -134,26 +112,18 @@ class AuthService {
       'address': address,
       'merchantName': merchantName,
       'phone': phone,
-      'location': location,
     };
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('loggedUser', json.encode(userDataToStore));
-      debugPrint("💾 تم حفظ البيانات بنجاح");
-    } catch (e) {
-      debugPrint("🚨 خطأ في SharedPreferences: $e");
-    }
+    final prefs = await SharedPreferences.getInstance();
+    // 🎯 حفظ بنفس المفتاح 'loggedUser' المستعمل في main.dart
+    await prefs.setString('loggedUser', json.encode(data));
   }
 
-  Future<String?> _requestFCMToken() async {
-    try { if (kIsWeb) return null; return await FirebaseMessaging.instance.getToken(); } 
-    catch (e) { return null; }
-  }
-
+  Future<String?> _requestFCMToken() async { try { return await FirebaseMessaging.instance.getToken(); } catch (e) { return null; } }
   Future<void> _registerFcmEndpoint(String userId, String fcmToken, String userRole, String userAddress) async {
     try {
       final apiData = { 'userId': userId, 'fcmToken': fcmToken, 'role': userRole, 'address': userAddress };
       await http.post(Uri.parse(_notificationApiEndpoint), headers: {'Content-Type': 'application/json'}, body: json.encode(apiData));
-    } catch (err) { debugPrint("⚠️ AWS Error: $err"); }
+    } catch (e) { debugPrint("⚠️ AWS Error: $e"); }
   }
 }
+
