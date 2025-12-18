@@ -20,7 +20,7 @@ import 'package:my_test_app/providers/cashback_provider.dart';
 import 'package:my_test_app/controllers/seller_dashboard_controller.dart';
 import 'package:my_test_app/models/logged_user.dart';
 
-// --- استيراد الشاشات (تم استرجاعها من النسخة الكاملة) ---
+// --- استيراد الشاشات الأساسية ---
 import 'package:my_test_app/screens/login_screen.dart';
 import 'package:my_test_app/screens/seller_screen.dart';
 import 'package:my_test_app/screens/buyer/buyer_home_screen.dart';
@@ -39,6 +39,12 @@ import 'package:my_test_app/screens/about_screen.dart';
 import 'package:my_test_app/screens/product_details_screen.dart';
 import 'package:my_test_app/screens/consumer/consumer_sub_category_screen.dart';
 import 'package:my_test_app/screens/consumer/ConsumerProductListScreen.dart';
+
+// --- ✅ إضافات الدليفري الجديدة ---
+import 'package:my_test_app/screens/delivery_merchant_dashboard_screen.dart';
+import 'package:my_test_app/screens/delivery_settings_screen.dart';
+import 'package:my_test_app/screens/update_delivery_settings_screen.dart';
+import 'package:my_test_app/screens/consumer_orders_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -102,9 +108,15 @@ class MyApp extends StatelessWidget {
             '/myDetails': (context) => const MyDetailsScreen(),
             '/about': (context) => const AboutScreen(),
             '/post-reg': (context) => const PostRegistrationMessageScreen(),
+            
+            // ✅ مسارات الدليفري (تم تفعيلها الآن)
+            '/deliveryPrices': (context) => const DeliveryMerchantDashboardScreen(),
+            '/deliverySettings': (context) => const DeliverySettingsScreen(),
+            '/updatsupermarket': (context) => const UpdateDeliverySettingsScreen(),
+            '/con-orders': (context) => const ConsumerOrdersScreen(),
           },
           onGenerateRoute: (settings) {
-            // معالجة المسارات الديناميكية (التي تحمل arguments) كما في النسخة القديمة
+            // 1. تفاصيل المنتج
             if (settings.name == '/productDetails') {
               final args = settings.arguments as Map<String, dynamic>?;
               return MaterialPageRoute(builder: (context) => ProductDetailsScreen(
@@ -112,20 +124,31 @@ class MyApp extends StatelessWidget {
                 offerId: args?['offerId'],
               ));
             }
+            // 2. عروض التاجر
             if (settings.name == TraderOffersScreen.routeName) {
               final sellerId = settings.arguments as String? ?? '';
               return MaterialPageRoute(builder: (context) => TraderOffersScreen(sellerId: sellerId));
             }
+            // 3. الأقسام الرئيسية
             if (settings.name == '/category') {
               final mainId = settings.arguments as String? ?? '';
               return MaterialPageRoute(builder: (context) => BuyerCategoryScreen(mainCategoryId: mainId));
             }
+            // 4. الأقسام الفرعية
             if (settings.name == '/subcategories') {
               final args = settings.arguments as Map<String, dynamic>?;
               return MaterialPageRoute(builder: (context) => ConsumerSubCategoryScreen(
                 mainCategoryId: args?['mainId'] ?? '',
                 ownerId: args?['ownerId'] ?? '',
                 mainCategoryName: args?['mainCategoryName'] ?? '',
+              ));
+            }
+            // 5. ✅ قائمة المنتجات (تمت إضافتها الآن)
+            if (settings.name == '/products') {
+              final args = settings.arguments as Map<String, dynamic>? ?? {};
+              return MaterialPageRoute(builder: (context) => BuyerProductListScreen(
+                mainCategoryId: args['mainId'] ?? '',
+                subCategoryId: args['subId'] ?? '',
               ));
             }
             return null;
@@ -136,7 +159,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// --- AuthWrapper (المستقر الذي يحمي التطبيق من الانهيار) ---
+// --- AuthWrapper (المستقر) ---
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
   @override
@@ -204,10 +227,10 @@ class PostRegistrationMessageScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(isSeller ? Icons.pending_actions : Icons.check_circle, 
+            Icon(isSeller ? Icons.pending_actions : Icons.check_circle,
                  color: isSeller ? Colors.orange : Colors.green, size: 80),
             const SizedBox(height: 20),
-            Text(isSeller ? 'حسابك قيد المراجعة' : 'تم التسجيل بنجاح', 
+            Text(isSeller ? 'حسابك قيد المراجعة' : 'تم التسجيل بنجاح',
                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 40),
             const CircularProgressIndicator(),
