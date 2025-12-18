@@ -1,5 +1,4 @@
 // lib/main.dart
-
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
@@ -41,11 +40,12 @@ import 'package:my_test_app/screens/about_screen.dart';
 import 'package:my_test_app/screens/product_details_screen.dart';
 import 'package:my_test_app/screens/consumer/consumer_sub_category_screen.dart';
 import 'package:my_test_app/screens/consumer/ConsumerProductListScreen.dart';
+import 'package:my_test_app/screens/consumer/consumer_store_search_screen.dart';
 
-// ✅ إضافة شاشة البحث المطلوبة
-import 'package:my_test_app/screens/consumer/consumer_store_search_screen.dart'; 
+// 🆕 استيراد شاشة الماركت بليس
+import 'package:my_test_app/screens/consumer/MarketplaceHomeScreen.dart';
 
-// --- ✅ إضافات الدليفري المعتمدة وشاشات العروض الجديدة ---
+// --- إضافات الدليفري المعتمدة ---
 import 'package:my_test_app/screens/delivery_merchant_dashboard_screen.dart';
 import 'package:my_test_app/screens/delivery_settings_screen.dart';
 import 'package:my_test_app/screens/update_delivery_settings_screen.dart';
@@ -115,11 +115,7 @@ class MyApp extends StatelessWidget {
             '/myDetails': (context) => const MyDetailsScreen(),
             '/about': (context) => const AboutScreen(),
             '/post-reg': (context) => const PostRegistrationMessageScreen(),
-
-            // ✅ تفعيل شاشة البحث عن المتاجر القريبة
             ConsumerStoreSearchScreen.routeName: (context) => const ConsumerStoreSearchScreen(),
-
-            // ✅ مسارات الدليفري المحدثة
             '/deliveryPrices': (context) => const DeliveryMerchantDashboardScreen(),
             '/deliveryMerchantDashboard': (context) => const DeliveryMerchantDashboardScreen(),
             '/product_management': (context) => const ProductOfferScreen(),
@@ -129,12 +125,25 @@ class MyApp extends StatelessWidget {
             '/constore': (context) => const BuyerHomeScreen(),
           },
           onGenerateRoute: (settings) {
+            // ✅ إضافة مسار الماركت بليس الجديد
+            if (settings.name == MarketplaceHomeScreen.routeName) {
+              final args = settings.arguments as Map<String, dynamic>?;
+              return MaterialPageRoute(
+                builder: (context) => MarketplaceHomeScreen(
+                  currentStoreId: args?['storeId'] ?? '',
+                  currentStoreName: args?['storeName'] ?? 'المتجر',
+                ),
+              );
+            }
+
             if (settings.name == '/productDetails') {
               final args = settings.arguments as Map<String, dynamic>?;
-              return MaterialPageRoute(builder: (context) => ProductDetailsScreen(
-                productId: args?['productId'] ?? '',
-                offerId: args?['offerId'],
-              ));
+              return MaterialPageRoute(
+                builder: (context) => ProductDetailsScreen(
+                  productId: args?['productId'] ?? '',
+                  offerId: args?['offerId'],
+                ),
+              );
             }
             if (settings.name == TraderOffersScreen.routeName) {
               final sellerId = settings.arguments as String? ?? '';
@@ -146,18 +155,22 @@ class MyApp extends StatelessWidget {
             }
             if (settings.name == '/subcategories') {
               final args = settings.arguments as Map<String, dynamic>?;
-              return MaterialPageRoute(builder: (context) => ConsumerSubCategoryScreen(
-                mainCategoryId: args?['mainId'] ?? '',
-                ownerId: args?['ownerId'] ?? '',
-                mainCategoryName: args?['mainCategoryName'] ?? '',
-              ));
+              return MaterialPageRoute(
+                builder: (context) => ConsumerSubCategoryScreen(
+                  mainCategoryId: args?['mainId'] ?? '',
+                  ownerId: args?['ownerId'] ?? '',
+                  mainCategoryName: args?['mainCategoryName'] ?? '',
+                ),
+              );
             }
             if (settings.name == '/products') {
               final args = settings.arguments as Map<String, dynamic>? ?? {};
-              return MaterialPageRoute(builder: (context) => BuyerProductListScreen(
-                mainCategoryId: args['mainId'] ?? '',
-                subCategoryId: args['subId'] ?? '',
-              ));
+              return MaterialPageRoute(
+                builder: (context) => BuyerProductListScreen(
+                  mainCategoryId: args['mainId'] ?? '',
+                  subCategoryId: args['subId'] ?? '',
+                ),
+              );
             }
             return null;
           },
@@ -237,7 +250,7 @@ class PostRegistrationMessageScreen extends StatelessWidget {
                 color: isSeller ? Colors.orange : Colors.green, size: 80),
             const SizedBox(height: 20),
             Text(isSeller ? 'حسابك قيد المراجعة' : 'تم التسجيل بنجاح',
-                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 40),
             const CircularProgressIndicator(),
           ],
