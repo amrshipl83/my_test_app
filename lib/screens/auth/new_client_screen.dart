@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:sizer/sizer.dart';
-import 'package:geolocator/geolocator.dart'; // المكتبة مضافة كما ذكرت
+import 'package:geolocator/geolocator.dart';
 import 'package:my_test_app/data_sources/client_data_source.dart';
 import 'package:my_test_app/screens/auth/client_selection_step.dart';
 import 'package:my_test_app/screens/auth/client_details_step.dart';
@@ -18,19 +17,21 @@ class _NewClientScreenState extends State<NewClientScreen> {
   final PageController _pageController = PageController();
   final ClientDataSource _dataSource = ClientDataSource();
 
+  // البيانات المختارة (مطابقة لمنطق HTML)
   String _selectedCountry = 'egypt';
   String _selectedUserType = '';
+  
   final Map<String, TextEditingController> _controllers = {
     'fullname': TextEditingController(),
     'email': TextEditingController(),
     'password': TextEditingController(),
     'confirmPassword': TextEditingController(),
     'address': TextEditingController(),
-    'merchantName': TextEditingController(),
-    'additionalPhone': TextEditingController(),
+    'merchantName': TextEditingController(), // اسم النشاط التجاري
+    'additionalPhone': TextEditingController(), // رقم الهاتف الإضافي
   };
 
-  String? _businessType;
+  String? _businessType; // نوع النشاط التجاري
   File? _logoFile;
   File? _crFile;
   File? _tcFile;
@@ -45,58 +46,36 @@ class _NewClientScreenState extends State<NewClientScreen> {
     super.dispose();
   }
 
-  // 🟢 وظيفة تحديد الموقع الجغرافي (تم دمجها بناءً على طلبك)
+  // وظيفة تحديد الموقع الجغرافي
   Future<void> _determinePosition() async {
-    bool serviceEnabled;
-    LocationPermission permission;
-
-    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('❌ يرجى تفعيل خدمات الموقع (GPS) في الهاتف')),
+          const SnackBar(content: Text('❌ يرجى تفعيل GPS في الهاتف')),
         );
       }
       return;
     }
 
-    permission = await Geolocator.checkPermission();
+    LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('❌ تم رفض الوصول للموقع، يرجى السماح به للمتابعة')),
-          );
-        }
-        return;
-      }
-    }
-
-    if (permission == LocationPermission.deniedForever) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('❌ إذن الموقع مرفوض نهائياً، يرجى تفعيله من الإعدادات')),
-        );
-      }
-      return;
+      if (permission == LocationPermission.denied) return;
     }
 
     try {
       Position position = await Geolocator.getCurrentPosition();
       setState(() {
-        _location = {
-          'lat': position.latitude,
-          'lng': position.longitude,
-        };
+        _location = {'lat': position.latitude, 'lng': position.longitude};
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('✅ تم تحديد موقعك الجغرافي بنجاح!'), backgroundColor: Color(0xFF2D9E68)),
+          const SnackBar(content: Text('✅ تم تحديد الموقع بنجاح'), backgroundColor: Color(0xFF2D9E68)),
         );
       }
     } catch (e) {
-      print("Error getting location: $e");
+      print("Error: $e");
     }
   }
 
@@ -117,17 +96,23 @@ class _NewClientScreenState extends State<NewClientScreen> {
     _goToStep(3);
   }
 
+  // 🟢 دالة التسجيل النهائية (مطابقة لمنطق الـ HTML المبعوث)
   Future<void> _handleRegistration() async {
-    // التحقق من وجود الموقع قبل التسجيل (اختياري حسب رغبتك)
+    // 1. التحقق من الحقول الأساسية
+    if (_controllers['password']!.text != _controllers['confirmPassword']!.text) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('❌ كلمة المرور غير متطابقة')));
+      return;
+    }
+
+    // 2. التحقق من الموقع
     if (_location == null) {
       await _determinePosition();
-      if (_location == null) return; // توقف إذا لم يتم جلب الموقع
+      if (_location == null) return;
     }
 
     setState(() => _isSaving = true);
     try {
-      // هنا يتم إرسال البيانات إلى DataSource شاملة الإحداثيات [_location]
-      // والمفاتيح المتفق عليها: ownerId و supermarketName [cite: 2025-10-03]
+      // إرسال كافة البيانات لـ DataSource (بما فيها بيانات التاجر)
       await _dataSource.registerClient(
         fullname: _controllers['fullname']!.text,
         email: _controllers['email']!.text,
@@ -137,16 +122,19 @@ class _NewClientScreenState extends State<NewClientScreen> {
         userType: _selectedUserType,
         location: _location,
         logo: _logoFile,
-        // ... بقية البيانات
+        merchantName: _controllers['merchantName']!.text, // من الـ HTML
+        businessType: _businessType, // من الـ HTML
+        additionalPhone: _controllers['additionalPhone']!.text, // من الـ HTML
       );
 
       if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('✅ تم التسجيل بنجاح')));
         Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('خطأ أثناء التسجيل: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('❌ خطأ: $e')));
+      }
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -193,7 +181,7 @@ class _NewClientScreenState extends State<NewClientScreen> {
                             onCountrySelected: (country) => _goToStep(2),
                             initialCountry: _selectedCountry,
                             initialUserType: _selectedUserType,
-                            onCompleted: ({required String country, required String userType}) {},
+                            onCompleted: ({required country, required userType}) {},
                           ),
                           ClientSelectionStep(
                             stepNumber: 2,
@@ -207,7 +195,7 @@ class _NewClientScreenState extends State<NewClientScreen> {
                             controllers: _controllers,
                             selectedUserType: _selectedUserType,
                             isSaving: _isSaving,
-                            onBusinessTypeChanged: (v) => _businessType = v,
+                            onBusinessTypeChanged: (v) => setState(() => _businessType = v),
                             onFilePicked: ({required field, required file}) {
                               setState(() {
                                 if (field == 'logo') _logoFile = file;
@@ -215,9 +203,8 @@ class _NewClientScreenState extends State<NewClientScreen> {
                                 if (field == 'tc') _tcFile = file;
                               });
                             },
-                            // ربط تحديد الموقع بـ ClientDetailsStep
                             onLocationChanged: ({required lat, required lng}) {
-                               setState(() => _location = {'lat': lat, 'lng': lng});
+                              setState(() => _location = {'lat': lat, 'lng': lng});
                             },
                             onRegister: _handleRegistration,
                             onGoBack: () => _goToStep(2),
@@ -258,8 +245,7 @@ class _NewClientScreenState extends State<NewClientScreen> {
                 child: isCompleted
                     ? const Icon(Icons.check, color: Colors.white, size: 18)
                     : Text('$stepNum',
-                        style: TextStyle(
-                            color: isActive ? Colors.white : Colors.grey, fontWeight: FontWeight.bold)),
+                        style: TextStyle(color: isActive ? Colors.white : Colors.grey, fontWeight: FontWeight.bold)),
               ),
             ),
             if (index < 2)
@@ -287,7 +273,7 @@ class _LogoHeader extends StatelessWidget {
             color: const Color(0xFF2D9E68).withOpacity(0.1),
             shape: BoxShape.circle,
           ),
-          child: Icon(Icons.person_add_rounded, size: 40, color: const Color(0xFF2D9E68)),
+          child: const Icon(Icons.person_add_rounded, size: 40, color: Color(0xFF2D9E68)),
         ),
         const SizedBox(height: 12),
         Text(
