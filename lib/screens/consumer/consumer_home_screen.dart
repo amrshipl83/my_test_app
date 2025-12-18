@@ -1,48 +1,56 @@
 // lib/screens/consumer/consumer_home_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:my_test_app/screens/consumer/consumer_widgets.dart';
 import 'package:my_test_app/screens/consumer/consumer_data_models.dart';
 import 'package:my_test_app/services/consumer_data_service.dart';
-                                                        
+import 'package:firebase_auth/firebase_auth.dart'; // جلب المستخدم الحقيقي
+
 class ConsumerHomeScreen extends StatelessWidget {
   static const routeName = '/consumerHome';
-                                                          // 💡 يجب إزالة كلمة 'const' هنا! هذا هو الحل النهائي لهذا الخطأ.
+  
   ConsumerHomeScreen({super.key});
-                                                          // هذا يعمل الآن كـ 'late final'
-  late final ConsumerDataService dataService = ConsumerDataService();
-                                                          @override
+
+  final ConsumerDataService dataService = ConsumerDataService();
+
+  @override
   Widget build(BuildContext context) {
-    // 💡 يجب جلب الـ userId الحقيقي هنا
-    const String mockUserId = 'user_id_from_auth_service';
+    // جلب المستخدم الحالي بدلاً من MockUserId
+    final user = FirebaseAuth.instance.currentUser;
 
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: Scaffold(
+    return Scaffold(
+      // 🎯 استخدام drawer بدلاً من endDrawer ليعمل مع RTL بشكل صحيح من اليمين
+      drawer: const ConsumerSideMenu(),
+      
+      // 1. شريط التنقل العلوي
+      appBar: ConsumerCustomAppBar(
+        userName: user?.displayName ?? 'مستخدم', // الاسم سيحدث تلقائياً من الـ Stream في الودجت
+        userPoints: 0,
+        onMenuPressed: () {
+          // فتح القائمة الجانبية (Drawer) يدوياً
+          Builder(builder: (context) {
+            return Scaffold.of(context).openDrawer();
+          });
+        },
+      ),
 
-        // 1. شريط التنقل العلوي (AppBar)
-        appBar: ConsumerCustomAppBar(
-          userName: 'عبدالله',
-          userPoints: 1250,
-          onMenuPressed: () => Scaffold.of(context).openEndDrawer(),
-          // ❌ تم حذف onThemeToggle: () => print("Toggle Theme Logic"),
-        ),
-
-        endDrawer: const ConsumerSideMenu(),
-
-        // 2. محتوى الشاشة
-        body: SingleChildScrollView(
+      // 2. محتوى الشاشة مغلف بـ SafeArea لمنع التداخل مع شريط الهاتف
+      body: SafeArea( 
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 10),
-              const ConsumerSearchBar(),
-                                                                      // 3. قسم الأقسام المميزة (Categories) - ربط Firebase
+              // 🎯 شريط البحث - قلب التطبيق
+              const Padding(
+                padding: EdgeInsets.only(top: 10),
+                child: ConsumerSearchBar(),
+              ),
+
+              // 3. الأقسام المميزة مع Firebase
               const ConsumerSectionTitle(title: 'الأقسام المميزة'),
               FutureBuilder<List<ConsumerCategory>>(
                 future: dataService.fetchMainCategories(),
                 builder: (context, snapshot) {
-                  // ... (منطق عرض حالات التحميل والخطأ)
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: Padding(
                       padding: EdgeInsets.all(40.0),
@@ -60,33 +68,34 @@ class ConsumerHomeScreen extends StatelessWidget {
                 },
               ),
 
-              // 4. قسم العروض الحصرية (Banners) - ربط Firebase
+              // 4. العروض الحصرية (البانر الإعلاني)
               const ConsumerSectionTitle(title: 'أحدث العروض الحصرية'),
               FutureBuilder<List<ConsumerBanner>>(
                 future: dataService.fetchPromoBanners(),
                 builder: (context, snapshot) {
-                  // ... (منطق عرض حالات التحميل والخطأ)
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: Padding(
-                      padding: EdgeInsets.only(top: 20.0, bottom: 20.0),
+                      padding: EdgeInsets.symmetric(vertical: 20.0),
                       child: CircularProgressIndicator(strokeWidth: 2),
                     ));
                   }
                   final banners = snapshot.data ?? [];
                   if (banners.isEmpty || snapshot.hasError) {
-                    return const SizedBox.shrink();
+                    // إذا لم توجد عروض، نعرض مساحة فارغة بسيطة
+                    return const SizedBox(height: 20);
                   }
                   return ConsumerPromoBanners(banners: banners);
                 },
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 30), // مساحة إضافية في الأسفل
             ],
           ),
         ),
-
-        bottomNavigationBar: const ConsumerFooterNav(cartCount: 3, activeIndex: 0),
       ),
+
+      // 5. شريط التنقل السفلي
+      bottomNavigationBar: const ConsumerFooterNav(cartCount: 3, activeIndex: 0),
     );
   }
 }

@@ -7,6 +7,8 @@ import 'dart:convert';
 import 'package:sizer/sizer.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:google_fonts/google_fonts.dart';
+// 🎯 إضافة استيراد دعم اللغات (RTL)
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 // --- الاستيرادات الأساسية ---
 import 'package:my_test_app/firebase_options.dart';
@@ -44,8 +46,8 @@ import 'package:my_test_app/screens/consumer/consumer_sub_category_screen.dart';
 import 'package:my_test_app/screens/consumer/ConsumerProductListScreen.dart';
 import 'package:my_test_app/screens/consumer/consumer_store_search_screen.dart';
 import 'package:my_test_app/screens/consumer/MarketplaceHomeScreen.dart';
-import 'package:my_test_app/screens/consumer/consumer_purchase_history_screen.dart'; // مضاف
-import 'package:my_test_app/screens/consumer/points_loyalty_screen.dart'; // مضاف
+import 'package:my_test_app/screens/consumer/consumer_purchase_history_screen.dart';
+import 'package:my_test_app/screens/consumer/points_loyalty_screen.dart';
 
 // --- إضافات الدليفري المعتمدة ---
 import 'package:my_test_app/screens/delivery_merchant_dashboard_screen.dart';
@@ -91,16 +93,41 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 🎯 جلب حالة الثيم من الـ Provider لتعميمها على التطبيق
+    final themeNotifier = Provider.of<ThemeNotifier>(context);
+
     return Sizer(
       builder: (context, orientation, deviceType) {
         return MaterialApp(
           title: 'أسواق أكسب',
           debugShowCheckedModeBanner: false,
+          
+          // 🎯 إعدادات الاتجاه من اليمين للشمال (RTL) بشكل موحد
+          locale: const Locale('ar', 'EG'),
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: const [
+            Locale('ar', 'EG'),
+          ],
+
+          // 🎯 إعدادات الثيم الليلي والنهاري الموحدة
+          themeMode: themeNotifier.themeMode,
           theme: ThemeData(
+            brightness: Brightness.light,
             primaryColor: AppTheme.primaryGreen,
             colorScheme: ColorScheme.light(primary: AppTheme.primaryGreen),
             textTheme: GoogleFonts.notoSansArabicTextTheme(),
           ),
+          darkTheme: ThemeData(
+            brightness: Brightness.dark,
+            primaryColor: AppTheme.primaryGreen,
+            colorScheme: ColorScheme.dark(primary: AppTheme.primaryGreen),
+            textTheme: GoogleFonts.notoSansArabicTextTheme(ThemeData.dark().textTheme),
+          ),
+
           initialRoute: '/',
           routes: {
             '/': (context) => const AuthWrapper(),
@@ -118,11 +145,8 @@ class MyApp extends StatelessWidget {
             '/about': (context) => const AboutScreen(),
             '/post-reg': (context) => const PostRegistrationMessageScreen(),
             ConsumerStoreSearchScreen.routeName: (context) => const ConsumerStoreSearchScreen(),
-            
-            // مسارات المستهلك الجديدة التي كانت ناقصة في القائمة الجانبية
             '/consumer-purchases': (context) => const ConsumerPurchaseHistoryScreen(),
             PointsLoyaltyScreen.routeName: (context) => const PointsLoyaltyScreen(),
-
             '/deliveryPrices': (context) => const DeliveryMerchantDashboardScreen(),
             '/deliveryMerchantDashboard': (context) => const DeliveryMerchantDashboardScreen(),
             '/product_management': (context) => const ProductOfferScreen(),
@@ -142,7 +166,6 @@ class MyApp extends StatelessWidget {
                 ),
               );
             }
-
             // 2. مسار الأقسام الفرعية للمستهلك
             if (settings.name == '/subcategories') {
               final args = settings.arguments as Map<String, dynamic>?;
@@ -154,7 +177,6 @@ class MyApp extends StatelessWidget {
                 ),
               );
             }
-
             // 3. مسار قائمة منتجات المستهلك
             if (settings.name == ConsumerProductListScreen.routeName) {
               final args = settings.arguments as Map<String, dynamic>?;
@@ -167,8 +189,7 @@ class MyApp extends StatelessWidget {
                 ),
               );
             }
-
-            // المسارات القديمة (بدون تغيير)
+            // 4. تفاصيل المنتج
             if (settings.name == '/productDetails') {
               final args = settings.arguments as Map<String, dynamic>?;
               return MaterialPageRoute(
