@@ -42,13 +42,16 @@ import 'package:my_test_app/screens/product_details_screen.dart';
 import 'package:my_test_app/screens/consumer/consumer_sub_category_screen.dart';
 import 'package:my_test_app/screens/consumer/ConsumerProductListScreen.dart';
 
+// ✅ إضافة شاشة البحث المطلوبة
+import 'package:my_test_app/screens/consumer/consumer_store_search_screen.dart'; 
+
 // --- ✅ إضافات الدليفري المعتمدة وشاشات العروض الجديدة ---
 import 'package:my_test_app/screens/delivery_merchant_dashboard_screen.dart';
 import 'package:my_test_app/screens/delivery_settings_screen.dart';
 import 'package:my_test_app/screens/update_delivery_settings_screen.dart';
 import 'package:my_test_app/screens/consumer_orders_screen.dart';
-import 'package:my_test_app/screens/delivery/product_offer_screen.dart'; // شاشة إضافة العروض
-import 'package:my_test_app/screens/delivery/delivery_offers_screen.dart'; // شاشة عرض وإدارة العروض
+import 'package:my_test_app/screens/delivery/product_offer_screen.dart';
+import 'package:my_test_app/screens/delivery/delivery_offers_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -113,14 +116,14 @@ class MyApp extends StatelessWidget {
             '/about': (context) => const AboutScreen(),
             '/post-reg': (context) => const PostRegistrationMessageScreen(),
 
+            // ✅ تفعيل شاشة البحث عن المتاجر القريبة
+            ConsumerStoreSearchScreen.routeName: (context) => const ConsumerStoreSearchScreen(),
+
             // ✅ مسارات الدليفري المحدثة
             '/deliveryPrices': (context) => const DeliveryMerchantDashboardScreen(),
             '/deliveryMerchantDashboard': (context) => const DeliveryMerchantDashboardScreen(),
-            
-            // ربط المسارات بالشاشات الفعلية بدلاً من لوحة القيادة
-            '/product_management': (context) => const ProductOfferScreen(), // تم الربط بشاشة الإضافة
-            '/delivery-offers': (context) => const DeliveryOffersScreen(),  // تم الربط بشاشة عرض العروض
-            
+            '/product_management': (context) => const ProductOfferScreen(),
+            '/delivery-offers': (context) => const DeliveryOffersScreen(),
             '/updatsupermarket': (context) => const UpdateDeliverySettingsScreen(),
             '/con-orders': (context) => const ConsumerOrdersScreen(),
             '/constore': (context) => const BuyerHomeScreen(),
