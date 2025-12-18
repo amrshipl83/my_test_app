@@ -22,17 +22,14 @@ class ConsumerCustomAppBar extends StatelessWidget implements PreferredSizeWidge
     required this.onMenuPressed,
   });
 
-  static const Color accent = Color(0xFFFFC107);
-
   @override
   Widget build(BuildContext context) {
     final Color appPrimary = AppTheme.primaryGreen;
-    final Color appAccent = accent;
     final user = FirebaseAuth.instance.currentUser;
 
     return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance
-          .collection('consumers') // التأكد من اسم المجموعة
+          .collection('consumers')
           .doc(user?.uid)
           .snapshots(),
       builder: (context, snapshot) {
@@ -41,74 +38,67 @@ class ConsumerCustomAppBar extends StatelessWidget implements PreferredSizeWidge
 
         if (snapshot.hasData && snapshot.data!.exists) {
           final data = snapshot.data!.data() as Map<String, dynamic>;
-          // محاولة جلب الاسم من أكثر من حقل محتمل لضمان الدقة
-          displayUserName = data['fullName'] ?? data['name'] ?? data['fullname'] ?? userName;
-          displayPoints = data['points'] ?? data['loyaltyPoints'] ?? 0;
+          displayUserName = data['fullName'] ?? data['name'] ?? userName;
+          displayPoints = data['points'] ?? 0;
         }
 
         return AppBar(
-          automaticallyImplyLeading: false, // حذف أي أيقونات تلقائية (الثلاث شرط الزائدة)
+          automaticallyImplyLeading: false, // لمنع ظهور أيقونة الدرج الافتراضية السوداء
           titleSpacing: 0,
-          toolbarHeight: 55,
+          elevation: 0,
           backgroundColor: Theme.of(context).colorScheme.surface,
-          elevation: 2,
+          shape: Border(bottom: BorderSide(color: Colors.grey.withOpacity(0.1), width: 1)),
           title: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 5.0),
+            padding: const EdgeInsets.symmetric(horizontal: 15.0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Row(
                   children: [
                     InkWell(
-                      onTap: onMenuPressed, // الزر الوحيد لفتح القائمة
+                      onTap: () => Scaffold.of(context).openDrawer(),
                       child: Container(
-                        padding: const EdgeInsets.all(8.0),
+                        padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
                           color: appPrimary.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        height: 40,
                         child: Icon(FontAwesomeIcons.bars, size: 18, color: appPrimary),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 15),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         const Text('مرحباً بعودتك،',
-                            style: TextStyle(fontSize: 10, color: Color(0xFF6C757D), height: 1.2)),
+                            style: TextStyle(fontSize: 10, color: Color(0xFF6C757D))),
                         Text(displayUserName,
-                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, height: 1.2)),
+                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
                       ],
                     ),
                   ],
                 ),
-                Row(
-                  children: [
-                    GestureDetector(
-                      onTap: () => Navigator.of(context).pushNamed(PointsLoyaltyScreen.routeName),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: appAccent,
-                          borderRadius: BorderRadius.circular(8),
-                          boxShadow: [
-                            BoxShadow(color: appAccent.withOpacity(0.5), blurRadius: 5),
-                          ],
-                        ),
-                        height: 35,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(FontAwesomeIcons.star, size: 14, color: Colors.black),
-                            const SizedBox(width: 5),
-                            Text(displayPoints.toString(),
-                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black)),
-                          ],
-                        ),
-                      ),
+                GestureDetector(
+                  onTap: () => Navigator.of(context).pushNamed(PointsLoyaltyScreen.routeName),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFC107),
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: [
+                        BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4),
+                      ],
                     ),
-                  ],
+                    child: Row(
+                      children: [
+                        const Icon(FontAwesomeIcons.star, size: 12, color: Colors.black),
+                        const SizedBox(width: 5),
+                        Text(displayPoints.toString(),
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black)),
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -119,47 +109,43 @@ class ConsumerCustomAppBar extends StatelessWidget implements PreferredSizeWidge
   }
 
   @override
-  Size get preferredSize => const Size.fromHeight(55);
+  Size get preferredSize => const Size.fromHeight(60);
 }
 
-// 2. شريط البحث
+// 2. شريط البحث (قلب التطبيق) - تصميم جديد يملأ الشاشة
 class ConsumerSearchBar extends StatelessWidget {
   const ConsumerSearchBar({super.key});
   @override
   Widget build(BuildContext context) {
-    final Color appPrimary = AppTheme.primaryGreen;
     return InkWell(
-      onTap: () {
-        Navigator.of(context).pushNamed(ConsumerStoreSearchScreen.routeName);
-      },
+      onTap: () => Navigator.of(context).pushNamed(ConsumerStoreSearchScreen.routeName),
       child: Container(
-        margin: const EdgeInsets.all(20),
+        margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppTheme.borderColor, width: 1),
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: Colors.grey.withOpacity(0.2)),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 20, offset: const Offset(0, 8)),
+            BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 15, offset: const Offset(0, 5)),
           ],
         ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Icon(FontAwesomeIcons.mapMarkerAlt, size: 18, color: appPrimary),
-            const SizedBox(width: 10),
+            Icon(Icons.location_on_rounded, size: 28, color: AppTheme.primaryGreen),
+            const SizedBox(width: 15),
             Expanded(
-              child: Text(
-                'البحث عن أقرب سوبر ماركت/مطعم...',
-                style: TextStyle(
-                    color: Theme.of(context).textTheme.bodyLarge?.color,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500),
-                overflow: TextOverflow.ellipsis,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('البحث عن الأقرب...', 
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  Text('سوبر ماركت، مطعم، صيدلية', 
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                ],
               ),
             ),
-            const SizedBox(width: 10),
-            Icon(Icons.arrow_forward_ios, size: 16, color: AppTheme.secondaryTextColor),
+            const Icon(Icons.arrow_forward_ios_rounded, size: 16, color: Colors.grey),
           ],
         ),
       ),
@@ -173,15 +159,17 @@ class ConsumerSectionTitle extends StatelessWidget {
   const ConsumerSectionTitle({super.key, required this.title});
   @override
   Widget build(BuildContext context) {
-    final Color appPrimary = AppTheme.primaryGreen;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 15),
+      padding: const EdgeInsets.fromLTRB(20, 15, 20, 10),
       child: Row(
         children: [
           Container(
             width: 4,
             height: 20,
-            color: appPrimary,
+            decoration: BoxDecoration(
+              color: AppTheme.primaryGreen,
+              borderRadius: BorderRadius.circular(2),
+            ),
             margin: const EdgeInsets.only(left: 10),
           ),
           Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
@@ -198,22 +186,19 @@ class ConsumerCategoriesBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 30),
-      child: SizedBox(
-        height: 120,
-        child: ListView.builder(
-          scrollDirection: Axis.horizontal,
-          itemCount: categories.length,
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          itemBuilder: (context, index) {
-            final category = categories[index];
-            return Padding(
-              padding: EdgeInsets.only(left: index < categories.length - 1 ? 20 : 0),
-              child: ConsumerCategoryItem(category: category),
-            );
-          },
-        ),
+    return SizedBox(
+      height: 125,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: categories.length,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        itemBuilder: (context, index) {
+          final category = categories[index];
+          return Padding(
+            padding: const EdgeInsets.only(left: 15),
+            child: ConsumerCategoryItem(category: category),
+          );
+        },
       ),
     );
   }
@@ -224,24 +209,21 @@ class ConsumerCategoryItem extends StatelessWidget {
   const ConsumerCategoryItem({super.key, required this.category});
   @override
   Widget build(BuildContext context) {
-    final Color appPrimary = AppTheme.primaryGreen;
     return GestureDetector(
-      onTap: () {
-        Navigator.of(context).pushNamed('/category', arguments: category.id);
-      },
+      onTap: () => Navigator.of(context).pushNamed('/category', arguments: category.id),
       child: SizedBox(
-        width: 85,
+        width: 80,
         child: Column(
           children: [
             Container(
-              width: 85,
-              height: 85,
+              width: 75,
+              height: 75,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Theme.of(context).colorScheme.surface,
-                border: Border.all(color: appPrimary, width: 3),
+                color: Colors.white,
+                border: Border.all(color: AppTheme.primaryGreen.withOpacity(0.5), width: 2),
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 4, offset: const Offset(0, 4)),
+                  BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5, offset: const Offset(0, 2)),
                 ],
               ),
               child: ClipOval(
@@ -249,13 +231,13 @@ class ConsumerCategoryItem extends StatelessWidget {
                   imageUrl: category.imageUrl,
                   fit: BoxFit.cover,
                   placeholder: (context, url) => const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                  errorWidget: (context, url, error) => Icon(FontAwesomeIcons.shoppingBasket, color: appPrimary),
+                  errorWidget: (context, url, error) => Icon(FontAwesomeIcons.shoppingBasket, color: AppTheme.primaryGreen),
                 ),
               ),
             ),
             const SizedBox(height: 8),
             Text(category.name, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
             ),
           ],
         ),
@@ -272,34 +254,31 @@ class ConsumerPromoBanners extends StatelessWidget {
   Widget build(BuildContext context) {
     if (banners.isEmpty) return const SizedBox.shrink();
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 20.0),
+      padding: const EdgeInsets.symmetric(vertical: 10),
       child: SizedBox(
         height: 180,
         child: ListView.builder(
           scrollDirection: Axis.horizontal,
           itemCount: banners.length,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           itemBuilder: (context, index) {
             final banner = banners[index];
             return Padding(
-              padding: EdgeInsets.only(left: index < banners.length - 1 ? 10 : 0),
-              child: GestureDetector(
-                onTap: () => print('Open Banner Link: ${banner.link}'),
-                child: Container(
-                  width: MediaQuery.of(context).size.width * 0.8,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 8)),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: CachedNetworkImage(
-                      imageUrl: banner.imageUrl,
-                      fit: BoxFit.cover,
-                      placeholder: (context, url) => const Center(child: CircularProgressIndicator()),
-                      errorWidget: (context, url, error) => const Center(child: Text('خطأ في تحميل الصورة')),
-                    ),
+              padding: const EdgeInsets.only(left: 15),
+              child: Container(
+                width: MediaQuery.of(context).size.width * 0.85,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4)),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: CachedNetworkImage(
+                    imageUrl: banner.imageUrl,
+                    fit: BoxFit.cover,
+                    placeholder: (context, url) => const Center(child: CircularProgressIndicator()),
                   ),
                 ),
               ),
@@ -311,7 +290,7 @@ class ConsumerPromoBanners extends StatelessWidget {
   }
 }
 
-// 6. شريط التنقل السفلي
+// 6. شريط التنقل السفلي - تم إصلاح تداخل أزرار أندرويد
 class ConsumerFooterNav extends StatelessWidget {
   final int cartCount;
   final int activeIndex;
@@ -327,29 +306,36 @@ class ConsumerFooterNav extends StatelessWidget {
     ];
 
     return Container(
-      height: 65,
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
-        borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16)),
-        border: Border(top: BorderSide(color: AppTheme.borderColor)),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 15, offset: const Offset(0, -4)),
+          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5)),
         ],
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: List.generate(items.length, (index) {
-          final item = items[index];
-          final isActive = index == activeIndex;
-          return Expanded(
-            child: ConsumerFooterNavItem(
-              item: item,
-              isActive: isActive,
-              cartCount: index == 2 ? cartCount : 0,
-              onTap: () => Navigator.of(context).pushNamed(item.route),
-            ),
-          );
-        }),
+      child: SafeArea(
+        child: Container(
+          height: 60,
+          decoration: BoxDecoration(
+            border: Border(top: BorderSide(color: Colors.grey.withOpacity(0.1))),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: List.generate(items.length, (index) {
+              final item = items[index];
+              final isActive = index == activeIndex;
+              return Expanded(
+                child: ConsumerFooterNavItem(
+                  item: item,
+                  isActive: isActive,
+                  cartCount: index == 2 ? cartCount : 0,
+                  onTap: () {
+                    if (!isActive) Navigator.of(context).pushNamed(item.route);
+                  },
+                ),
+              );
+            }),
+          ),
+        ),
       ),
     );
   }
@@ -378,25 +364,26 @@ class ConsumerFooterNavItem extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Stack(
+            clipBehavior: Clip.none,
             children: [
-              Icon(item.icon, size: 24, color: color),
+              Icon(item.icon, size: 22, color: color),
               if (cartCount > 0)
                 Positioned(
-                  right: 0,
-                  top: 0,
+                  right: -8,
+                  top: -5,
                   child: Container(
                     padding: const EdgeInsets.all(3),
                     decoration: const BoxDecoration(color: Color(0xFFdc3545), shape: BoxShape.circle),
-                    constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
                     child: Text('$cartCount',
-                        style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                        style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
                         textAlign: TextAlign.center),
                   ),
                 )
             ],
           ),
-          const SizedBox(height: 2),
-          Text(item.label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color)),
+          const SizedBox(height: 4),
+          Text(item.label, style: TextStyle(fontSize: 11, fontWeight: isActive ? FontWeight.bold : FontWeight.normal, color: color)),
         ],
       ),
     );
@@ -418,63 +405,47 @@ class ConsumerSideMenu extends StatelessWidget {
   Widget build(BuildContext context) {
     final Color appPrimary = AppTheme.primaryGreen;
     return Drawer(
-      width: 300,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          border: Border(left: BorderSide(color: AppTheme.borderColor, width: 2)),
-        ),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 35, 20, 10),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('القائمة', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: appPrimary)),
-                  GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
-                    child: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: AppTheme.secondaryTextColor.withOpacity(0.3)),
-                      ),
-                      child: Center(child: Icon(FontAwesomeIcons.times, size: 18, color: AppTheme.secondaryTextColor)),
-                    ),
-                  ),
-                ],
-              ),
+      width: 280,
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 50, 20, 20),
+            color: appPrimary.withOpacity(0.05),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('القائمة', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: appPrimary)),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context),
+                )
+              ],
             ),
-            Divider(color: AppTheme.borderColor),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-                children: [
-                  const _ConsumerSidebarItem(icon: FontAwesomeIcons.home, label: 'الصفحة الرئيسية', route: '/consumerHome'),
-                  const _ConsumerSidebarItem(icon: FontAwesomeIcons.shoppingBasket, label: 'سلة التسوق', route: '/cart'),
-                  const _ConsumerSidebarItem(icon: FontAwesomeIcons.history, label: 'طلباتي السابقة', route: '/consumer-purchases'),
-                  const _ConsumerSidebarItem(icon: FontAwesomeIcons.gift, label: 'نقاط الولاء والمكافآت', route: PointsLoyaltyScreen.routeName),
-                  const _ConsumerSidebarItem(icon: FontAwesomeIcons.userCircle, label: 'ملفي الشخصي', route: '/myDetails'),
-                  const _ConsumerSidebarItem(icon: FontAwesomeIcons.infoCircle, label: 'حول التطبيق', route: '/about'),
-                ],
-              ),
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(15),
+              children: [
+                const _ConsumerSidebarItem(icon: FontAwesomeIcons.home, label: 'الرئيسية', route: '/consumerHome'),
+                const _ConsumerSidebarItem(icon: FontAwesomeIcons.history, label: 'طلباتي', route: '/consumer-purchases'),
+                const _ConsumerSidebarItem(icon: FontAwesomeIcons.gift, label: 'النقاط', route: PointsLoyaltyScreen.routeName),
+                const _ConsumerSidebarItem(icon: FontAwesomeIcons.userCircle, label: 'حسابي', route: '/myDetails'),
+              ],
             ),
-            Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: _ConsumerSidebarItem(
-                icon: FontAwesomeIcons.signOutAlt,
-                label: 'تسجيل الخروج',
-                isLogout: true,
-                onTap: () {
-                  FirebaseAuth.instance.signOut();
-                  Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
-                },
-              ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: _ConsumerSidebarItem(
+              icon: FontAwesomeIcons.signOutAlt,
+              label: 'تسجيل الخروج',
+              isLogout: true,
+              onTap: () {
+                FirebaseAuth.instance.signOut();
+                Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+              },
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -497,33 +468,16 @@ class _ConsumerSidebarItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final defaultColor = isLogout ? const Color(0xFFdc3545) : Theme.of(context).textTheme.bodyLarge?.color;
-    final defaultBg = isLogout ? const Color(0xFFf8d7da).withOpacity(0.5) : Colors.transparent;
-    final iconColor = isLogout ? const Color(0xFFdc3545) : AppTheme.primaryGreen;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap ?? () {
-          Navigator.of(context).pop(); // إغلاق المنيو أولاً
-          Navigator.of(context).pushNamed(route);
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
-          decoration: BoxDecoration(
-            color: defaultBg,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              Icon(icon, size: 20, color: iconColor),
-              const SizedBox(width: 15),
-              Text(label, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: defaultColor)),
-            ],
-          ),
-        ),
-      ),
+    final color = isLogout ? Colors.red : Colors.black87;
+    return ListTile(
+      leading: Icon(icon, size: 20, color: isLogout ? Colors.red : AppTheme.primaryGreen),
+      title: Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600)),
+      onTap: onTap ?? () {
+        Navigator.pop(context);
+        Navigator.pushNamed(context, route);
+      },
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
     );
   }
 }
+
