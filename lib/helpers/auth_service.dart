@@ -1,4 +1,4 @@
-// lib/helpers/auth_service.dart (النسخة النهائية والمحدثة بالتخزين الفعلي)
+// lib/helpers/auth_service.dart
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -6,11 +6,10 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-// ⭐️⭐️ تم إضافة استيراد SharedPreferences ⭐️⭐️
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthService {
-  // بيانات Firebase الثابتة
+  // بيانات Firebase الثابتة ورابط AWS للإشعارات
   final String _notificationApiEndpoint = "https://5uex7vzy64.execute-api.us-east-1.amazonaws.com/V2/new_nofiction";
 
   late final FirebaseAuth _auth;
@@ -21,10 +20,10 @@ class AuthService {
     _db = FirebaseFirestore.instance;
   }
 
-  /// تسجيل الدخول بالإيميل وكلمة المرور والحصول على الدور
+  /// تسجيل الدخول وتحويل الإيميل الوهمي إلى بيانات تعتمد على رقم الهاتف
   Future<String> signInWithEmailAndPassword(String email, String password) async {
     try {
-      // 1. تسجيل الدخول
+      // 1. تسجيل الدخول في Firebase Authentication
       final userCredential = await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
@@ -33,96 +32,86 @@ class AuthService {
       if (user == null) throw Exception("user-null");
       final uid = user.uid;
 
-      // 2. البحث عن الدور والبيانات باستخدام الإيميل (كما في الكود الذي يعمل)
-      final userData = await _getUserDataByEmail(email);
+      // 2. البحث عن البيانات في Firestore باستخدام رقم الهاتف المستخلص من الإيميل
+      // الإيميل يكون بصيغة 010xxx@aswaq.com فنأخذ الجزء الأول منه
+      String phoneFromEmail = email.split('@')[0];
+      final userData = await _getUserDataByPhone(phoneFromEmail);
 
-      // 🛠️ يتم استخدام فحص النوع الآمن (Type Safety) هنا
       final String userRole = userData['role'] is String ? userData['role'] : 'buyer';
       final String userAddress = userData['address'] is String ? userData['address'] : '';
       final String? userFullName = userData['fullname'] is String ? userData['fullname'] : null;
       final String? merchantName = userData['merchantName'] is String ? userData['merchantName'] : null;
-
-      // ⭐️ [التعديل البرمجي الأصح]: توحيد صيغة الموقع قبل التخزين
-      Map<String, double>? location;
       
-      // أ. محاولة جلبها من حقل 'location' (سواء كان Map أو GeoPoint)
+      // التأكد من جلب رقم الهاتف الصافي المسجل في Firestore
+      final String phoneToShow = userData['phone'] is String ? userData['phone'] : phoneFromEmail;
+
+      // توحيد صيغة الموقع الجغرافي
+      Map<String, double>? location;
       if (userData['location'] is GeoPoint) {
          final geoPoint = userData['location'] as GeoPoint;
          location = {'lat': geoPoint.latitude, 'lng': geoPoint.longitude};
       } else if (userData['location'] is Map) {
-          // التعامل مع Map العادية
          location = Map<String, double>.from(userData['location'] as Map);
       }
-      
-      // ب. إذا لم نجدها في 'location'، نبحث عن 'lat' و 'lng' منفصلين
       if (location == null && userData['lat'] is num && userData['lng'] is num) {
           location = {
             'lat': (userData['lat'] as num).toDouble(),
             'lng': (userData['lng'] as num).toDouble(),
           };
       }
-      // 💡 الآن، 'location' إما null أو Map<String, double> موحدة.
 
-      // ⭐️ 3. حفظ البيانات محلياً بشكل فعلي باستخدام SharedPreferences ⭐️
+      // 3. حفظ البيانات محلياً (نعتمد حقل phone بدلاً من email للواجهات)
       await _saveUserToLocalStorage(
         id: uid,
         role: userRole,
         fullname: userFullName,
         address: userAddress,
         merchantName: merchantName,
-        location: location, // يتم تمرير القيمة الموحدة
+        phone: phoneToShow, 
+        location: location,
       );
 
-      // 4. FCM (يتم تجاهل الفشل مؤقتاً)
+      // 4. تسجيل توكن الإشعارات (AWS)
       final fcmToken = await _requestFCMToken();
       if (fcmToken != null) {
         await _registerFcmEndpoint(uid, fcmToken, userRole, userAddress);
       }
 
-      // إرجاع الدور للتوجيه
       return userRole;
     } on FirebaseAuthException catch (e) {
-      throw e.code; // نمرر كود خطأ المصادقة
+      throw e.code;
     } catch (e) {
-      // لأي خطأ آخر غير المصادقة، نلقي خطأ عام
       throw 'auth/unknown-error';
     }
   }
 
-  // 🚨🚨🚨 الدالة المضافة لإصلاح خطأ البناء 🚨🚨🚨
-  /// تسجيل الخروج من Firebase ومسح البيانات المحلية
+  /// تسجيل الخروج ومسح البيانات المحلية
   Future<void> signOut() async {
     try {
-      // 1. تسجيل الخروج من Firebase
       await _auth.signOut();
-
-      // 2. مسح البيانات المحلية (لتسجيل الخروج الكامل)
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('loggedUser');
-
-      // يمكنك إضافة مسح أي بيانات أخرى محفوظة محليًا هنا
     } catch (e) {
-      // يجب التعامل مع الأخطاء بدون print في الإنتاج
       debugPrint("🚨 فشل تسجيل الخروج: $e");
     }
   }
 
-  /// البحث عن المستخدم بالإيميل في جميع المجموعات (المنطق الذي يعمل)
-  Future<Map<String, dynamic>> _getUserDataByEmail(String email) async {
+  /// البحث عن المستخدم في المجموعات باستخدام حقل phone
+  Future<Map<String, dynamic>> _getUserDataByPhone(String phone) async {
     final collections = ['sellers', 'consumers', 'users'];
 
     for (var collectionName in collections) {
       try {
         final snapshot = await _db
             .collection(collectionName)
-            .where('email', isEqualTo: email)
+            .where('phone', isEqualTo: phone)
             .limit(1)
             .get();
 
         if (snapshot.docs.isNotEmpty) {
           final doc = snapshot.docs.first;
-          final data = doc.data() as Map<String, dynamic>; // 🛠️ تأكيد النوع
-
+          final data = doc.data() as Map<String, dynamic>;
+          
           String role = 'buyer';
           if (collectionName == 'sellers') {
             role = 'seller';
@@ -137,56 +126,46 @@ class AuthService {
         debugPrint("⚠️ فشل قراءة Firestore في $collectionName: $e");
       }
     }
-
-    return {'role': 'buyer'}; // الافتراضي
+    return {'role': 'buyer'};
   }
 
-  /// حفظ البيانات محليًا (النسخة المنفذة بالتخزين الفعلي)
+  /// حفظ البيانات في SharedPreferences بنظام "رقم الهاتف"
   Future<void> _saveUserToLocalStorage({
     required String id,
     required String role,
     String? fullname,
     String? address,
     String? merchantName,
+    String? phone, 
     Map<String, double>? location,
   }) async {
     final userDataToStore = {
       'id': id,
-      // 💡 المفتاح ownerId هو نفسه id (لأغراض التاجر)
       'ownerId': id,
       'role': role,
       'fullname': fullname,
       'address': address,
       'merchantName': merchantName,
+      'phone': phone, // هنا تم الاستغناء عن الإيميل في التخزين المحلي
       'location': location,
-      // 💡 ملاحظة: المفاتيح المستخدمة هنا هي نفس المفاتيح التي تم تخزينها في HTML/JS: 'id', 'role', 'fullname', إلخ.
     };
 
-    // ⭐️⭐️ تطبيق منطق الحفظ الفعلي باستخدام SharedPreferences ⭐️⭐️
     try {
       final prefs = await SharedPreferences.getInstance();
-
-      // تحويل الكائن إلى سلسلة JSON (مطابقة لـ JSON.stringify)
       final jsonString = json.encode(userDataToStore);
-
-      // تخزين سلسلة JSON تحت المفتاح 'loggedUser' (مطابقة لـ localStorage.setItem)
       await prefs.setString('loggedUser', jsonString);
-
-      debugPrint("💾 تم حفظ بيانات المستخدم بنجاح في SharedPreferences: $jsonString");
+      debugPrint("💾 تم حفظ بيانات العميل (رقم الهاتف) بنجاح: $jsonString");
     } catch (e) {
-      debugPrint("🚨 خطأ فادح أثناء حفظ البيانات في SharedPreferences: $e");
+      debugPrint("🚨 خطأ في SharedPreferences: $e");
     }
   }
 
-  // الدوال المتعلقة بـ FCM (بدون إلقاء استثناء عند الفشل)
   Future<String?> _requestFCMToken() async {
     try {
-      if (kIsWeb) {
-        return null;
-      }
+      if (kIsWeb) return null;
       return await FirebaseMessaging.instance.getToken();
     } catch (e) {
-      debugPrint("⚠️ FCM Token retrieval failed: $e");
+      debugPrint("⚠️ FCM Token failed: $e");
       return null;
     }
   }
@@ -207,10 +186,10 @@ class AuthService {
       );
 
       if (response.statusCode != 200) {
-        debugPrint("⚠️ فشل تسجيل FCM Endpoint. Status: ${response.statusCode}");
+        debugPrint("⚠️ AWS Endpoint Failure: ${response.statusCode}");
       }
     } catch (err) {
-      debugPrint("⚠️ خطأ أثناء استدعاء FCM API: $err");
+      debugPrint("⚠️ AWS API Error: $err");
     }
   }
 }
