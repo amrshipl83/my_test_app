@@ -7,12 +7,10 @@ import 'package:sizer/sizer.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-// Imports - Firebase & Theme
+// --- الاستيرادات الأساسية ---
 import 'package:my_test_app/firebase_options.dart';
 import 'package:my_test_app/theme/app_theme.dart';
 import 'package:my_test_app/providers/theme_notifier.dart';
-
-// Providers
 import 'package:my_test_app/providers/buyer_data_provider.dart';
 import 'package:my_test_app/providers/manufacturers_provider.dart';
 import 'package:my_test_app/providers/cart_provider.dart';
@@ -20,8 +18,9 @@ import 'package:my_test_app/providers/customer_orders_provider.dart';
 import 'package:my_test_app/providers/product_offer_provider.dart';
 import 'package:my_test_app/providers/cashback_provider.dart';
 import 'package:my_test_app/controllers/seller_dashboard_controller.dart';
+import 'package:my_test_app/models/logged_user.dart';
 
-// Screens
+// --- استيراد الشاشات (تم استرجاعها من النسخة الكاملة) ---
 import 'package:my_test_app/screens/login_screen.dart';
 import 'package:my_test_app/screens/seller_screen.dart';
 import 'package:my_test_app/screens/buyer/buyer_home_screen.dart';
@@ -30,16 +29,20 @@ import 'package:my_test_app/screens/auth/new_client_screen.dart';
 import 'package:my_test_app/screens/buyer/cart_screen.dart';
 import 'package:my_test_app/screens/checkout/checkout_screen.dart';
 import 'package:my_test_app/screens/buyer/my_orders_screen.dart';
-import 'package:my_test_app/models/logged_user.dart';
-import 'package:my_test_app/models/user_role.dart';
+import 'package:my_test_app/screens/buyer/traders_screen.dart';
+import 'package:my_test_app/screens/buyer/wallet_screen.dart';
+import 'package:my_test_app/screens/buyer/buyer_category_screen.dart';
+import 'package:my_test_app/screens/buyer/buyer_product_list_screen.dart';
+import 'package:my_test_app/screens/buyer/trader_offers_screen.dart';
+import 'package:my_test_app/screens/my_details_screen.dart';
+import 'package:my_test_app/screens/about_screen.dart';
+import 'package:my_test_app/screens/product_details_screen.dart';
+import 'package:my_test_app/screens/consumer/consumer_sub_category_screen.dart';
+import 'package:my_test_app/screens/consumer/ConsumerProductListScreen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // تهيئة اللغة العربية للتواريخ
   await initializeDateFormatting('ar', null);
-
-  // تهيئة فايربيس للموبايل
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   runApp(
@@ -76,7 +79,7 @@ class MyApp extends StatelessWidget {
     return Sizer(
       builder: (context, orientation, deviceType) {
         return MaterialApp(
-          title: 'My Test App',
+          title: 'أسواق أكسب',
           debugShowCheckedModeBanner: false,
           theme: ThemeData(
             primaryColor: AppTheme.primaryGreen,
@@ -94,6 +97,38 @@ class MyApp extends StatelessWidget {
             CheckoutScreen.routeName: (context) => const CheckoutScreen(),
             MyOrdersScreen.routeName: (context) => const MyOrdersScreen(),
             '/register': (context) => const NewClientScreen(),
+            '/traders': (context) => const TradersScreen(),
+            '/wallet': (context) => const WalletScreen(),
+            '/myDetails': (context) => const MyDetailsScreen(),
+            '/about': (context) => const AboutScreen(),
+            '/post-reg': (context) => const PostRegistrationMessageScreen(),
+          },
+          onGenerateRoute: (settings) {
+            // معالجة المسارات الديناميكية (التي تحمل arguments) كما في النسخة القديمة
+            if (settings.name == '/productDetails') {
+              final args = settings.arguments as Map<String, dynamic>?;
+              return MaterialPageRoute(builder: (context) => ProductDetailsScreen(
+                productId: args?['productId'] ?? '',
+                offerId: args?['offerId'],
+              ));
+            }
+            if (settings.name == TraderOffersScreen.routeName) {
+              final sellerId = settings.arguments as String? ?? '';
+              return MaterialPageRoute(builder: (context) => TraderOffersScreen(sellerId: sellerId));
+            }
+            if (settings.name == '/category') {
+              final mainId = settings.arguments as String? ?? '';
+              return MaterialPageRoute(builder: (context) => BuyerCategoryScreen(mainCategoryId: mainId));
+            }
+            if (settings.name == '/subcategories') {
+              final args = settings.arguments as Map<String, dynamic>?;
+              return MaterialPageRoute(builder: (context) => ConsumerSubCategoryScreen(
+                mainCategoryId: args?['mainId'] ?? '',
+                ownerId: args?['ownerId'] ?? '',
+                mainCategoryName: args?['mainCategoryName'] ?? '',
+              ));
+            }
+            return null;
           },
         );
       },
@@ -101,6 +136,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
+// --- AuthWrapper (المستقر الذي يحمي التطبيق من الانهيار) ---
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
   @override
@@ -108,10 +144,35 @@ class AuthWrapper extends StatefulWidget {
 }
 
 class _AuthWrapperState extends State<AuthWrapper> {
+  Future<LoggedInUser?>? _userFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _userFuture = _checkUserLoginStatus();
+  }
+
+  Future<LoggedInUser?> _checkUserLoginStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userJson = prefs.getString('loggedUser');
+    if (userJson != null) {
+      try {
+        final user = LoggedInUser.fromJson(jsonDecode(userJson));
+        await Provider.of<BuyerDataProvider>(context, listen: false)
+            .initializeData(user.id, user.id, user.fullname);
+        return user;
+      } catch (e) {
+        await prefs.remove('loggedUser');
+        return null;
+      }
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<LoggedInUser?>(
-      future: _checkUserLoginStatus(),
+      future: _userFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(body: Center(child: CircularProgressIndicator()));
@@ -126,16 +187,33 @@ class _AuthWrapperState extends State<AuthWrapper> {
       },
     );
   }
+}
 
-  Future<LoggedInUser?> _checkUserLoginStatus() async {
-    final prefs = await SharedPreferences.getInstance();
-    final userJson = prefs.getString('loggedUser');
-    if (userJson != null) {
-      final userData = LoggedInUser.fromJson(jsonDecode(userJson));
-      await Provider.of<BuyerDataProvider>(context, listen: false)
-          .initializeData(userData.id, userData.id, userData.fullname);
-      return userData;
-    }
-    return null;
+// --- شاشة رسالة ما بعد التسجيل ---
+class PostRegistrationMessageScreen extends StatelessWidget {
+  const PostRegistrationMessageScreen({super.key});
+  @override
+  Widget build(BuildContext context) {
+    final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    final isSeller = args?['isSeller'] ?? false;
+    Future.delayed(const Duration(seconds: 3), () {
+      Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
+    });
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(isSeller ? Icons.pending_actions : Icons.check_circle, 
+                 color: isSeller ? Colors.orange : Colors.green, size: 80),
+            const SizedBox(height: 20),
+            Text(isSeller ? 'حسابك قيد المراجعة' : 'تم التسجيل بنجاح', 
+                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 40),
+            const CircularProgressIndicator(),
+          ],
+        ),
+      ),
+    );
   }
 }
