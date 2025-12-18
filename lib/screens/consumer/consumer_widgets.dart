@@ -32,22 +32,22 @@ class ConsumerCustomAppBar extends StatelessWidget implements PreferredSizeWidge
 
     return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance
-          .collection('consumers')
+          .collection('consumers') // التأكد من اسم المجموعة
           .doc(user?.uid)
           .snapshots(),
       builder: (context, snapshot) {
-        // استخدام القيم القادمة من Firestore أو القيم الافتراضية
         String displayUserName = userName;
         int displayPoints = userPoints;
 
         if (snapshot.hasData && snapshot.data!.exists) {
           final data = snapshot.data!.data() as Map<String, dynamic>;
-          displayUserName = data['fullName'] ?? data['name'] ?? userName;
+          // محاولة جلب الاسم من أكثر من حقل محتمل لضمان الدقة
+          displayUserName = data['fullName'] ?? data['name'] ?? data['fullname'] ?? userName;
           displayPoints = data['points'] ?? data['loyaltyPoints'] ?? 0;
         }
 
         return AppBar(
-          automaticallyImplyLeading: false,
+          automaticallyImplyLeading: false, // حذف أي أيقونات تلقائية (الثلاث شرط الزائدة)
           titleSpacing: 0,
           toolbarHeight: 55,
           backgroundColor: Theme.of(context).colorScheme.surface,
@@ -60,8 +60,7 @@ class ConsumerCustomAppBar extends StatelessWidget implements PreferredSizeWidge
                 Row(
                   children: [
                     InkWell(
-                      // 🎯 تم التأكد من ربطها بفتح الـ Sidebar
-                      onTap: onMenuPressed, 
+                      onTap: onMenuPressed, // الزر الوحيد لفتح القائمة
                       child: Container(
                         padding: const EdgeInsets.all(8.0),
                         decoration: BoxDecoration(
@@ -69,11 +68,10 @@ class ConsumerCustomAppBar extends StatelessWidget implements PreferredSizeWidge
                           borderRadius: BorderRadius.circular(10),
                         ),
                         height: 40,
-                        // استخدام أيقونة Bars واحدة كما طلبت
                         child: Icon(FontAwesomeIcons.bars, size: 18, color: appPrimary),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 12),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -88,7 +86,6 @@ class ConsumerCustomAppBar extends StatelessWidget implements PreferredSizeWidge
                 Row(
                   children: [
                     GestureDetector(
-                      // 🎯 تصحيح مسار أيقونة النقاط
                       onTap: () => Navigator.of(context).pushNamed(PointsLoyaltyScreen.routeName),
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -125,10 +122,9 @@ class ConsumerCustomAppBar extends StatelessWidget implements PreferredSizeWidge
   Size get preferredSize => const Size.fromHeight(55);
 }
 
-// 3. شريط البحث ثلاثي الأبعاد
+// 2. شريط البحث
 class ConsumerSearchBar extends StatelessWidget {
   const ConsumerSearchBar({super.key});
-
   @override
   Widget build(BuildContext context) {
     final Color appPrimary = AppTheme.primaryGreen;
@@ -171,11 +167,10 @@ class ConsumerSearchBar extends StatelessWidget {
   }
 }
 
-// 4. عنوان القسم
+// 3. عنوان القسم
 class ConsumerSectionTitle extends StatelessWidget {
   final String title;
   const ConsumerSectionTitle({super.key, required this.title});
-
   @override
   Widget build(BuildContext context) {
     final Color appPrimary = AppTheme.primaryGreen;
@@ -196,7 +191,7 @@ class ConsumerSectionTitle extends StatelessWidget {
   }
 }
 
-// 5. بانر الأقسام
+// 4. بانر الأقسام
 class ConsumerCategoriesBanner extends StatelessWidget {
   final List<ConsumerCategory> categories;
   const ConsumerCategoriesBanner({super.key, required this.categories});
@@ -227,7 +222,6 @@ class ConsumerCategoriesBanner extends StatelessWidget {
 class ConsumerCategoryItem extends StatelessWidget {
   final ConsumerCategory category;
   const ConsumerCategoryItem({super.key, required this.category});
-
   @override
   Widget build(BuildContext context) {
     final Color appPrimary = AppTheme.primaryGreen;
@@ -270,11 +264,10 @@ class ConsumerCategoryItem extends StatelessWidget {
   }
 }
 
-// 6. بانر العروض الترويجية
+// 5. بانر العروض
 class ConsumerPromoBanners extends StatelessWidget {
   final List<ConsumerBanner> banners;
   const ConsumerPromoBanners({super.key, required this.banners});
-
   @override
   Widget build(BuildContext context) {
     if (banners.isEmpty) return const SizedBox.shrink();
@@ -318,7 +311,7 @@ class ConsumerPromoBanners extends StatelessWidget {
   }
 }
 
-// 7. شريط التنقل السفلي (Footer Nav)
+// 6. شريط التنقل السفلي
 class ConsumerFooterNav extends StatelessWidget {
   final int cartCount;
   final int activeIndex;
@@ -417,7 +410,7 @@ class _ConsumerNavItem {
   const _ConsumerNavItem({required this.icon, required this.label, required this.route});
 }
 
-// 8. القائمة الجانبية (Sidebar)
+// 7. القائمة الجانبية (Sidebar)
 class ConsumerSideMenu extends StatelessWidget {
   const ConsumerSideMenu({super.key});
 
@@ -434,11 +427,11 @@ class ConsumerSideMenu extends StatelessWidget {
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 25, 20, 10),
+              padding: const EdgeInsets.fromLTRB(20, 35, 20, 10),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('قائمة المستخدم', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: appPrimary)),
+                  Text('القائمة', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: appPrimary)),
                   GestureDetector(
                     onTap: () => Navigator.of(context).pop(),
                     child: Container(
@@ -446,27 +439,25 @@ class ConsumerSideMenu extends StatelessWidget {
                       height: 40,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        border: Border.all(color: AppTheme.secondaryTextColor.withOpacity(0.5)),
+                        border: Border.all(color: AppTheme.secondaryTextColor.withOpacity(0.3)),
                       ),
-                      child: Center(child: Icon(FontAwesomeIcons.times, size: 20, color: AppTheme.secondaryTextColor)),
+                      child: Center(child: Icon(FontAwesomeIcons.times, size: 18, color: AppTheme.secondaryTextColor)),
                     ),
                   ),
                 ],
               ),
             ),
-            Divider(color: AppTheme.borderColor, thickness: 1),
+            Divider(color: AppTheme.borderColor),
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
                 children: [
-                  const _ConsumerSidebarItem(icon: FontAwesomeIcons.home, label: 'الصفحة الرئيسية', route: '/consumerHome', isActive: true),
+                  const _ConsumerSidebarItem(icon: FontAwesomeIcons.home, label: 'الصفحة الرئيسية', route: '/consumerHome'),
                   const _ConsumerSidebarItem(icon: FontAwesomeIcons.shoppingBasket, label: 'سلة التسوق', route: '/cart'),
-                  const _ConsumerSidebarItem(icon: FontAwesomeIcons.search, label: 'بحث عن منتجات', route: '/search'),
                   const _ConsumerSidebarItem(icon: FontAwesomeIcons.history, label: 'طلباتي السابقة', route: '/consumer-purchases'),
-                  // 🎯 تم تحديث مسار النقاط لمسار الشاشة الجديد
                   const _ConsumerSidebarItem(icon: FontAwesomeIcons.gift, label: 'نقاط الولاء والمكافآت', route: PointsLoyaltyScreen.routeName),
                   const _ConsumerSidebarItem(icon: FontAwesomeIcons.userCircle, label: 'ملفي الشخصي', route: '/myDetails'),
-                  const _ConsumerSidebarItem(icon: FontAwesomeIcons.infoCircle, label: 'الإعدادات والدعم', route: '/about'),
+                  const _ConsumerSidebarItem(icon: FontAwesomeIcons.infoCircle, label: 'حول التطبيق', route: '/about'),
                 ],
               ),
             ),
@@ -477,7 +468,8 @@ class ConsumerSideMenu extends StatelessWidget {
                 label: 'تسجيل الخروج',
                 isLogout: true,
                 onTap: () {
-                  Navigator.of(context).pushNamedAndRemoveUntil('/login', (Route<dynamic> route) => false);
+                  FirebaseAuth.instance.signOut();
+                  Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
                 },
               ),
             ),
@@ -491,7 +483,6 @@ class ConsumerSideMenu extends StatelessWidget {
 class _ConsumerSidebarItem extends StatelessWidget {
   final IconData icon;
   final String label;
-  final bool isActive;
   final bool isLogout;
   final String route;
   final VoidCallback? onTap;
@@ -499,7 +490,6 @@ class _ConsumerSidebarItem extends StatelessWidget {
   const _ConsumerSidebarItem({
     required this.icon,
     required this.label,
-    this.isActive = false,
     this.isLogout = false,
     this.route = '',
     this.onTap,
@@ -507,32 +497,30 @@ class _ConsumerSidebarItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final defaultColor = isLogout ? const Color(0xFF721c24) : Theme.of(context).textTheme.bodyLarge?.color;
-    final defaultBg = isLogout ? const Color(0xFFf8d7da) : Theme.of(context).colorScheme.surface;
+    final defaultColor = isLogout ? const Color(0xFFdc3545) : Theme.of(context).textTheme.bodyLarge?.color;
+    final defaultBg = isLogout ? const Color(0xFFf8d7da).withOpacity(0.5) : Colors.transparent;
     final iconColor = isLogout ? const Color(0xFFdc3545) : AppTheme.primaryGreen;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Material(
-        color: defaultBg,
+      padding: const EdgeInsets.only(bottom: 8),
+      child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: onTap ?? () => Navigator.of(context).pushNamed(route),
-          child: Container(
-            padding: const EdgeInsets.all(15),
-            decoration: BoxDecoration(
-              border: isLogout ? Border.all(color: const Color(0xFFf5c6cb)) : null,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: isLogout ? null : [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
-            ),
-            child: Row(
-              children: [
-                Icon(icon, size: 22, color: iconColor),
-                const SizedBox(width: 15),
-                Text(label, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: defaultColor)),
-              ],
-            ),
+        onTap: onTap ?? () {
+          Navigator.of(context).pop(); // إغلاق المنيو أولاً
+          Navigator.of(context).pushNamed(route);
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+          decoration: BoxDecoration(
+            color: defaultBg,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 20, color: iconColor),
+              const SizedBox(width: 15),
+              Text(label, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: defaultColor)),
+            ],
           ),
         ),
       ),

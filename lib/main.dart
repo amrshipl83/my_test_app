@@ -38,12 +38,14 @@ import 'package:my_test_app/screens/buyer/trader_offers_screen.dart';
 import 'package:my_test_app/screens/my_details_screen.dart';
 import 'package:my_test_app/screens/about_screen.dart';
 import 'package:my_test_app/screens/product_details_screen.dart';
+
+// --- استيراد شاشات المستهلك المضافة ---
 import 'package:my_test_app/screens/consumer/consumer_sub_category_screen.dart';
 import 'package:my_test_app/screens/consumer/ConsumerProductListScreen.dart';
 import 'package:my_test_app/screens/consumer/consumer_store_search_screen.dart';
-
-// 🆕 استيراد شاشة الماركت بليس
 import 'package:my_test_app/screens/consumer/MarketplaceHomeScreen.dart';
+import 'package:my_test_app/screens/consumer/consumer_purchase_history_screen.dart'; // مضاف
+import 'package:my_test_app/screens/consumer/points_loyalty_screen.dart'; // مضاف
 
 // --- إضافات الدليفري المعتمدة ---
 import 'package:my_test_app/screens/delivery_merchant_dashboard_screen.dart';
@@ -116,6 +118,11 @@ class MyApp extends StatelessWidget {
             '/about': (context) => const AboutScreen(),
             '/post-reg': (context) => const PostRegistrationMessageScreen(),
             ConsumerStoreSearchScreen.routeName: (context) => const ConsumerStoreSearchScreen(),
+            
+            // مسارات المستهلك الجديدة التي كانت ناقصة في القائمة الجانبية
+            '/consumer-purchases': (context) => const ConsumerPurchaseHistoryScreen(),
+            PointsLoyaltyScreen.routeName: (context) => const PointsLoyaltyScreen(),
+
             '/deliveryPrices': (context) => const DeliveryMerchantDashboardScreen(),
             '/deliveryMerchantDashboard': (context) => const DeliveryMerchantDashboardScreen(),
             '/product_management': (context) => const ProductOfferScreen(),
@@ -125,7 +132,7 @@ class MyApp extends StatelessWidget {
             '/constore': (context) => const BuyerHomeScreen(),
           },
           onGenerateRoute: (settings) {
-            // ✅ إضافة مسار الماركت بليس الجديد
+            // 1. مسار الماركت بليس
             if (settings.name == MarketplaceHomeScreen.routeName) {
               final args = settings.arguments as Map<String, dynamic>?;
               return MaterialPageRoute(
@@ -136,6 +143,32 @@ class MyApp extends StatelessWidget {
               );
             }
 
+            // 2. مسار الأقسام الفرعية للمستهلك
+            if (settings.name == '/subcategories') {
+              final args = settings.arguments as Map<String, dynamic>?;
+              return MaterialPageRoute(
+                builder: (context) => ConsumerSubCategoryScreen(
+                  mainCategoryId: args?['mainId'] ?? '',
+                  ownerId: args?['ownerId'] ?? '',
+                  mainCategoryName: args?['mainCategoryName'] ?? '',
+                ),
+              );
+            }
+
+            // 3. مسار قائمة منتجات المستهلك
+            if (settings.name == ConsumerProductListScreen.routeName) {
+              final args = settings.arguments as Map<String, dynamic>?;
+              return MaterialPageRoute(
+                builder: (context) => ConsumerProductListScreen(
+                  ownerId: args?['ownerId'] ?? '',
+                  mainId: args?['mainId'] ?? '',
+                  subId: args?['subId'] ?? '',
+                  subCategoryName: args?['subCategoryName'] ?? 'المنتجات',
+                ),
+              );
+            }
+
+            // المسارات القديمة (بدون تغيير)
             if (settings.name == '/productDetails') {
               final args = settings.arguments as Map<String, dynamic>?;
               return MaterialPageRoute(
@@ -152,16 +185,6 @@ class MyApp extends StatelessWidget {
             if (settings.name == '/category') {
               final mainId = settings.arguments as String? ?? '';
               return MaterialPageRoute(builder: (context) => BuyerCategoryScreen(mainCategoryId: mainId));
-            }
-            if (settings.name == '/subcategories') {
-              final args = settings.arguments as Map<String, dynamic>?;
-              return MaterialPageRoute(
-                builder: (context) => ConsumerSubCategoryScreen(
-                  mainCategoryId: args?['mainId'] ?? '',
-                  ownerId: args?['ownerId'] ?? '',
-                  mainCategoryName: args?['mainCategoryName'] ?? '',
-                ),
-              );
             }
             if (settings.name == '/products') {
               final args = settings.arguments as Map<String, dynamic>? ?? {};
