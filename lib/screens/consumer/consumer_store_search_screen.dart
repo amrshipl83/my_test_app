@@ -10,6 +10,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:my_test_app/providers/buyer_data_provider.dart';
 import 'package:my_test_app/screens/consumer/MarketplaceHomeScreen.dart';
+// استيراد الصفحة الجديدة
+import 'package:my_test_app/screens/special_requests/abaatly_had_pro_screen.dart';
 
 class ConsumerStoreSearchScreen extends StatefulWidget {
   static const routeName = '/consumerStoreSearch';
@@ -145,8 +147,6 @@ class _ConsumerStoreSearchScreenState extends State<ConsumerStoreSearchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final themeColor = Theme.of(context).primaryColor;
-
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
@@ -174,24 +174,33 @@ class _ConsumerStoreSearchScreenState extends State<ConsumerStoreSearchScreen> {
               ],
             ),
 
-            // 1. كبسولة البحث
+            // 1. كبسولة البحث العلوي
             Positioned(
               top: 110, left: 20, right: 20,
               child: _buildFloatingActionHeader(),
             ),
 
-            // 2. زر "ابعتلي حد" المبتكر
+            // 2. زر "ابعتلي حد" - الرابط بالصفحة الجديدة
             Positioned(
-              bottom: 210, 
+              bottom: 210,
               left: 20,
               child: FloatingActionButton.extended(
                 onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text("ميزة 'ابعتلي حد' للمهمات الخاصة قيد التجهيز 🚀"),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
+                  if (_currentSearchLocation != null) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => AbaatlyHadProScreen(
+                          userCurrentLocation: _currentSearchLocation!,
+                          isStoreOwner: false,
+                        ),
+                      ),
+                    );
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("يرجى تحديد موقعك أولاً لتفعيل الخدمة")),
+                    );
+                  }
                 },
                 label: const Text("ابعتلي حد", style: TextStyle(fontWeight: FontWeight.bold)),
                 icon: const Icon(Icons.directions_run_rounded, color: Colors.white),
@@ -320,7 +329,7 @@ class _ConsumerStoreSearchScreenState extends State<ConsumerStoreSearchScreen> {
             decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 5)]),
             child: const Icon(Icons.shopping_basket, color: Colors.green, size: 20),
           ),
-          const Icon(Icons.arrow_drop_down, color: Colors.white, size: 25), // تم إصلاح الخطأ هنا
+          const Icon(Icons.arrow_drop_down, color: Colors.white, size: 25),
         ],
       ),
     );
@@ -390,11 +399,6 @@ class _ConsumerStoreSearchScreenState extends State<ConsumerStoreSearchScreen> {
 class StoreDetailsBottomSheet extends StatelessWidget {
   final Map<String, dynamic> store;
   const StoreDetailsBottomSheet({super.key, required this.store});
-
-  Future<void> _launchURL(String url) async {
-    final uri = Uri.parse(url);
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) throw 'Could not launch $url';
-  }
 
   @override
   Widget build(BuildContext context) {
