@@ -5,11 +5,9 @@ import 'package:geolocator/geolocator.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart' show LatLng, Distance;
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:my_test_app/providers/buyer_data_provider.dart';
 import 'package:my_test_app/screens/consumer/MarketplaceHomeScreen.dart';
-import 'package:my_test_app/screens/special_requests/location_picker_screen.dart'; 
+import 'package:my_test_app/screens/special_requests/location_picker_screen.dart';
 
 class ConsumerStoreSearchScreen extends StatefulWidget {
   static const routeName = '/consumerStoreSearch';
@@ -145,7 +143,7 @@ class _ConsumerStoreSearchScreenState extends State<ConsumerStoreSearchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // ⭐️ [تعديل]: جلب المعرف الصحيح بناءً على ملف الـ Provider
+    // جلب المعرف من الـ Provider كما في الكود الأصلي
     final buyerProvider = Provider.of<BuyerDataProvider>(context);
     final String userId = buyerProvider.currentUserId ?? 'guest';
 
@@ -164,6 +162,7 @@ class _ConsumerStoreSearchScreenState extends State<ConsumerStoreSearchScreen> {
             FlutterMap(
               mapController: _mapController,
               options: MapOptions(
+                // ✅ [التعديل الجوهري]: تغيير center لـ initialCenter
                 initialCenter: _currentSearchLocation ?? _defaultLocation,
                 initialZoom: 13.0,
               ),
@@ -179,10 +178,8 @@ class _ConsumerStoreSearchScreenState extends State<ConsumerStoreSearchScreen> {
               top: 110, left: 20, right: 20,
               child: _buildFloatingActionHeader(),
             ),
-            
-            // ⭐️ [تعديل]: رفع الزر ليكون فوق قائمة المتاجر بوضوح
             Positioned(
-              bottom: 255, 
+              bottom: 255,
               left: 20,
               child: FloatingActionButton.extended(
                 onPressed: () {
@@ -191,9 +188,8 @@ class _ConsumerStoreSearchScreenState extends State<ConsumerStoreSearchScreen> {
                       context,
                       MaterialPageRoute(
                         builder: (context) => LocationPickerScreen(
+                          // ✅ [التعديل الجوهري]: تمرير الموقع فقط ليتوافق مع الـ Constructor الجديد
                           initialLocation: _currentSearchLocation!,
-                          title: "ابعتلي حد",
-                          userId: userId, // تمرير المعرف المأخوذ من currentUserId
                         ),
                       ),
                     );
@@ -209,7 +205,6 @@ class _ConsumerStoreSearchScreenState extends State<ConsumerStoreSearchScreen> {
                 elevation: 10,
               ),
             ),
-            
             Positioned(
               bottom: 0, left: 0, right: 0,
               child: _buildStoresPreviewList(),
@@ -220,6 +215,8 @@ class _ConsumerStoreSearchScreenState extends State<ConsumerStoreSearchScreen> {
       ),
     );
   }
+
+  // --- دوال الـ Widgets التابعة كما هي تماماً في الكود الأصلي ---
 
   Widget _buildFloatingActionHeader() {
     return Container(
