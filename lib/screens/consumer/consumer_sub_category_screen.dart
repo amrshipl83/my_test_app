@@ -7,7 +7,7 @@ import '../../services/marketplace_data_service.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/cart_provider.dart';
 import 'package:my_test_app/screens/consumer/ConsumerProductListScreen.dart';
-import 'package:my_test_app/screens/consumer/consumer_home_screen.dart'; // للعودة للهوم
+import 'package:my_test_app/screens/consumer/consumer_home_screen.dart';
 
 class ConsumerSubCategoryScreen extends StatefulWidget {
   final String mainCategoryId;
@@ -59,7 +59,6 @@ class _ConsumerSubCategoryScreenState extends State<ConsumerSubCategoryScreen> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        // 1. شريط علوي بسيط ونظيف بدون وضع ليلي
         appBar: AppBar(
           elevation: 0,
           backgroundColor: Colors.white,
@@ -69,7 +68,7 @@ class _ConsumerSubCategoryScreenState extends State<ConsumerSubCategoryScreen> {
             children: [
               Text(widget.mainCategoryName, 
                 style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.bold)),
-              Text("متجر: ${widget.ownerId.substring(0,5)}...", // يفضل تمرير اسم المتجر مستقبلاً
+              Text("متجر: ${widget.ownerId.substring(0,5)}...", 
                 style: TextStyle(fontSize: 9.sp, color: Colors.grey)),
             ],
           ),
@@ -78,10 +77,8 @@ class _ConsumerSubCategoryScreenState extends State<ConsumerSubCategoryScreen> {
             onPressed: () => Navigator.of(context).pop(),
           ),
         ),
-
         body: CustomScrollView(
           slivers: [
-            // 2. بانر إعلاني جذاب في المساحة الفاضية
             SliverToBoxAdapter(
               child: Container(
                 height: 18.h,
@@ -95,8 +92,7 @@ class _ConsumerSubCategoryScreenState extends State<ConsumerSubCategoryScreen> {
                 ),
                 child: Stack(
                   children: [
-                    Positioned(left: -20, top: -20, 
-                      child: Icon(Icons.stars, size: 100, color: Colors.white10)),
+                    Positioned(left: -20, top: -20, child: Icon(Icons.stars, size: 100, color: Colors.white10)),
                     Padding(
                       padding: EdgeInsets.all(5.w),
                       child: Column(
@@ -114,8 +110,6 @@ class _ConsumerSubCategoryScreenState extends State<ConsumerSubCategoryScreen> {
                 ),
               ),
             ),
-
-            // 3. شبكة الأقسام الفرعية
             FutureBuilder<List<CategoryModel>>(
               future: _subCategoriesFuture,
               builder: (context, snapshot) {
@@ -126,7 +120,6 @@ class _ConsumerSubCategoryScreenState extends State<ConsumerSubCategoryScreen> {
                 if (subCategories.isEmpty) {
                   return const SliverFillRemaining(child: Center(child: Text('لا توجد أقسام حاليًا.')));
                 }
-
                 return SliverPadding(
                   padding: EdgeInsets.symmetric(horizontal: 4.w),
                   sliver: SliverGrid(
@@ -146,30 +139,26 @@ class _ConsumerSubCategoryScreenState extends State<ConsumerSubCategoryScreen> {
             ),
           ],
         ),
-
-        // 4. شريط سفلي مخصص للمستهلك فقط
         bottomNavigationBar: BottomNavigationBar(
           type: BottomNavigationBarType.fixed,
           selectedItemColor: AppTheme.primaryGreen,
           unselectedItemColor: Colors.grey,
-          currentIndex: 0, // افتراضياً نحن في الأقسام
+          currentIndex: 0,
           onTap: (index) {
             if (index == 0) Navigator.pushNamed(context, ConsumerHomeScreen.routeName);
-            if (index == 1) /* اذهب للسلة */;
-            if (index == 2) /* اذهب للمحفظة */;
-            if (index == 3) /* اذهب للإشعارات أو الطلبات */;
           },
           items: [
             const BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'الرئيسية'),
             BottomNavigationBarItem(
               icon: Badge(
-                label: Text(cartProvider.itemsCount.toString()),
+                // 🛑 تم تصحيح الخطأ هنا: استخدام items.length 🛑
+                label: Text(cartProvider.items.length.toString()),
                 child: const Icon(Icons.shopping_cart_outlined),
               ),
               label: 'سلتك',
             ),
             const BottomNavigationBarItem(icon: Icon(Icons.wallet_outlined), label: 'محفظتي'),
-            const BottomNavigationBarItem(icon: Icon(Icons.history_edu_rounded), label: 'طلباتي'), // الأيقونة الرابعة المقترحة
+            const BottomNavigationBarItem(icon: Icon(Icons.history_edu_rounded), label: 'طلباتي'),
           ],
         ),
       ),
@@ -184,9 +173,7 @@ class _ConsumerSubCategoryScreenState extends State<ConsumerSubCategoryScreen> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: Colors.grey.shade100),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4)),
-          ],
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
         ),
         child: Column(
           children: [
@@ -200,9 +187,7 @@ class _ConsumerSubCategoryScreenState extends State<ConsumerSubCategoryScreen> {
             ),
             Padding(
               padding: EdgeInsets.all(3.w),
-              child: Text(category.name,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10.sp)),
+              child: Text(category.name, textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10.sp)),
             ),
           ],
         ),
