@@ -38,8 +38,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   bool _isLoading = false;
   bool _agreedToTerms = true;
 
-  // متغيرات نوع المركبة
-  String _selectedVehicle = "motorcycle"; 
+  String _selectedVehicle = "motorcycle";
   final List<Map<String, dynamic>> _vehicles = [
     {"id": "motorcycle", "name": "موتوسيكل", "icon": Icons.directions_bike, "desc": "للطلبات الخفيفة"},
     {"id": "pickup", "name": "ربع نقل", "icon": Icons.local_shipping, "desc": "بضائع متوسطة"},
@@ -98,18 +97,23 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     } else if (_currentStep == PickerStep.dropoff) {
       _dropoffLocation = _currentMapCenter;
       _dropoffAddress = _tempAddress;
-      _estimatedPrice = await _calculatePrice();
+      // حساب السعر الأولي للموتوسيكل
+      _estimatedPrice = await _calculatePrice(_selectedVehicle);
       _showFinalConfirmation();
     }
   }
 
-  Future<double> _calculatePrice() async {
+  // تحديث دالة الحسبة لتقبل نوع المركبة
+  Future<double> _calculatePrice(String vehicleType) async {
     if (_pickupLocation == null || _dropoffLocation == null) return 0.0;
     double distance = _deliveryService.calculateDistance(
       _pickupLocation!.latitude, _pickupLocation!.longitude,
       _dropoffLocation!.latitude, _dropoffLocation!.longitude
     );
-    return await _deliveryService.calculateTripCost(distanceInKm: distance);
+    return await _deliveryService.calculateTripCost(
+      distanceInKm: distance, 
+      vehicleType: vehicleType
+    );
   }
 
   Future<void> _finalizeAndUpload() async {
@@ -130,8 +134,8 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
         'status': 'pending',
         'createdAt': FieldValue.serverTimestamp(),
       });
-      Navigator.pop(context); // إغلاق المنبثقة
-      Navigator.pop(context); // العودة للخلف
+      Navigator.pop(context);
+      Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("تم إرسال طلبك بنجاح! جاري البحث عن مندوب...")));
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("خطأ: $e")));
@@ -144,7 +148,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_currentStep == PickerStep.pickup ? "تحديد مكان الاستلام" : "تحديد وجهة التوصيل", 
+        title: Text(_currentStep == PickerStep.pickup ? "تحديد مكان الاستلام" : "تحديد وجهة التوصيل",
           style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.bold)),
         centerTitle: true,
       ),
@@ -240,7 +244,6 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                     Text("تفاصيل الطلب النهائي", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.sp)),
                     const Divider(),
                     
-                    // اختيار نوع المركبة
                     Align(alignment: Alignment.centerRight, child: Text("وسيلة النقل المطلوبة:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.sp))),
                     const SizedBox(height: 10),
                     SizedBox(
@@ -252,7 +255,12 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                           final v = _vehicles[index];
                           bool isSelected = _selectedVehicle == v['id'];
                           return GestureDetector(
-                            onTap: () => setModalState(() => _selectedVehicle = v['id']),
+                            onTap: () async {
+                              setModalState(() => _selectedVehicle = v['id']);
+                              // تحديث السعر فوراً عند تغيير نوع المركبة
+                              double newPrice = await _calculatePrice(v['id']);
+                              setModalState(() => _estimatedPrice = newPrice);
+                            },
                             child: Container(
                               width: 100,
                               margin: const EdgeInsets.only(left: 10),
@@ -276,7 +284,6 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                     ),
                     
                     const SizedBox(height: 15),
-                    // وصف الشحنة
                     TextField(
                       controller: _detailsController,
                       maxLines: 2,
@@ -298,6 +305,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text("التكلفة التقديرية:"),
+                        _isLoading ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : 
                         Text("${_estimatedPrice.toStringAsFixed(2)} ج.م", style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 18.sp)),
                       ],
                     ),
