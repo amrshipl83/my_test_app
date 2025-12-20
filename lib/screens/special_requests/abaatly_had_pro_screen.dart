@@ -1,18 +1,17 @@
 // lib/screens/special_requests/abaatly_had_pro_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:latlong2/latlong.dart';
-// استيراد صفحة اختيار الموقع الجديدة
-import 'location_picker_screen.dart'; 
+import 'package:sizer/sizer.dart'; // تأكد من استيراد sizer للتحكم في الأحجام
+import 'location_picker_screen.dart';
 
 class AbaatlyHadProScreen extends StatefulWidget {
   final LatLng userCurrentLocation;
   final bool isStoreOwner;
 
   const AbaatlyHadProScreen({
-    super.key, 
-    required this.userCurrentLocation, 
+    super.key,
+    required this.userCurrentLocation,
     this.isStoreOwner = false
   });
 
@@ -24,7 +23,7 @@ class _AbaatlyHadProScreenState extends State<AbaatlyHadProScreen> {
   final TextEditingController _detailsController = TextEditingController();
   final TextEditingController _pickupController = TextEditingController();
   final TextEditingController _dropoffController = TextEditingController();
-  
+
   LatLng? _pickupCoords;
   LatLng? _dropoffCoords;
   bool _isLoading = false;
@@ -45,7 +44,6 @@ class _AbaatlyHadProScreenState extends State<AbaatlyHadProScreen> {
     }
   }
 
-  // --- التعديل الجوهري هنا: ربط الخريطة الحقيقية ---
   Future<void> _pickLocation(bool isPickup) async {
     final LatLng? result = await Navigator.push(
       context,
@@ -61,8 +59,7 @@ class _AbaatlyHadProScreenState extends State<AbaatlyHadProScreen> {
       setState(() {
         if (isPickup) {
           _pickupCoords = result;
-          // عرض الإحداثيات بشكل مبسط للمستخدم للتأكيد
-          _pickupController.text = "تم التحديد من الخريطة ✅"; 
+          _pickupController.text = "تم التحديد من الخريطة ✅";
         } else {
           _dropoffCoords = result;
           _dropoffController.text = "تم التحديد من الخريطة ✅";
@@ -76,7 +73,7 @@ class _AbaatlyHadProScreenState extends State<AbaatlyHadProScreen> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("يرجى كتابة تفاصيل الطلب")));
       return;
     }
-    
+
     if (_pickupCoords == null || _dropoffCoords == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("يرجى تحديد النقطتين من الخريطة")));
       return;
@@ -89,7 +86,6 @@ class _AbaatlyHadProScreenState extends State<AbaatlyHadProScreen> {
         'details': _detailsController.text,
         'pickupAddress': _pickupController.text,
         'dropoffAddress': _dropoffController.text,
-        // إرسال الإحداثيات الفعلية كـ GeoPoint للمناديب
         'pickupLocation': GeoPoint(_pickupCoords!.latitude, _pickupCoords!.longitude),
         'dropoffLocation': GeoPoint(_dropoffCoords!.latitude, _dropoffCoords!.longitude),
         'status': 'pending',
@@ -111,50 +107,74 @@ class _AbaatlyHadProScreenState extends State<AbaatlyHadProScreen> {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text("ابعتلي حد (توصيل خاص)", style: TextStyle(fontWeight: FontWeight.bold)),
+          title: Text("ابعتلي حد (توصيل خاص)", 
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16.sp, color: Colors.black87)),
           centerTitle: true,
+          elevation: 0,
+          backgroundColor: Colors.transparent,
         ),
         body: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
           child: Column(
             children: [
               _buildLocationInput(
-                label: "منين؟ (مكان الاستلام)", 
-                controller: _pickupController, 
-                icon: Icons.location_on, 
-                color: Colors.green,
+                label: "منين؟ (مكان الاستلام)",
+                controller: _pickupController,
+                icon: Icons.location_on,
+                color: Colors.green[700]!,
                 onTap: () => _pickLocation(true),
               ),
-              const Icon(Icons.arrow_downward, color: Colors.grey, size: 30),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Icon(Icons.arrow_downward_rounded, color: Colors.orange[800], size: 35),
+              ),
               _buildLocationInput(
-                label: "لفين؟ (مكان التسليم)", 
-                controller: _dropoffController, 
-                icon: Icons.flag, 
-                color: Colors.red,
+                label: "لفين؟ (مكان التسليم)",
+                controller: _dropoffController,
+                icon: Icons.flag_rounded,
+                color: Colors.red[700]!,
                 onTap: () => _pickLocation(false),
               ),
-              const SizedBox(height: 25),
+              const SizedBox(height: 30),
+              
+              // تحسين شكل حقل التفاصيل ليكون أوضح
+              Text("ماذا تريد أن تنقل؟", 
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.sp, color: Colors.black87)),
+              const SizedBox(height: 10),
               TextField(
                 controller: _detailsController,
                 maxLines: 4,
+                style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.w600),
                 decoration: InputDecoration(
-                  hintText: "اكتب تفاصيل الطلب..",
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
-                  filled: true, fillColor: Colors.grey[100],
+                  hintText: "مثال: كرتونة طلبات، طقم انتريه...",
+                  hintStyle: TextStyle(color: Colors.grey[500], fontWeight: FontWeight.normal),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(25),
+                    borderSide: BorderSide(color: Colors.grey[300]!, width: 2),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(25),
+                    borderSide: BorderSide(color: Colors.grey[200]!, width: 2),
+                  ),
+                  filled: true,
+                  fillColor: Colors.grey[50],
                 ),
               ),
-              const SizedBox(height: 35),
+              const SizedBox(height: 40),
               ElevatedButton(
                 onPressed: _isLoading ? null : _submitOrder,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.orange[900],
-                  minimumSize: const Size(double.infinity, 65),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  minimumSize: const Size(double.infinity, 70),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+                  elevation: 8,
                 ),
-                child: _isLoading 
+                child: _isLoading
                   ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text("تأكيد وطلب مندوب الآن", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                  : Text("تأكيد وطلب مندوب الآن", 
+                      style: TextStyle(color: Colors.white, fontSize: 15.sp, fontWeight: FontWeight.w900)),
               ),
+              const SizedBox(height: 20),
             ],
           ),
         ),
@@ -163,39 +183,51 @@ class _AbaatlyHadProScreenState extends State<AbaatlyHadProScreen> {
   }
 
   Widget _buildLocationInput({
-    required String label, 
-    required TextEditingController controller, 
-    required IconData icon, 
+    required String label,
+    required TextEditingController controller,
+    required IconData icon,
     required Color color,
     required VoidCallback onTap,
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(25),
       child: Container(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.grey[200]!),
+          borderRadius: BorderRadius.circular(25),
+          border: Border.all(color: Colors.grey[200]!, width: 2),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))
+          ],
         ),
         child: Row(
           children: [
-            Icon(icon, color: color, size: 28),
-            const SizedBox(width: 15),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
+              child: Icon(icon, color: color, size: 24.sp),
+            ),
+            const SizedBox(width: 18),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+                  Text(label, style: TextStyle(color: Colors.grey[700], fontSize: 11.sp, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
                   Text(
                     controller.text.isEmpty ? "اضغط للتحديد من الخريطة" : controller.text,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900, // خط عريض جداً للعنوان
+                      fontSize: 13.sp, 
+                      color: controller.text.isEmpty ? Colors.blueGrey : Colors.black,
+                    ),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.map_rounded, color: Colors.blueAccent),
+            Icon(Icons.map_outlined, color: Colors.blue[800], size: 22.sp),
           ],
         ),
       ),
