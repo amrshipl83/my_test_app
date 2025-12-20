@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:sizer/sizer.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/category_model.dart';
 import '../../services/marketplace_data_service.dart';
 import '../../theme/app_theme.dart';
@@ -33,10 +34,43 @@ class _ConsumerSubCategoryScreenState extends State<ConsumerSubCategoryScreen> {
   @override
   void initState() {
     super.initState();
+    // جلب الأقسام الفرعية بناءً على عروض التاجر الحالي
     _subCategoriesFuture = _dataService.fetchSubCategoriesByOffers(
       widget.mainCategoryId,
       widget.ownerId,
     );
+  }
+
+  // دالة جلب البانر الذكي: يبحث عن إعلان التاجر أولاً ثم الإعلانات العامة
+  Future<Map<String, dynamic>?> _getBanner() async {
+    try {
+      // 1. محاولة جلب إعلان خاص بهذا التاجر
+      var dealerBanner = await FirebaseFirestore.instance
+          .collection('consumerBanners')
+          .where('ownerId', isEqualTo: widget.ownerId)
+          .where('status', isEqualTo: 'active')
+          .limit(1)
+          .get();
+
+      if (dealerBanner.docs.isNotEmpty) {
+        return dealerBanner.docs.first.data();
+      }
+
+      // 2. إذا لم يوجد، جلب إعلان عام (Target: general)
+      var generalBanner = await FirebaseFirestore.instance
+          .collection('consumerBanners')
+          .where('targetAudience', isEqualTo: 'general')
+          .where('status', isEqualTo: 'active')
+          .limit(1)
+          .get();
+
+      if (generalBanner.docs.isNotEmpty) {
+        return generalBanner.docs.first.data();
+      }
+    } catch (e) {
+      debugPrint("Error fetching banner: $e");
+    }
+    return null;
   }
 
   void _navigateToProductList(BuildContext context, CategoryModel subCategory) {
@@ -68,7 +102,7 @@ class _ConsumerSubCategoryScreenState extends State<ConsumerSubCategoryScreen> {
             children: [
               Text(widget.mainCategoryName, 
                 style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.bold)),
-              Text("متجر: ${widget.ownerId.substring(0,5)}...", 
+              Text("متجر: ${widget.ownerId.substring(0, 5)}...", 
                 style: TextStyle(fontSize: 9.sp, color: Colors.grey)),
             ],
           ),
@@ -79,37 +113,51 @@ class _ConsumerSubCategoryScreenState extends State<ConsumerSubCategoryScreen> {
         ),
         body: CustomScrollView(
           slivers: [
+            // 1. البانر الإعلاني الديناميكي
             SliverToBoxAdapter(
-              child: Container(
-                height: 18.h,
-                margin: EdgeInsets.all(4.w),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(15),
-                  gradient: LinearGradient(
-                    colors: [AppTheme.primaryGreen, Colors.greenAccent],
-                  ),
-                  boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)],
-                ),
-                child: Stack(
-                  children: [
-                    Positioned(left: -20, top: -20, child: Icon(Icons.stars, size: 100, color: Colors.white10)),
-                    Padding(
-                      padding: EdgeInsets.all(5.w),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text("عروض خاصة داخل هذا القسم", 
-                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13.sp)),
-                          Text("اكتشف أفضل الأسعار اليوم في ${widget.mainCategoryName}", 
-                            style: TextStyle(color: Colors.white70, fontSize: 10.sp)),
-                        ],
-                      ),
+              child: FutureBuilder<Map<String, dynamic>?>(
+                future: _getBanner(),
+                builder: (context, bannerSnapshot) {
+                  final bannerData = bannerSnapshot.data;
+                  final String bannerImg = bannerData?['imageUrl'] ?? "";
+                  final String bannerName = bannerData?['name'] ?? "عروض خاصة";
+
+                  return Container(
+                    height: 18.h,
+                    margin: EdgeInsets.all(4.w),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(15),
+                      color: AppTheme.primaryGreen.withOpacity(0.1),
+                      image: bannerImg.isNotEmpty 
+                          ? DecorationImage(
+                              image: NetworkImage(bannerImg),
+                              fit: BoxFit.cover,
+                              colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.35), BlendMode.darken),
+                            ) 
+                          : null,
+                      boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)],
                     ),
-                  ],
-                ),
+                    child: bannerImg.isEmpty && bannerSnapshot.connectionState == ConnectionState.waiting
+                        ? const Center(child: CircularProgressIndicator())
+                        : Padding(
+                            padding: EdgeInsets.all(5.w),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(bannerName, 
+                                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13.sp)),
+                                Text("اكتشف أفضل الأسعار اليوم", 
+                                  style: TextStyle(color: Colors.white70, fontSize: 10.sp)),
+                              ],
+                            ),
+                          ),
+                  );
+                },
               ),
             ),
+
+            // 2. شبكة الأقسام الفرعية
             FutureBuilder<List<CategoryModel>>(
               future: _subCategoriesFuture,
               builder: (context, snapshot) {
@@ -120,6 +168,7 @@ class _ConsumerSubCategoryScreenState extends State<ConsumerSubCategoryScreen> {
                 if (subCategories.isEmpty) {
                   return const SliverFillRemaining(child: Center(child: Text('لا توجد أقسام حاليًا.')));
                 }
+
                 return SliverPadding(
                   padding: EdgeInsets.symmetric(horizontal: 4.w),
                   sliver: SliverGrid(
@@ -143,7 +192,7 @@ class _ConsumerSubCategoryScreenState extends State<ConsumerSubCategoryScreen> {
           type: BottomNavigationBarType.fixed,
           selectedItemColor: AppTheme.primaryGreen,
           unselectedItemColor: Colors.grey,
-          currentIndex: 0,
+          currentIndex: 0, 
           onTap: (index) {
             if (index == 0) Navigator.pushNamed(context, ConsumerHomeScreen.routeName);
           },
@@ -151,8 +200,8 @@ class _ConsumerSubCategoryScreenState extends State<ConsumerSubCategoryScreen> {
             const BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'الرئيسية'),
             BottomNavigationBarItem(
               icon: Badge(
-                // 🛑 تم تصحيح الخطأ هنا: استخدام items.length 🛑
-                label: Text(cartProvider.items.length.toString()),
+                // 🛑 تم التصحيح: استخدام itemCount المعرف في CartProvider.dart 🛑
+                label: Text(cartProvider.itemCount.toString()), 
                 child: const Icon(Icons.shopping_cart_outlined),
               ),
               label: 'سلتك',
@@ -173,7 +222,9 @@ class _ConsumerSubCategoryScreenState extends State<ConsumerSubCategoryScreen> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: Colors.grey.shade100),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4)),
+          ],
         ),
         child: Column(
           children: [
@@ -187,7 +238,9 @@ class _ConsumerSubCategoryScreenState extends State<ConsumerSubCategoryScreen> {
             ),
             Padding(
               padding: EdgeInsets.all(3.w),
-              child: Text(category.name, textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10.sp)),
+              child: Text(category.name,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10.sp)),
             ),
           ],
         ),
