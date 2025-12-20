@@ -1,4 +1,3 @@
-// lib/services/delivery_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter/foundation.dart';
@@ -6,59 +5,68 @@ import 'package:flutter/foundation.dart';
 class DeliveryService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  /// دالة حساب تكلفة الرحلة المرنة بناءً على المسافة ونوع المركبة
   Future<double> calculateTripCost({
-    required double distanceInKm, 
-    required String vehicleType // أضفنا هذا المعامل ليكون الدينامو بتاع الحسبة
+    required double distanceInKm,
+    required String vehicleType
   }) async {
     try {
-      // 1. تحديد اسم المستند بناءً على نوع المركبة
-      // motorcycle -> motorcycleConfig
-      // pickup -> pickupConfig
-      // jumbo -> jumboConfig
+      // 1. توحيد اسم المستند (نستخدم نفس الاسم المرسل + Config)
+      // إذا كان motorcycle سيبحث عن motorcycleConfig
+      // إذا كان pickup سيبحث عن pickupConfig
       String configDocName = "${vehicleType}Config";
-      
-      // إذا كان النوع "motorcycle" أو غير معروف، نستخدم الافتراضي deliveryConfig أو motorcycleConfig
-      if (vehicleType == "motorcycle" || vehicleType == "") {
-        configDocName = "deliveryConfig"; // أو سميه motorcycleConfig لتوحيد الأسماء
+
+      // إذا كانت القيمة فارغة نضع افتراضي
+      if (vehicleType.isEmpty) {
+        configDocName = "deliveryConfig"; 
       }
 
-      // 2. جلب الإعدادات الخاصة بهذه المركبة من Firestore
+      debugPrint("🚕 Calculating for: $configDocName | Distance: ${distanceInKm.toStringAsFixed(2)} km");
+
+      // 2. جلب الإعدادات
       var settingsDoc = await _db.collection('appSettings').doc(configDocName).get();
 
-      // قيم أمان افتراضية (Fallback) في حالة عدم وجود المستند
-      double baseFare = 10.0; 
-      double kmRate = 5.0;   
-      double minFare = 15.0;  
-      double serviceFee = 0.0; // رسوم المنصة من العميل
+      // قيم افتراضية (Fallback) في حالة عدم وجود المستند
+      double baseFare = 10.0;
+      double kmRate = 5.0;
+      double minFare = 15.0;
+      double serviceFee = 0.0;
 
       if (settingsDoc.exists && settingsDoc.data() != null) {
         final data = settingsDoc.data()!;
         baseFare = (data['baseFare'] ?? 10.0).toDouble();
         kmRate = (data['kmRate'] ?? 5.0).toDouble();
         minFare = (data['minFare'] ?? 15.0).toDouble();
-        serviceFee = (data['serviceFee'] ?? 0.0).toDouble(); // جلب رسوم الخدمة
+        serviceFee = (data['serviceFee'] ?? 0.0).toDouble();
+        debugPrint("✅ Data Loaded: Base: $baseFare, Rate: $kmRate");
+      } else {
+        debugPrint("⚠️ Warning: Document $configDocName NOT FOUND. Using defaults.");
+        // إذا لم يجد motorcycleConfig جرب البحث في deliveryConfig كخيار أخير
+        if (configDocName == "motorcycleConfig") {
+           var backupDoc = await _db.collection('appSettings').doc('deliveryConfig').get();
+           if (backupDoc.exists) {
+              final data = backupDoc.data()!;
+              baseFare = (data['baseFare'] ?? 10.0).toDouble();
+              kmRate = (data['kmRate'] ?? 5.0).toDouble();
+              minFare = (data['minFare'] ?? 15.0).toDouble();
+           }
+        }
       }
 
-      // 3. تطبيق المعادلة المرنة
-      // (فتحة العداد + المسافة * سعر الكيلو) + رسوم المنصة
+      // 3. الحسبة
       double tripSubtotal = baseFare + (distanceInKm * kmRate);
-      
-      // التأكد من الحد الأدنى للمشوار قبل إضافة رسوم الخدمة
+
       if (tripSubtotal < minFare) {
         tripSubtotal = minFare;
       }
 
       double totalFinal = tripSubtotal + serviceFee;
-
       return double.parse(totalFinal.toStringAsFixed(2));
     } catch (e) {
-      debugPrint("Error in DeliveryService: $e");
-      return 15.0; // سعر طوارئ
+      debugPrint("❌ Error in DeliveryService: $e");
+      return 15.0;
     }
   }
 
-  /// دالة حساب المسافة بين نقطتين جغرافيتين بالكيلومتر
   double calculateDistance(double startLat, double startLng, double endLat, double endLng) {
     double distanceInMeters = Geolocator.distanceBetween(startLat, startLng, endLat, endLng);
     return distanceInMeters / 1000;
