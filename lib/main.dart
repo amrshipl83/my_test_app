@@ -57,6 +57,9 @@ import 'package:my_test_app/screens/consumer_orders_screen.dart';
 import 'package:my_test_app/screens/delivery/product_offer_screen.dart';
 import 'package:my_test_app/screens/delivery/delivery_offers_screen.dart';
 
+// 🎯 إضافة استيراد الـ Widget الخاص بالفقاعة (تأكد من إنشاء هذا الملف في الخطوة القادمة)
+import 'package:my_test_app/widgets/order_bubble.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('ar', null);
@@ -91,6 +94,12 @@ void main() async {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
+  // 🎯 دالة لجلب الـ orderId المخزن في SharedPreferences
+  Future<String?> _getActiveOrderId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('active_special_order_id');
+  }
+
   @override
   Widget build(BuildContext context) {
     // 🎯 جلب حالة الثيم من الـ Provider لتعميمها على التطبيق
@@ -101,7 +110,25 @@ class MyApp extends StatelessWidget {
         return MaterialApp(
           title: 'أسواق أكسب',
           debugShowCheckedModeBanner: false,
-          
+
+          // 🎯 إضافة الـ Overlay Bubble باستخدام الـ builder
+          builder: (context, child) {
+            return Stack(
+              children: [
+                if (child != null) child,
+                FutureBuilder<String?>(
+                  future: _getActiveOrderId(),
+                  builder: (context, snapshot) {
+                    if (snapshot.hasData && snapshot.data != null) {
+                      return OrderBubble(orderId: snapshot.data!);
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
+              ],
+            );
+          },
+
           // 🎯 إعدادات الاتجاه من اليمين للشمال (RTL) بشكل موحد
           locale: const Locale('ar', 'EG'),
           localizationsDelegates: const [
@@ -232,7 +259,6 @@ class AuthWrapper extends StatefulWidget {
 
 class _AuthWrapperState extends State<AuthWrapper> {
   Future<LoggedInUser?>? _userFuture;
-
   @override
   void initState() {
     super.initState();
@@ -303,3 +329,4 @@ class PostRegistrationMessageScreen extends StatelessWidget {
     );
   }
 }
+
