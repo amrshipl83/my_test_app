@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sizer/sizer.dart';
-// استيراد الشاشة الجديدة
 import '../screens/customer_tracking_screen.dart';
+// 🎯 استيراد الـ main للوصول للـ notifier
+import '../main.dart'; 
 
 class OrderBubble extends StatefulWidget {
   final String orderId;
@@ -20,7 +21,6 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
   @override
   void initState() {
     super.initState();
-    // أنيميشن النبض لإعطاء حياة للفقاعة أثناء البحث
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 1),
@@ -33,10 +33,14 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
     super.dispose();
   }
 
-  // دالة لمسح الطلب وإخفاء الفقاعة نهائياً من الذاكرة المحلية
+  // 🎯 تعديل دالة المسح لتعمل مع الـ Notifier العالمي
   Future<void> _clearOrder() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('active_special_order_id');
+    
+    // إبلاغ الـ main.dart فوراً ليقوم بإزالة الـ Widget من الـ Stack
+    activeOrderNotifier.value = null; 
+    
     if (mounted) setState(() {});
   }
 
@@ -45,14 +49,18 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
     return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance.collection('specialRequests').doc(widget.orderId).snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData || !snapshot.data!.exists) return const SizedBox.shrink();
+        // إذا لم توجد بيانات، نبلغ الـ Notifier بالمسح ونختفي
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+           return const SizedBox.shrink();
+        }
 
         var data = snapshot.data!.data() as Map<String, dynamic>;
-        String status = data['status'];
+        String status = data['status'] ?? 'pending';
 
         // إذا اكتمل الطلب، نقوم بإخفاء الفقاعة ومسح المعرف
         if (status == 'delivered') {
-          _clearOrder();
+          // نستخدم Future.microtask لتجنب أخطاء الـ Rebuild أثناء الـ build
+          Future.microtask(() => _clearOrder());
           return const SizedBox.shrink();
         }
 
@@ -62,46 +70,32 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
           duration: const Duration(milliseconds: 100),
           left: position.dx,
           top: position.dy,
-          child: Draggable(
-            feedback: _buildBubbleUI(isAccepted, true),
-            childWhenDragging: const SizedBox.shrink(),
-            onDragEnd: (details) {
-              setState(() {
-                // الحفاظ على الفقاعة داخل حدود الشاشة
-                position = Offset(
-                  details.offset.dx.clamp(5.w, 82.w),
-                  details.offset.dy.clamp(10.h, 85.h),
-                );
-              });
-            },
-            child: GestureDetector(
-              onTap: () => _openOrderTracking(context, widget.orderId),
-              onLongPress: () {
-                // إمكانية إخفاء الفقاعة يدوياً
-                showDialog(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    title: const Text("إخفاء التتبع؟"),
-                    content: const Text("هل تريد إخفاء فقاعة التتبع؟ لن يتم إلغاء الطلب."),
-                    actions: [
-                      TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("إلغاء")),
-                      TextButton(
-                        onPressed: () {
-                          _clearOrder();
-                          Navigator.pop(ctx);
-                        },
-                        child: const Text("إخفاء"),
-                      ),
-                    ],
-                  ),
-                );
+          // 🎯 إضافة Material هنا لضمان عدم حدوث خطأ في الثيم داخل الـ Stack العالمي
+          child: Material(
+            type: MaterialType.transparency,
+            child: Draggable(
+              feedback: _buildBubbleUI(isAccepted, true),
+              childWhenDragging: const SizedBox.shrink(),
+              onDragEnd: (details) {
+                setState(() {
+                  position = Offset(
+                    details.offset.dx.clamp(5.w, 82.w),
+                    details.offset.dy.clamp(10.h, 85.h),
+                  );
+                });
               },
-              child: isAccepted
-                  ? _buildBubbleUI(isAccepted, false)
-                  : ScaleTransition(
-                      scale: Tween(begin: 1.0, end: 1.1).animate(_pulseController),
-                      child: _buildBubbleUI(isAccepted, false),
-                    ),
+              child: GestureDetector(
+                onTap: () => _openOrderTracking(context, widget.orderId),
+                onLongPress: () {
+                  _showOptionsDialog(context);
+                },
+                child: isAccepted
+                    ? _buildBubbleUI(isAccepted, false)
+                    : ScaleTransition(
+                        scale: Tween(begin: 1.0, end: 1.1).animate(_pulseController),
+                        child: _buildBubbleUI(isAccepted, false),
+                      ),
+              ),
             ),
           ),
         );
@@ -109,45 +103,60 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
     );
   }
 
-  // تصميم شكل الفقاعة (UI)
-  Widget _buildBubbleUI(bool isAccepted, bool isDragging) {
-    return Material(
-      color: Colors.transparent,
-      child: Container(
-        width: 16.w,
-        height: 16.w,
-        decoration: BoxDecoration(
-          color: isAccepted ? Colors.green[700] : Colors.orange[900],
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: isAccepted ? Colors.green.withOpacity(0.4) : Colors.orange.withOpacity(0.4),
-              blurRadius: 12,
-              spreadRadius: 2,
-            )
-          ],
-          border: Border.all(color: Colors.white, width: 2.5),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              isAccepted ? Icons.delivery_dining : Icons.search,
-              color: Colors.white,
-              size: 22.sp,
-            ),
-            if (!isAccepted)
-              Text(
-                "بحث..",
-                style: TextStyle(color: Colors.white, fontSize: 7.sp, fontWeight: FontWeight.bold),
-              ),
-          ],
-        ),
+  void _showOptionsDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("إخفاء التتبع؟"),
+        content: const Text("هل تريد إخفاء فقاعة التتبع؟ لن يتم إلغاء الطلب."),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("إلغاء")),
+          TextButton(
+            onPressed: () {
+              _clearOrder();
+              Navigator.pop(ctx);
+            },
+            child: const Text("إخفاء", style: TextStyle(color: Colors.red)),
+          ),
+        ],
       ),
     );
   }
 
-  // الدالة المعدلة لفتح شاشة التتبع الفعلية
+  Widget _buildBubbleUI(bool isAccepted, bool isDragging) {
+    return Container(
+      width: 16.w,
+      height: 16.w,
+      decoration: BoxDecoration(
+        color: isAccepted ? Colors.green[700] : Colors.orange[900],
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: (isAccepted ? Colors.green : Colors.orange).withOpacity(0.4),
+            blurRadius: 12,
+            spreadRadius: 2,
+          )
+        ],
+        border: Border.all(color: Colors.white, width: 2.5),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            isAccepted ? Icons.delivery_dining : Icons.search,
+            color: Colors.white,
+            size: 20.sp,
+          ),
+          if (!isAccepted)
+            Text(
+              "بحث..",
+              style: TextStyle(color: Colors.white, fontSize: 7.sp, fontWeight: FontWeight.bold),
+            ),
+        ],
+      ),
+    );
+  }
+
   void _openOrderTracking(BuildContext context, String id) {
     Navigator.push(
       context,
@@ -157,3 +166,4 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
     );
   }
 }
+
