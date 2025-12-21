@@ -7,7 +7,6 @@ import 'dart:convert';
 import 'package:sizer/sizer.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:google_fonts/google_fonts.dart';
-// 🎯 إضافة استيراد دعم اللغات (RTL)
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 // --- الاستيرادات الأساسية ---
@@ -57,13 +56,20 @@ import 'package:my_test_app/screens/consumer_orders_screen.dart';
 import 'package:my_test_app/screens/delivery/product_offer_screen.dart';
 import 'package:my_test_app/screens/delivery/delivery_offers_screen.dart';
 
-// 🎯 إضافة استيراد الـ Widget الخاص بالفقاعة (تأكد من إنشاء هذا الملف في الخطوة القادمة)
+// 🎯 استيراد الفقاعة
 import 'package:my_test_app/widgets/order_bubble.dart';
+
+// 🎯 ناقل القيمة العالمي للفقاعة لضمان التحديث اللحظي
+final ValueNotifier<String?> activeOrderNotifier = ValueNotifier<String?>(null);
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('ar', null);
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // جلب المعرف الأولي عند التشغيل
+  final prefs = await SharedPreferences.getInstance();
+  activeOrderNotifier.value = prefs.getString('active_special_order_id');
 
   runApp(
     MultiProvider(
@@ -94,15 +100,8 @@ void main() async {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // 🎯 دالة لجلب الـ orderId المخزن في SharedPreferences
-  Future<String?> _getActiveOrderId() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('active_special_order_id');
-  }
-
   @override
   Widget build(BuildContext context) {
-    // 🎯 جلب حالة الثيم من الـ Provider لتعميمها على التطبيق
     final themeNotifier = Provider.of<ThemeNotifier>(context);
 
     return Sizer(
@@ -110,17 +109,17 @@ class MyApp extends StatelessWidget {
         return MaterialApp(
           title: 'أسواق أكسب',
           debugShowCheckedModeBanner: false,
-
-          // 🎯 إضافة الـ Overlay Bubble باستخدام الـ builder
+          
+          // 🎯 استخدام ValueListenableBuilder لمراقبة الفقاعة فورياً في كل الصفحات
           builder: (context, child) {
             return Stack(
               children: [
                 if (child != null) child,
-                FutureBuilder<String?>(
-                  future: _getActiveOrderId(),
-                  builder: (context, snapshot) {
-                    if (snapshot.hasData && snapshot.data != null) {
-                      return OrderBubble(orderId: snapshot.data!);
+                ValueListenableBuilder<String?>(
+                  valueListenable: activeOrderNotifier,
+                  builder: (context, orderId, _) {
+                    if (orderId != null && orderId.isNotEmpty) {
+                      return OrderBubble(orderId: orderId);
                     }
                     return const SizedBox.shrink();
                   },
@@ -129,7 +128,6 @@ class MyApp extends StatelessWidget {
             );
           },
 
-          // 🎯 إعدادات الاتجاه من اليمين للشمال (RTL) بشكل موحد
           locale: const Locale('ar', 'EG'),
           localizationsDelegates: const [
             GlobalMaterialLocalizations.delegate,
@@ -139,8 +137,6 @@ class MyApp extends StatelessWidget {
           supportedLocales: const [
             Locale('ar', 'EG'),
           ],
-
-          // 🎯 إعدادات الثيم الليلي والنهاري الموحدة
           themeMode: themeNotifier.themeMode,
           theme: ThemeData(
             brightness: Brightness.light,
@@ -154,7 +150,6 @@ class MyApp extends StatelessWidget {
             colorScheme: ColorScheme.dark(primary: AppTheme.primaryGreen),
             textTheme: GoogleFonts.notoSansArabicTextTheme(ThemeData.dark().textTheme),
           ),
-
           initialRoute: '/',
           routes: {
             '/': (context) => const AuthWrapper(),
@@ -183,7 +178,6 @@ class MyApp extends StatelessWidget {
             '/constore': (context) => const BuyerHomeScreen(),
           },
           onGenerateRoute: (settings) {
-            // 1. مسار الماركت بليس
             if (settings.name == MarketplaceHomeScreen.routeName) {
               final args = settings.arguments as Map<String, dynamic>?;
               return MaterialPageRoute(
@@ -193,7 +187,6 @@ class MyApp extends StatelessWidget {
                 ),
               );
             }
-            // 2. مسار الأقسام الفرعية للمستهلك
             if (settings.name == '/subcategories') {
               final args = settings.arguments as Map<String, dynamic>?;
               return MaterialPageRoute(
@@ -204,7 +197,6 @@ class MyApp extends StatelessWidget {
                 ),
               );
             }
-            // 3. مسار قائمة منتجات المستهلك
             if (settings.name == ConsumerProductListScreen.routeName) {
               final args = settings.arguments as Map<String, dynamic>?;
               return MaterialPageRoute(
@@ -216,7 +208,6 @@ class MyApp extends StatelessWidget {
                 ),
               );
             }
-            // 4. تفاصيل المنتج
             if (settings.name == '/productDetails') {
               final args = settings.arguments as Map<String, dynamic>?;
               return MaterialPageRoute(
