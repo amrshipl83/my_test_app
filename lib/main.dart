@@ -22,7 +22,7 @@ import 'package:my_test_app/providers/cashback_provider.dart';
 import 'package:my_test_app/controllers/seller_dashboard_controller.dart';
 import 'package:my_test_app/models/logged_user.dart';
 
-// --- استيراد الشاشات الأساسية ---
+// --- استيراد الشاشات ---
 import 'package:my_test_app/screens/login_screen.dart';
 import 'package:my_test_app/screens/seller_screen.dart';
 import 'package:my_test_app/screens/buyer/buyer_home_screen.dart';
@@ -39,16 +39,12 @@ import 'package:my_test_app/screens/buyer/trader_offers_screen.dart';
 import 'package:my_test_app/screens/my_details_screen.dart';
 import 'package:my_test_app/screens/about_screen.dart';
 import 'package:my_test_app/screens/product_details_screen.dart';
-
-// --- استيراد شاشات المستهلك المضافة ---
 import 'package:my_test_app/screens/consumer/consumer_sub_category_screen.dart';
 import 'package:my_test_app/screens/consumer/ConsumerProductListScreen.dart';
 import 'package:my_test_app/screens/consumer/consumer_store_search_screen.dart';
 import 'package:my_test_app/screens/consumer/MarketplaceHomeScreen.dart';
 import 'package:my_test_app/screens/consumer/consumer_purchase_history_screen.dart';
 import 'package:my_test_app/screens/consumer/points_loyalty_screen.dart';
-
-// --- إضافات الدليفري المعتمدة ---
 import 'package:my_test_app/screens/delivery_merchant_dashboard_screen.dart';
 import 'package:my_test_app/screens/delivery_settings_screen.dart';
 import 'package:my_test_app/screens/update_delivery_settings_screen.dart';
@@ -56,20 +52,16 @@ import 'package:my_test_app/screens/consumer_orders_screen.dart';
 import 'package:my_test_app/screens/delivery/product_offer_screen.dart';
 import 'package:my_test_app/screens/delivery/delivery_offers_screen.dart';
 
-// 🎯 استيراد الفقاعة
-import 'package:my_test_app/widgets/order_bubble.dart';
+// 🎯 استيراد الخدمة الجديدة (سننشئ هذا الملف في الخطوة القادمة)
+import 'package:my_test_app/services/bubble_service.dart';
 
-// 🎯 ناقل القيمة العالمي للفقاعة لضمان التحديث اللحظي
-final ValueNotifier<String?> activeOrderNotifier = ValueNotifier<String?>(null);
+// 🎯 مفتاح التنقل العالمي - ضروري جداً للـ Overlay
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('ar', null);
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
-  // جلب المعرف الأولي عند التشغيل
-  final prefs = await SharedPreferences.getInstance();
-  activeOrderNotifier.value = prefs.getString('active_special_order_id');
 
   runApp(
     MultiProvider(
@@ -107,27 +99,10 @@ class MyApp extends StatelessWidget {
     return Sizer(
       builder: (context, orientation, deviceType) {
         return MaterialApp(
+          // 🎯 ربط المفتاح العالمي هنا
+          navigatorKey: navigatorKey,
           title: 'أسواق أكسب',
           debugShowCheckedModeBanner: false,
-          
-          // 🎯 استخدام ValueListenableBuilder لمراقبة الفقاعة فورياً في كل الصفحات
-          builder: (context, child) {
-            return Stack(
-              children: [
-                if (child != null) child,
-                ValueListenableBuilder<String?>(
-                  valueListenable: activeOrderNotifier,
-                  builder: (context, orderId, _) {
-                    if (orderId != null && orderId.isNotEmpty) {
-                      return OrderBubble(orderId: orderId);
-                    }
-                    return const SizedBox.shrink();
-                  },
-                ),
-              ],
-            );
-          },
-
           locale: const Locale('ar', 'EG'),
           localizationsDelegates: const [
             GlobalMaterialLocalizations.delegate,
@@ -178,6 +153,7 @@ class MyApp extends StatelessWidget {
             '/constore': (context) => const BuyerHomeScreen(),
           },
           onGenerateRoute: (settings) {
+            // ... (نفس كود الـ onGenerateRoute السابق بدون تغيير)
             if (settings.name == MarketplaceHomeScreen.routeName) {
               final args = settings.arguments as Map<String, dynamic>?;
               return MaterialPageRoute(
@@ -242,6 +218,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
+// ... بقية الـ AuthWrapper و PostRegistrationMessageScreen تبقى كما هي تماماً
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
   @override
@@ -250,10 +227,23 @@ class AuthWrapper extends StatefulWidget {
 
 class _AuthWrapperState extends State<AuthWrapper> {
   Future<LoggedInUser?>? _userFuture;
+
   @override
   void initState() {
     super.initState();
     _userFuture = _checkUserLoginStatus();
+    // 🎯 فحص الطلب النشط عند تشغيل التطبيق لإظهار الفقاعة
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAndShowActiveOrderBubble();
+    });
+  }
+
+  void _checkAndShowActiveOrderBubble() async {
+    final prefs = await SharedPreferences.getInstance();
+    final activeOrderId = prefs.getString('active_special_order_id');
+    if (activeOrderId != null) {
+      BubbleService.show(activeOrderId);
+    }
   }
 
   Future<LoggedInUser?> _checkUserLoginStatus() async {

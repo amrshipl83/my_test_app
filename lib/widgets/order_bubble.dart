@@ -3,8 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sizer/sizer.dart';
 import '../screens/customer_tracking_screen.dart';
-// 🎯 استيراد الـ main للوصول للـ notifier
-import '../main.dart'; 
+// 🎯 استيراد الخدمة الجديدة للتحكم في الإخفاء
+import '../services/bubble_service.dart';
 
 class OrderBubble extends StatefulWidget {
   final String orderId;
@@ -15,6 +15,7 @@ class OrderBubble extends StatefulWidget {
 }
 
 class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStateMixin {
+  // وضعية افتراضية للفقاعة
   Offset position = Offset(80.w, 70.h);
   late AnimationController _pulseController;
 
@@ -33,51 +34,52 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
     super.dispose();
   }
 
-  // 🎯 تعديل دالة المسح لتعمل مع الـ Notifier العالمي
+  // 🎯 تعديل دالة المسح لتستخدم BubbleService
   Future<void> _clearOrder() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('active_special_order_id');
     
-    // إبلاغ الـ main.dart فوراً ليقوم بإزالة الـ Widget من الـ Stack
-    activeOrderNotifier.value = null; 
-    
-    if (mounted) setState(() {});
+    // 🎯 إخفاء الفقاعة من الـ Overlay نهائياً
+    BubbleService.hide();
   }
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance.collection('specialRequests').doc(widget.orderId).snapshots(),
+      stream: FirebaseFirestore.instance
+          .collection('specialRequests')
+          .doc(widget.orderId)
+          .snapshots(),
       builder: (context, snapshot) {
-        // إذا لم توجد بيانات، نبلغ الـ Notifier بالمسح ونختفي
+        // إذا حُذف الطلب من Firebase أو حدث خطأ
         if (!snapshot.hasData || !snapshot.data!.exists) {
-           return const SizedBox.shrink();
+          return const SizedBox.shrink();
         }
 
         var data = snapshot.data!.data() as Map<String, dynamic>;
         String status = data['status'] ?? 'pending';
 
-        // إذا اكتمل الطلب، نقوم بإخفاء الفقاعة ومسح المعرف
+        // إذا اكتمل الطلب (تم التوصيل)
         if (status == 'delivered') {
-          // نستخدم Future.microtask لتجنب أخطاء الـ Rebuild أثناء الـ build
           Future.microtask(() => _clearOrder());
           return const SizedBox.shrink();
         }
 
         bool isAccepted = status != 'pending';
 
-        return AnimatedPositioned(
-          duration: const Duration(milliseconds: 100),
+        // استخدام Positioned بدلاً من AnimatedPositioned داخل الـ Overlay لتحكم أدق
+        return Positioned(
           left: position.dx,
           top: position.dy,
-          // 🎯 إضافة Material هنا لضمان عدم حدوث خطأ في الثيم داخل الـ Stack العالمي
           child: Material(
             type: MaterialType.transparency,
             child: Draggable(
+              // الشكل أثناء السحب
               feedback: _buildBubbleUI(isAccepted, true),
               childWhenDragging: const SizedBox.shrink(),
               onDragEnd: (details) {
                 setState(() {
+                  // حصر الفقاعة داخل حدود الشاشة
                   position = Offset(
                     details.offset.dx.clamp(5.w, 82.w),
                     details.offset.dy.clamp(10.h, 85.h),
@@ -86,9 +88,7 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
               },
               child: GestureDetector(
                 onTap: () => _openOrderTracking(context, widget.orderId),
-                onLongPress: () {
-                  _showOptionsDialog(context);
-                },
+                onLongPress: () => _showOptionsDialog(context),
                 child: isAccepted
                     ? _buildBubbleUI(isAccepted, false)
                     : ScaleTransition(
@@ -150,7 +150,12 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
           if (!isAccepted)
             Text(
               "بحث..",
-              style: TextStyle(color: Colors.white, fontSize: 7.sp, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: Colors.white, 
+                fontSize: 7.sp, 
+                fontWeight: FontWeight.bold,
+                decoration: TextDecoration.none // لضمان عدم وجود خط تحت النص
+              ),
             ),
         ],
       ),
