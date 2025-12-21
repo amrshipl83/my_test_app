@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sizer/sizer.dart';
+// استيراد الشاشة الجديدة
+import '../screens/customer_tracking_screen.dart';
 
 class OrderBubble extends StatefulWidget {
   final String orderId;
@@ -31,7 +33,7 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
     super.dispose();
   }
 
-  // دالة لمسح الطلب وإخفاء الفقاعة نهائياً
+  // دالة لمسح الطلب وإخفاء الفقاعة نهائياً من الذاكرة المحلية
   Future<void> _clearOrder() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('active_special_order_id');
@@ -48,8 +50,9 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
         var data = snapshot.data!.data() as Map<String, dynamic>;
         String status = data['status'];
 
+        // إذا اكتمل الطلب، نقوم بإخفاء الفقاعة ومسح المعرف
         if (status == 'delivered') {
-          _clearOrder(); // مسح الـ ID من الجهاز تلقائياً عند الاكتمال
+          _clearOrder();
           return const SizedBox.shrink();
         }
 
@@ -64,7 +67,7 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
             childWhenDragging: const SizedBox.shrink(),
             onDragEnd: (details) {
               setState(() {
-                // منع خروج الفقاعة عن حدود الشاشة مع مراعاة أحجام الأجهزة المختلفة
+                // الحفاظ على الفقاعة داخل حدود الشاشة
                 position = Offset(
                   details.offset.dx.clamp(5.w, 82.w),
                   details.offset.dy.clamp(10.h, 85.h),
@@ -74,7 +77,7 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
             child: GestureDetector(
               onTap: () => _openOrderTracking(context, widget.orderId),
               onLongPress: () {
-                // خيار إضافي: الضغط المطول لإغلاق الفقاعة
+                // إمكانية إخفاء الفقاعة يدوياً
                 showDialog(
                   context: context,
                   builder: (ctx) => AlertDialog(
@@ -82,14 +85,23 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
                     content: const Text("هل تريد إخفاء فقاعة التتبع؟ لن يتم إلغاء الطلب."),
                     actions: [
                       TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("إلغاء")),
-                      TextButton(onPressed: () { _clearOrder(); Navigator.pop(ctx); }, child: const Text("إخفاء")),
+                      TextButton(
+                        onPressed: () {
+                          _clearOrder();
+                          Navigator.pop(ctx);
+                        },
+                        child: const Text("إخفاء"),
+                      ),
                     ],
                   ),
                 );
               },
-              child: isAccepted 
-                ? _buildBubbleUI(isAccepted, false)
-                : ScaleTransition(scale: Tween(begin: 1.0, end: 1.1).animate(_pulseController), child: _buildBubbleUI(isAccepted, false)),
+              child: isAccepted
+                  ? _buildBubbleUI(isAccepted, false)
+                  : ScaleTransition(
+                      scale: Tween(begin: 1.0, end: 1.1).animate(_pulseController),
+                      child: _buildBubbleUI(isAccepted, false),
+                    ),
             ),
           ),
         );
@@ -97,6 +109,7 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
     );
   }
 
+  // تصميم شكل الفقاعة (UI)
   Widget _buildBubbleUI(bool isAccepted, bool isDragging) {
     return Material(
       color: Colors.transparent,
@@ -124,17 +137,23 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
               size: 22.sp,
             ),
             if (!isAccepted)
-              Text("بحث..", style: TextStyle(color: Colors.white, fontSize: 7.sp, fontWeight: FontWeight.bold)),
+              Text(
+                "بحث..",
+                style: TextStyle(color: Colors.white, fontSize: 7.sp, fontWeight: FontWeight.bold),
+              ),
           ],
         ),
       ),
     );
   }
 
+  // الدالة المعدلة لفتح شاشة التتبع الفعلية
   void _openOrderTracking(BuildContext context, String id) {
-    // سنقوم ببرمجة شاشة تتبع العميل CustomerTrackingScreen في الخطوة التالية
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("جاري فتح تفاصيل الطلب رقم: $id"), duration: const Duration(seconds: 1))
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CustomerTrackingScreen(orderId: id),
+      ),
     );
   }
 }
