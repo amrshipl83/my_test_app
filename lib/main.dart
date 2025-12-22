@@ -8,6 +8,7 @@ import 'package:sizer/sizer.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:firebase_messaging/firebase_messaging.dart'; // 🎯 استيراد الإشعارات
 
 // --- الاستيرادات الأساسية ---
 import 'package:my_test_app/firebase_options.dart';
@@ -52,17 +53,17 @@ import 'package:my_test_app/screens/consumer_orders_screen.dart';
 import 'package:my_test_app/screens/delivery/product_offer_screen.dart';
 import 'package:my_test_app/screens/delivery/delivery_offers_screen.dart';
 
-// 🎯 استيراد الخدمة الجديدة (سننشئ هذا الملف في الخطوة القادمة)
+// 🎯 استيراد الخدمة الجديدة
 import 'package:my_test_app/services/bubble_service.dart';
 
-// 🎯 مفتاح التنقل العالمي - ضروري جداً للـ Overlay
+// 🎯 مفتاح التنقل العالمي
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('ar', null);
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
+  
   runApp(
     MultiProvider(
       providers: [
@@ -99,7 +100,6 @@ class MyApp extends StatelessWidget {
     return Sizer(
       builder: (context, orientation, deviceType) {
         return MaterialApp(
-          // 🎯 ربط المفتاح العالمي هنا
           navigatorKey: navigatorKey,
           title: 'أسواق أكسب',
           debugShowCheckedModeBanner: false,
@@ -153,7 +153,6 @@ class MyApp extends StatelessWidget {
             '/constore': (context) => const BuyerHomeScreen(),
           },
           onGenerateRoute: (settings) {
-            // ... (نفس كود الـ onGenerateRoute السابق بدون تغيير)
             if (settings.name == MarketplaceHomeScreen.routeName) {
               final args = settings.arguments as Map<String, dynamic>?;
               return MaterialPageRoute(
@@ -218,9 +217,9 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// ... بقية الـ AuthWrapper و PostRegistrationMessageScreen تبقى كما هي تماماً
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
+
   @override
   State<AuthWrapper> createState() => _AuthWrapperState();
 }
@@ -232,9 +231,44 @@ class _AuthWrapperState extends State<AuthWrapper> {
   void initState() {
     super.initState();
     _userFuture = _checkUserLoginStatus();
-    // 🎯 فحص الطلب النشط عند تشغيل التطبيق لإظهار الفقاعة
+    
+    // 🎯 تهيئة الإشعارات وطلب الإذن فور فتح التطبيق
+    _initPushNotifications();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkAndShowActiveOrderBubble();
+    });
+  }
+
+  // 🎯 وظيفة طلب الإذن وبرمجة استقبال الإشعارات
+  void _initPushNotifications() async {
+    FirebaseMessaging messaging = FirebaseMessaging.instance;
+
+    // طلب الإذن (يظهر الـ Popup للمستخدم)
+    NotificationSettings settings = await messaging.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
+    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+      print('✅ تم منح إذن الإشعارات');
+      
+      // الحصول على الـ Token لربطه بالسيرفر (SNS)
+      String? token = await messaging.getToken();
+      print('🔥 FCM Token: $token');
+    }
+
+    // التعامل مع الرسائل أثناء فتح التطبيق
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      if (message.notification != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${message.notification!.title}: ${message.notification!.body}'),
+            backgroundColor: AppTheme.primaryGreen,
+          ),
+        );
+      }
     });
   }
 
@@ -310,4 +344,3 @@ class PostRegistrationMessageScreen extends StatelessWidget {
     );
   }
 }
-
