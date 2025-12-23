@@ -11,7 +11,6 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart'; 
 
-// --- الاستيرادات الأساسية ---
 import 'package:my_test_app/firebase_options.dart';
 import 'package:my_test_app/theme/app_theme.dart';
 import 'package:my_test_app/providers/theme_notifier.dart';
@@ -24,7 +23,6 @@ import 'package:my_test_app/providers/cashback_provider.dart';
 import 'package:my_test_app/controllers/seller_dashboard_controller.dart';
 import 'package:my_test_app/models/logged_user.dart';
 
-// --- استيراد الشاشات ---
 import 'package:my_test_app/screens/login_screen.dart';
 import 'package:my_test_app/screens/seller_screen.dart';
 import 'package:my_test_app/screens/buyer/buyer_home_screen.dart';
@@ -63,19 +61,9 @@ void main() async {
   await initializeDateFormatting('ar', null);
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  // 🎯 تهيئة إعدادات الأندرويد (تمنع الكراش عند طلب الإذن)
+  // تهيئة قناة الإشعارات (بدون طلب إذن) لضمان جاهزية النظام
   final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
   
-  const AndroidInitializationSettings initializationSettingsAndroid =
-      AndroidInitializationSettings('@mipmap/ic_launcher');
-
-  const InitializationSettings initializationSettings = InitializationSettings(
-    android: initializationSettingsAndroid,
-  );
-
-  await flutterLocalNotificationsPlugin.initialize(initializationSettings);
-
-  // برمجة قناة الإشعارات
   const AndroidNotificationChannel channel = AndroidNotificationChannel(
     'high_importance_channel',
     'إشعارات هامة',
@@ -177,6 +165,7 @@ class MyApp extends StatelessWidget {
             '/constore': (context) => const BuyerHomeScreen(),
           },
           onGenerateRoute: (settings) {
+            // ... (باقي كود الـ onGenerateRoute كما هو بدون تغيير)
             if (settings.name == MarketplaceHomeScreen.routeName) {
               final args = settings.arguments as Map<String, dynamic>?;
               return MaterialPageRoute(
@@ -243,7 +232,6 @@ class MyApp extends StatelessWidget {
 
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
-
   @override
   State<AuthWrapper> createState() => _AuthWrapperState();
 }
@@ -255,35 +243,9 @@ class _AuthWrapperState extends State<AuthWrapper> {
   void initState() {
     super.initState();
     _userFuture = _checkUserLoginStatus();
-    _initPushNotifications();
+    // 🎯 تم إيقاف استدعاء الإشعارات هنا تماماً لمنع الكراش
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkAndShowActiveOrderBubble();
-    });
-  }
-
-  void _initPushNotifications() async {
-    FirebaseMessaging messaging = FirebaseMessaging.instance;
-
-    await messaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
-
-    // التعامل مع الرسائل أثناء فتح التطبيق بشكل آمن
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      if (message.notification != null && mounted) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Text(message.notification!.title ?? 'إشعار'),
-            content: Text(message.notification!.body ?? ''),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text('حسنًا'))
-            ],
-          ),
-        );
-      }
     });
   }
 
@@ -359,3 +321,4 @@ class PostRegistrationMessageScreen extends StatelessWidget {
     );
   }
 }
+
