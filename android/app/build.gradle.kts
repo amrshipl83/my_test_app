@@ -11,6 +11,9 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
+        // 🎯 تفعيل Desugaring لحل مشكلة مكتبة الإشعارات
+        isCoreLibraryDesugaringEnabled = true
+        
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -38,14 +41,17 @@ android {
 }
 
 dependencies {
-    // 💡 التبعيات الأساسية
+    // 🎯 المكتبة المطلوبة لتشغيل خصائص لغة جافا الحديثة في الإشعارات
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.3")
+
+    // التبعيات الأساسية
     implementation("androidx.multidex:multidex:2.0.1")
 
-    // 🆕 إضافة تبعيات Firebase platform لتجنب مشاكل التوافق بين مكتبات Firebase المختلفة
-    // هذا يحل مشكلات التبعيات القديمة.
+    // إضافة تبعيات Firebase platform
     implementation(platform("com.google.firebase:firebase-bom:32.7.0"))
 }
 
 flutter {
     source = "../.."
 }
+
