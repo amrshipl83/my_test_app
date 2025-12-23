@@ -1,7 +1,7 @@
 // lib/screens/seller/add_offer_screen.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // تم الإضافة لجلب بيانات البائع
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:my_test_app/data_sources/add_offer_data_source.dart';
 import 'package:my_test_app/models/offer_model.dart';
 import 'package:my_test_app/models/select_item_model.dart';
@@ -18,11 +18,14 @@ class AddOfferScreen extends StatefulWidget {
 class _AddOfferScreenState extends State<AddOfferScreen> {
   final _formKey = GlobalKey<FormState>();
   final _dataSource = AddOfferDataSource();
+  
+  // التحكم في المدخلات النصية (Controllers)
   final _priceController = TextEditingController();
   final _quantityController = TextEditingController();
-  final _minOrderController = TextEditingController();
-  final _maxOrderController = TextEditingController();
+  final _minOrderController = TextEditingController(); // مطابق لـ minOrderSpecific
+  final _maxOrderController = TextEditingController(); // مطابق لـ maxOrderSpecific
 
+  // متغيرات البيانات
   List<SelectItemModel> _mainCategories = [];
   List<SelectItemModel> _subCategories = [];
   List<SelectItemModel> _products = [];
@@ -33,8 +36,10 @@ class _AddOfferScreenState extends State<AddOfferScreen> {
   String? _selectedProductId;
   String? _selectedUnitName;
   List<String> _availableUnits = [];
-  List<String> _sellerDeliveryAreas = [];
-  String _sellerName = "المورد"; // القيمة الافتراضية
+  
+  // بيانات البائع المتوافقة مع الويب
+  List<String> _sellerDeliveryAreas = []; 
+  String _sellerName = "المورد";
 
   String? _message;
   bool _isSuccess = false;
@@ -56,27 +61,24 @@ class _AddOfferScreenState extends State<AddOfferScreen> {
     super.dispose();
   }
 
-  // --- دوال منطق البيانات المصححة ---
+  // --- جلب البيانات الأولية (مطابق لمنطق HTML) ---
   Future<void> _loadInitialData() async {
     try {
-      // 1. جلب الأقسام ومناطق التوصيل
       final categories = await _dataSource.loadMainCategories();
-      final areas = await _dataSource.loadSellerDeliveryAreas(_currentSellerId);
       
-      // 2. 🎯 جلب اسم المتجر (Merchant Name) لضمان التوافق مع الويب
+      // جلب وثيقة البائع للحصول على الاسم ومناطق التوصيل (deliveryAreas)
       final sellerDoc = await FirebaseFirestore.instance.collection('sellers').doc(_currentSellerId).get();
-      String? merchantName;
+      
       if (sellerDoc.exists) {
-        merchantName = sellerDoc.data()?['merchantName'] ?? sellerDoc.data()?['supermarketName'];
+        final data = sellerDoc.data()!;
+        setState(() {
+          _mainCategories = categories;
+          // جلب مناطق التوصيل كما في الويب لضمان اشتغال الفلاتر
+          _sellerDeliveryAreas = List<String>.from(data['deliveryAreas'] ?? []);
+          _sellerName = data['merchantName'] ?? data['supermarketName'] ?? "مورد غير معروف";
+          _isLoading = false;
+        });
       }
-
-      if (!mounted) return;
-      setState(() {
-        _mainCategories = categories;
-        _sellerDeliveryAreas = areas;
-        if (merchantName != null) _sellerName = merchantName;
-        _isLoading = false;
-      });
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -86,6 +88,7 @@ class _AddOfferScreenState extends State<AddOfferScreen> {
     }
   }
 
+  // منطق جلب الأقسام والمنتجات (نفس الكود المستقر)
   Future<void> _loadSubCategories(String mainId) async {
     try {
       final subCats = await _dataSource.loadSubCategories(mainId);
@@ -111,14 +114,12 @@ class _AddOfferScreenState extends State<AddOfferScreen> {
 
   void _loadAvailableUnits(String productId) {
     final product = _products.cast<SelectItemModel?>().firstWhere(
-          (item) => item?.id == productId,
-          orElse: () => null,
-        );
-
+      (item) => item?.id == productId,
+      orElse: () => null,
+    );
     if (product == null) return;
-
     final productUnits = product.units;
-    if (productUnits != null && productUnits.isNotEmpty) {
+    if (productUnits != null) {
       final offeredUnits = _offeredUnitsByProduct[productId] ?? {};
       final units = productUnits
           .map<String>((unit) => unit['unitName'].toString())
@@ -135,6 +136,7 @@ class _AddOfferScreenState extends State<AddOfferScreen> {
     });
   }
 
+  // --- دالة الحفظ النهائية (مطابقة تماماً للـ HTML) ---
   Future<void> _submitOffer() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedProductId == null || _selectedUnitName == null) {
@@ -143,24 +145,22 @@ class _AddOfferScreenState extends State<AddOfferScreen> {
     }
 
     final selectedProduct = _products.cast<SelectItemModel?>().firstWhere(
-          (item) => item?.id == _selectedProductId,
-          orElse: () => null,
-        );
+      (item) => item?.id == _selectedProductId,
+      orElse: () => null,
+    );
 
-    if (selectedProduct == null) {
-      _showMessage('خطأ: لم يتم العثور على المنتج المختار.', false);
-      return;
-    }
+    if (selectedProduct == null) return;
 
     try {
-      // 🎯 إنشاء الموديل مع كافة الحقول المتوافقة مع الويب
+      setState(() => _isLoading = true);
+
       final offerModel = ProductOfferModel(
         sellerId: _currentSellerId,
-        sellerName: _sellerName, 
+        sellerName: _sellerName,
         productId: selectedProduct.id,
         productName: selectedProduct.name,
-        imageUrl: selectedProduct.imageUrl, // حفظ الصورة لتقليل الـ Reads عند المشتري
-        deliveryZones: _sellerDeliveryAreas, 
+        imageUrl: selectedProduct.imageUrl,
+        deliveryZones: _sellerDeliveryAreas, // إرسال مناطق التوصيل للفلترة
         units: [
           OfferUnitModel(
             unitName: _selectedUnitName!,
@@ -168,59 +168,63 @@ class _AddOfferScreenState extends State<AddOfferScreen> {
             availableStock: int.parse(_quantityController.text),
           ),
         ],
+        // 🎯 الحقول المفقودة التي تمت إضافتها لتطابق الـ HTML
         minOrder: int.tryParse(_minOrderController.text),
         maxOrder: int.tryParse(_maxOrderController.text),
       );
 
       await _dataSource.addOffer(offerModel);
-      if (!mounted) return;
       
-      _showMessage('تم إضافة العرض بنجاح!', true);
+      if (!mounted) return;
+      _showMessage('تم إضافة العرض بنجاح ونشره على المنصة!', true);
       _formKey.currentState!.reset();
       _priceController.clear();
       _quantityController.clear();
+      _minOrderController.clear();
+      _maxOrderController.clear();
 
       setState(() {
         _selectedProductId = null;
         _selectedUnitName = null;
         _availableUnits = [];
+        _isLoading = false;
       });
       
-      // تحديث قائمة الوحدات المتاحة للمنتج الحالي بعد الإضافة
       if (_selectedSubCategoryId != null) _loadProducts(_selectedSubCategoryId!);
 
     } catch (e) {
+      setState(() => _isLoading = false);
       _showMessage('خطأ أثناء الإضافة: $e', false);
     }
   }
 
-  // --- واجهة المستخدم ---
+  // --- واجهة المستخدم الاحترافية ---
   Widget _buildStepCard({required String step, required String title, required IconData icon, required List<Widget> children}) {
     return Container(
-      margin: EdgeInsets.only(bottom: 3.h),
-      padding: const EdgeInsets.all(20),
+      margin: EdgeInsets.only(bottom: 2.5.h),
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(25),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 15, offset: const Offset(0, 8))],
+        border: Border.all(color: Colors.grey.shade100),
       ),
       child: Column(
         children: [
           Row(
             children: [
               CircleAvatar(
-                radius: 12.sp,
-                backgroundColor: Theme.of(context).primaryColor,
-                child: Text(step, style: TextStyle(color: Colors.white, fontSize: 10.sp, fontWeight: FontWeight.bold)),
+                radius: 13.sp,
+                backgroundColor: const Color(0xFF2D9E68),
+                child: Text(step, style: TextStyle(color: Colors.white, fontSize: 11.sp, fontWeight: FontWeight.bold)),
               ),
-              const SizedBox(width: 12),
-              Text(title, style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w900)),
+              const SizedBox(width: 15),
+              Text(title, style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w900, color: const Color(0xFF1A1A1A))),
               const Spacer(),
-              Icon(icon, color: Colors.grey.shade400, size: 20.sp),
+              Icon(icon, color: Colors.grey.shade300, size: 22.sp),
             ],
           ),
-          const Divider(height: 35, thickness: 1),
+          const Divider(height: 35, thickness: 1.2),
           ...children,
         ],
       ),
@@ -229,57 +233,40 @@ class _AddOfferScreenState extends State<AddOfferScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (_isLoading && _mainCategories.isEmpty) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
+      backgroundColor: const Color(0xFFF9FBF9),
+      appBar: AppBar(
+        title: Text("إضافة عرض جديد", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18.sp)),
+        centerTitle: true,
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        foregroundColor: const Color(0xFF1A1A1A),
+      ),
       body: SingleChildScrollView(
-        padding: EdgeInsets.symmetric(horizontal: 5.w, vertical: 2.h),
+        padding: EdgeInsets.symmetric(horizontal: 5.w, vertical: 1.h),
         child: Form(
           key: _formKey,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (_message != null)
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(18),
-                  margin: const EdgeInsets.only(bottom: 25),
-                  decoration: BoxDecoration(
-                    color: _isSuccess ? Colors.green.shade50 : Colors.red.shade50,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: _isSuccess ? Colors.green : Colors.red, width: 1.5),
-                  ),
-                  child: Text(
-                    _message!,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.w900, color: _isSuccess ? Colors.green.shade800 : Colors.red.shade800),
-                  ),
-                ),
-
-              Text("إضافة عرض جديد", style: TextStyle(fontSize: 22.sp, fontWeight: FontWeight.w900, color: Theme.of(context).primaryColor)),
-              SizedBox(height: 3.h),
+                _buildMessageBanner(),
 
               _buildStepCard(
                 step: "1",
-                title: "التصنيف الرئيسي",
-                icon: Icons.grid_view_rounded,
+                title: "تصنيف المنتج",
+                icon: Icons.category_rounded,
                 children: [
                   CustomSelectBox<SelectItemModel, String>(
                     label: 'القسم الرئيسي',
-                    hintText: 'اختر قسماً',
+                    hintText: 'اختر القسم',
                     items: _mainCategories,
                     selectedValue: _selectedMainCategoryId,
                     itemLabel: (item) => item.name,
                     itemValueGetter: (item) => item.id,
                     onChanged: (id) {
-                      setState(() {
-                        _selectedMainCategoryId = id;
-                        _selectedSubCategoryId = null;
-                        _selectedProductId = null;
-                        _subCategories = [];
-                        _products = [];
-                      });
+                      setState(() { _selectedMainCategoryId = id; _selectedSubCategoryId = null; _selectedProductId = null; });
                       if (id != null) _loadSubCategories(id);
                     },
                   ),
@@ -292,11 +279,7 @@ class _AddOfferScreenState extends State<AddOfferScreen> {
                     itemLabel: (item) => item.name,
                     itemValueGetter: (item) => item.id,
                     onChanged: (id) {
-                      setState(() {
-                        _selectedSubCategoryId = id;
-                        _selectedProductId = null;
-                        _products = [];
-                      });
+                      setState(() { _selectedSubCategoryId = id; _selectedProductId = null; });
                       if (id != null) _loadProducts(id);
                     },
                   ),
@@ -305,28 +288,24 @@ class _AddOfferScreenState extends State<AddOfferScreen> {
 
               _buildStepCard(
                 step: "2",
-                title: "بيانات الصنف",
+                title: "اختيار الصنف والوحدة",
                 icon: Icons.inventory_2_rounded,
                 children: [
                   CustomSelectBox<SelectItemModel, String>(
                     label: 'المنتج',
-                    hintText: 'اختر المنتج',
+                    hintText: 'اختر اسم المنتج',
                     items: _products,
                     selectedValue: _selectedProductId,
                     itemLabel: (item) => item.name,
                     itemValueGetter: (item) => item.id,
                     onChanged: (id) {
-                      setState(() {
-                        _selectedProductId = id;
-                        _selectedUnitName = null;
-                        _availableUnits = [];
-                      });
+                      setState(() { _selectedProductId = id; _selectedUnitName = null; });
                       if (id != null) _loadAvailableUnits(id);
                     },
                   ),
                   SizedBox(height: 2.h),
                   CustomSelectBox<String, String>(
-                    label: 'الوحدة',
+                    label: 'وحدة البيع',
                     hintText: 'اختر الوحدة المتاحة',
                     items: _availableUnits,
                     selectedValue: _selectedUnitName,
@@ -338,18 +317,18 @@ class _AddOfferScreenState extends State<AddOfferScreen> {
 
               _buildStepCard(
                 step: "3",
-                title: "التسعير والكمية",
+                title: "التسعير والمخزون",
                 icon: Icons.monetization_on_rounded,
                 children: [
                   CustomInputField(
-                    label: 'السعر (ج.م)',
+                    label: 'السعر للوحدة (ج.م)',
                     controller: _priceController,
                     keyboardType: TextInputType.number,
                     hintText: 'مثال: 15.5',
                   ),
                   SizedBox(height: 2.h),
                   CustomInputField(
-                    label: 'الكمية المتاحة',
+                    label: 'الكمية المتوفرة حالياً',
                     controller: _quantityController,
                     keyboardType: TextInputType.number,
                     hintText: 'مثال: 100',
@@ -357,21 +336,30 @@ class _AddOfferScreenState extends State<AddOfferScreen> {
                 ],
               ),
 
-              SizedBox(height: 2.h),
-              SizedBox(
-                width: double.infinity,
-                height: 8.h,
-                child: ElevatedButton.icon(
-                  onPressed: _submitOffer,
-                  icon: Icon(Icons.check_circle_outline, color: Colors.white, size: 22.sp),
-                  label: Text("تأكيد ونشر العرض", style: TextStyle(color: Colors.white, fontSize: 16.sp, fontWeight: FontWeight.w900)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).primaryColor,
-                    elevation: 5,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              // 🎯 الخطوة الإضافية المطابقة للويب
+              _buildStepCard(
+                step: "4",
+                title: "سياسة الطلب (اختياري)",
+                icon: Icons.shopping_bag_rounded,
+                children: [
+                  CustomInputField(
+                    label: 'الحد الأدنى للطلب (كمية)',
+                    controller: _minOrderController,
+                    keyboardType: TextInputType.number,
+                    hintText: 'مثال: 5',
                   ),
-                ),
+                  SizedBox(height: 2.h),
+                  CustomInputField(
+                    label: 'الحد الأقصى للطلب (كمية)',
+                    controller: _maxOrderController,
+                    keyboardType: TextInputType.number,
+                    hintText: 'مثال: 50',
+                  ),
+                ],
               ),
+
+              SizedBox(height: 2.h),
+              _buildSubmitButton(),
               SizedBox(height: 5.h),
             ],
           ),
@@ -379,5 +367,38 @@ class _AddOfferScreenState extends State<AddOfferScreen> {
       ),
     );
   }
-}
 
+  Widget _buildMessageBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      margin: const EdgeInsets.only(bottom: 25),
+      decoration: BoxDecoration(
+        color: _isSuccess ? Colors.green.shade50 : Colors.red.shade50,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _isSuccess ? Colors.green : Colors.red, width: 1.5),
+      ),
+      child: Text(_message!, textAlign: TextAlign.center, style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.w900, color: _isSuccess ? Colors.green.shade800 : Colors.red.shade800)),
+    );
+  }
+
+  Widget _buildSubmitButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 8.h,
+      child: ElevatedButton.icon(
+        onPressed: _isLoading ? null : _submitOffer,
+        icon: _isLoading 
+            ? const CircularProgressIndicator(color: Colors.white) 
+            : Icon(Icons.check_circle_outline, color: Colors.white, size: 22.sp),
+        label: Text(_isLoading ? "جاري الحفظ..." : "تأكيد ونشر العرض", style: TextStyle(color: Colors.white, fontSize: 16.sp, fontWeight: FontWeight.w900)),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF2D9E68),
+          elevation: 8,
+          shadowColor: const Color(0xFF2D9E68).withOpacity(0.4),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        ),
+      ),
+    );
+  }
+}
