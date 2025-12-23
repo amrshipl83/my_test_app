@@ -1,6 +1,8 @@
+// lib/models/offer_model.dart
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-// نموذج يمثل بيانات الوحدة داخل العرض (units array)
+// نموذج يمثل بيانات الوحدة داخل العرض
 class OfferUnitModel {
   final String unitName;
   final double price;
@@ -31,13 +33,12 @@ class OfferUnitModel {
 
 // نموذج يمثل وثيقة العرض الكاملة (productOffers)
 class ProductOfferModel {
-  final String? id; // ID
+  final String? id;
   final String sellerId;
   final String sellerName;
   final String productId;
   final String productName;
-  // 💡 التعديل: أصبح الحقل اختياريًا
-  String? imageUrl; // تم إزالة final هنا لكي نتمكن من تعديله بعد الجلب
+  String? imageUrl; // 🎯 أعدناه ليكون قابلاً للحفظ في Firestore
   final List<String> deliveryZones;
   final List<OfferUnitModel> units;
   final int? minOrder;
@@ -52,7 +53,7 @@ class ProductOfferModel {
     required this.sellerName,
     required this.productId,
     required this.productName,
-    this.imageUrl, // 💡 التعديل: لم يعد افتراضياً ''
+    this.imageUrl,
     this.deliveryZones = const [],
     required this.units,
     this.minOrder,
@@ -62,48 +63,39 @@ class ProductOfferModel {
     this.createdAt,
   });
 
-  // 💡 التعديل: لا يتم قراءة imageUrl من data الآن
   factory ProductOfferModel.fromFirestore(Map<String, dynamic> data, String id) {
     final List<dynamic> unitsData = data['units'] ?? [];
     final unitsList = unitsData.map((e) => OfferUnitModel.fromJson(e as Map<String, dynamic>)).toList();
 
-    // 🟢 [التصحيح الرئيسي]: قراءة sellerId/ownerId من البيانات
-    final determinedSellerId = data['sellerId'] ?? data['ownerId'] ?? '';
-    
-    // 🟢 [تعديل إضافي]: قراءة SellerName بناءً على المفاتيح المحتملة
-    final determinedSellerName = data['sellerName'] ?? data['ownerName'] ?? 'بائع';
-
-
     return ProductOfferModel(
       id: id,
-      sellerId: determinedSellerId, // 🟢 تم تعيين قيمة غير فارغة إذا كان ownerId موجوداً
-      sellerName: determinedSellerName, // 🟢 تم التعيين
+      sellerId: data['sellerId'] ?? data['ownerId'] ?? '',
+      sellerName: data['sellerName'] ?? data['merchantName'] ?? 'بائع', // 🎯 توافق مع merchantName في الويب
       productId: data['productId'] ?? '',
       productName: data['productName'] ?? 'غير معروف',
-      imageUrl: null, // 💡 التعديل: يتم تعيينه إلى null وسيتم تحديثه لاحقاً
+      imageUrl: data['imageUrl'], // 🎯 نقرأ الصورة إذا كانت موجودة
       deliveryZones: List<String>.from(data['deliveryZones'] ?? []),
       units: unitsList,
       minOrder: data['minOrder'] as int?,
       maxOrder: data['maxOrder'] as int?,
       lowStockThreshold: data['lowStockThreshold'] as int?,
-      status: data['status'] ?? 'inactive',
+      status: data['status'] ?? 'active',
       createdAt: data['createdAt'] as Timestamp?,
     );
   }
 
   Map<String, dynamic> toJson() {
     final data = <String, dynamic>{
-      // نستخدم sellerId/sellerName هنا لأنهم الحقول الرئيسية للنموذج
-      'sellerId': sellerId, 
+      'sellerId': sellerId,
       'sellerName': sellerName,
       'productId': productId,
       'productName': productName,
+      'imageUrl': imageUrl, // 🎯 ضروري جداً للحفظ ليظهر العرض فوراً للمشتري
       'deliveryZones': deliveryZones,
       'units': units.map((u) => u.toJson()).toList(),
       'status': status,
       'createdAt': createdAt ?? FieldValue.serverTimestamp(),
     };
-    // 💡 التعديل: لا نحفظ imageUrl في Firestore لأنه يتم جلبه من مستند المنتجات
 
     if (minOrder != null) data['minOrder'] = minOrder;
     if (maxOrder != null) data['maxOrder'] = maxOrder;
@@ -112,8 +104,8 @@ class ProductOfferModel {
     return data;
   }
 
-  // 💡 دالة للتحديث في مكانها (In-place update)
   void setImageUrl(String url) {
     imageUrl = url;
   }
 }
+

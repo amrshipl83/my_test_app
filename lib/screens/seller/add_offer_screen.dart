@@ -1,7 +1,7 @@
-// lib/screens/seller/add_offer_screen.dart (النسخة المستقرة والنهائية)
-
+// lib/screens/seller/add_offer_screen.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // تم الإضافة لجلب بيانات البائع
 import 'package:my_test_app/data_sources/add_offer_data_source.dart';
 import 'package:my_test_app/models/offer_model.dart';
 import 'package:my_test_app/models/select_item_model.dart';
@@ -10,6 +10,7 @@ import 'package:sizer/sizer.dart';
 
 class AddOfferScreen extends StatefulWidget {
   const AddOfferScreen({super.key});
+
   @override
   State<AddOfferScreen> createState() => _AddOfferScreenState();
 }
@@ -33,6 +34,7 @@ class _AddOfferScreenState extends State<AddOfferScreen> {
   String? _selectedUnitName;
   List<String> _availableUnits = [];
   List<String> _sellerDeliveryAreas = [];
+  String _sellerName = "المورد"; // القيمة الافتراضية
 
   String? _message;
   bool _isSuccess = false;
@@ -55,15 +57,24 @@ class _AddOfferScreenState extends State<AddOfferScreen> {
   }
 
   // --- دوال منطق البيانات المصححة ---
-
   Future<void> _loadInitialData() async {
     try {
+      // 1. جلب الأقسام ومناطق التوصيل
       final categories = await _dataSource.loadMainCategories();
       final areas = await _dataSource.loadSellerDeliveryAreas(_currentSellerId);
+      
+      // 2. 🎯 جلب اسم المتجر (Merchant Name) لضمان التوافق مع الويب
+      final sellerDoc = await FirebaseFirestore.instance.collection('sellers').doc(_currentSellerId).get();
+      String? merchantName;
+      if (sellerDoc.exists) {
+        merchantName = sellerDoc.data()?['merchantName'] ?? sellerDoc.data()?['supermarketName'];
+      }
+
       if (!mounted) return;
       setState(() {
         _mainCategories = categories;
         _sellerDeliveryAreas = areas;
+        if (merchantName != null) _sellerName = merchantName;
         _isLoading = false;
       });
     } catch (e) {
@@ -99,11 +110,10 @@ class _AddOfferScreenState extends State<AddOfferScreen> {
   }
 
   void _loadAvailableUnits(String productId) {
-    // ⭐️ تصحيح: البحث الآمن باستخدام cast و orElse لتجنب Bad State ⭐️
     final product = _products.cast<SelectItemModel?>().firstWhere(
-      (item) => item?.id == productId,
-      orElse: () => null,
-    );
+          (item) => item?.id == productId,
+          orElse: () => null,
+        );
 
     if (product == null) return;
 
@@ -132,11 +142,10 @@ class _AddOfferScreenState extends State<AddOfferScreen> {
       return;
     }
 
-    // ⭐️ تصحيح: البحث الآمن عن المنتج المختار ⭐️
     final selectedProduct = _products.cast<SelectItemModel?>().firstWhere(
-      (item) => item?.id == _selectedProductId,
-      orElse: () => null,
-    );
+          (item) => item?.id == _selectedProductId,
+          orElse: () => null,
+        );
 
     if (selectedProduct == null) {
       _showMessage('خطأ: لم يتم العثور على المنتج المختار.', false);
@@ -144,13 +153,14 @@ class _AddOfferScreenState extends State<AddOfferScreen> {
     }
 
     try {
+      // 🎯 إنشاء الموديل مع كافة الحقول المتوافقة مع الويب
       final offerModel = ProductOfferModel(
         sellerId: _currentSellerId,
-        sellerName: "المورد",
+        sellerName: _sellerName, 
         productId: selectedProduct.id,
         productName: selectedProduct.name,
-        imageUrl: selectedProduct.imageUrl ?? '',
-        deliveryZones: _sellerDeliveryAreas,
+        imageUrl: selectedProduct.imageUrl, // حفظ الصورة لتقليل الـ Reads عند المشتري
+        deliveryZones: _sellerDeliveryAreas, 
         units: [
           OfferUnitModel(
             unitName: _selectedUnitName!,
@@ -164,22 +174,27 @@ class _AddOfferScreenState extends State<AddOfferScreen> {
 
       await _dataSource.addOffer(offerModel);
       if (!mounted) return;
+      
       _showMessage('تم إضافة العرض بنجاح!', true);
       _formKey.currentState!.reset();
-      
-      // إعادة تصفير الاختيارات بعد النجاح
+      _priceController.clear();
+      _quantityController.clear();
+
       setState(() {
         _selectedProductId = null;
         _selectedUnitName = null;
         _availableUnits = [];
       });
+      
+      // تحديث قائمة الوحدات المتاحة للمنتج الحالي بعد الإضافة
+      if (_selectedSubCategoryId != null) _loadProducts(_selectedSubCategoryId!);
+
     } catch (e) {
       _showMessage('خطأ أثناء الإضافة: $e', false);
     }
   }
 
-  // --- واجهة المستخدم المطورة ---
-
+  // --- واجهة المستخدم ---
   Widget _buildStepCard({required String step, required String title, required IconData icon, required List<Widget> children}) {
     return Container(
       margin: EdgeInsets.only(bottom: 3.h),
@@ -195,7 +210,7 @@ class _AddOfferScreenState extends State<AddOfferScreen> {
           Row(
             children: [
               CircleAvatar(
-                radius: 12.sp, // تكبير دائرة الرقم
+                radius: 12.sp,
                 backgroundColor: Theme.of(context).primaryColor,
                 child: Text(step, style: TextStyle(color: Colors.white, fontSize: 10.sp, fontWeight: FontWeight.bold)),
               ),
@@ -214,7 +229,7 @@ class _AddOfferScreenState extends State<AddOfferScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) return const Center(child: CircularProgressIndicator());
+    if (_isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
@@ -365,3 +380,4 @@ class _AddOfferScreenState extends State<AddOfferScreen> {
     );
   }
 }
+
