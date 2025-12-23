@@ -10,13 +10,12 @@ plugins {
 android {
     namespace = "com.aksabeg500"
     
-    // 🎯 قمنا بتثبيت النسخة على 34 بدلاً من flutter.compileSdkVersion لتجنب مشاكل API 36
-    compileSdk = 34
+    // 🎯 تم التعديل لـ 36 لإرضاء المكتبات الجديدة ومنع فشل البناء
+    compileSdk = 36
     
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
-        // تفعيل Desugaring ضروري جداً لدعم الإشعارات على الأجهزة القديمة والحديثة
         isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -29,8 +28,10 @@ android {
     defaultConfig {
         applicationId = "com.aksabeg500"
         
-        // 🎯 نستخدم 24 كحد أدنى و 34 كهدف مستقر
+        // الحد الأدنى لتشغيل التطبيق
         minSdk = 24 
+        
+        // 🎯 نتركه 34 لضمان عمل الإشعارات بشكل سليم ومنع الكراش عند المستخدم
         targetSdk = 34 
         
         versionCode = flutter.versionCode
@@ -40,7 +41,7 @@ android {
 
     buildTypes {
         release {
-            // بما أننا في مرحلة التيست، نستخدم توقيع الـ debug لضمان عمل الـ APK
+            // نستخدم توقيع الـ debug حالياً لتسهيل التجربة
             signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = false
             isShrinkResources = false
@@ -49,13 +50,12 @@ android {
 }
 
 dependencies {
-    // مكتبة Desugaring لحل مشاكل التوافق مع الوقت والتاريخ والإشعارات
+    // مكتبة Desugaring ضرورية جداً للتوافق
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 
-    // دعم تعدد ملفات الـ DEX للأجهزة القديمة
     implementation("androidx.multidex:multidex:2.0.1")
 
-    // Firebase BoM لضمان توافق إصدارات مكتبات فايربيز مع بعضها
+    // استخدام نسخة مستقرة من Firebase
     implementation(platform("com.google.firebase:firebase-bom:33.1.0"))
     implementation("com.google.firebase:firebase-messaging")
     implementation("com.google.firebase:firebase-analytics")
