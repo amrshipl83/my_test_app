@@ -9,7 +9,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart'; // 🎯 إضافة مكتبة الإشعارات المحلية
+import 'package:flutter_local_notifications/flutter_local_notifications.dart'; 
 
 // --- الاستيرادات الأساسية ---
 import 'package:my_test_app/firebase_options.dart';
@@ -54,10 +54,8 @@ import 'package:my_test_app/screens/consumer_orders_screen.dart';
 import 'package:my_test_app/screens/delivery/product_offer_screen.dart';
 import 'package:my_test_app/screens/delivery/delivery_offers_screen.dart';
 
-// 🎯 استيراد الخدمة الجديدة
 import 'package:my_test_app/services/bubble_service.dart';
 
-// 🎯 مفتاح التنقل العالمي
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
@@ -65,15 +63,27 @@ void main() async {
   await initializeDateFormatting('ar', null);
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  // 🎯 برمجة قناة الإشعارات (لضمان ظهور الإشعار في أندرويد)
+  // 🎯 تهيئة إعدادات الأندرويد (تمنع الكراش عند طلب الإذن)
+  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+  
+  const AndroidInitializationSettings initializationSettingsAndroid =
+      AndroidInitializationSettings('@mipmap/ic_launcher');
+
+  const InitializationSettings initializationSettings = InitializationSettings(
+    android: initializationSettingsAndroid,
+  );
+
+  await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+
+  // برمجة قناة الإشعارات
   const AndroidNotificationChannel channel = AndroidNotificationChannel(
-    'high_importance_channel', // نفس الـ ID اللي حطيناه في المانيفست
+    'high_importance_channel',
     'إشعارات هامة',
     description: 'هذه القناة مخصصة لإشعارات الطلبات الهامة.',
     importance: Importance.max,
+    playSound: true,
   );
 
-  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
   await flutterLocalNotificationsPlugin
       .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
       ?.createNotificationChannel(channel);
@@ -245,40 +255,32 @@ class _AuthWrapperState extends State<AuthWrapper> {
   void initState() {
     super.initState();
     _userFuture = _checkUserLoginStatus();
-
-    // 🎯 تهيئة الإشعارات وطلب الإذن فور فتح التطبيق
     _initPushNotifications();
-
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkAndShowActiveOrderBubble();
     });
   }
 
-  // 🎯 وظيفة طلب الإذن وبرمجة استقبال الإشعارات
   void _initPushNotifications() async {
     FirebaseMessaging messaging = FirebaseMessaging.instance;
 
-    // طلب الإذن (يظهر الـ Popup للمستخدم)
-    NotificationSettings settings = await messaging.requestPermission(
+    await messaging.requestPermission(
       alert: true,
       badge: true,
       sound: true,
     );
 
-    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-      print('✅ تم منح إذن الإشعارات');
-      // الحصول على الـ Token لربطه بالسيرفر (SNS)
-      String? token = await messaging.getToken();
-      print('🔥 FCM Token: $token');
-    }
-
-    // التعامل مع الرسائل أثناء فتح التطبيق
+    // التعامل مع الرسائل أثناء فتح التطبيق بشكل آمن
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      if (message.notification != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${message.notification!.title}: ${message.notification!.body}'),
-            backgroundColor: AppTheme.primaryGreen,
+      if (message.notification != null && mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(message.notification!.title ?? 'إشعار'),
+            content: Text(message.notification!.body ?? ''),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text('حسنًا'))
+            ],
           ),
         );
       }
