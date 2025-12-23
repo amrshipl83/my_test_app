@@ -28,14 +28,15 @@ jobs:
       - name: 📦 Install Dependencies
         run: flutter pub get
 
-      # 🎯 الخطوة الأهم: استخراج بصمة الـ SHA لربطها بـ Firebase
+      # 🎯 الخطوة المعدلة: إعطاء صلاحية التنفيذ واستخراج البصمات
       - name: 🔑 Get SHA Fingerprints
         run: |
           cd android
+          chmod +x gradlew
           ./gradlew signingReport
 
       - name: 🏗️ Build Release APK
-        # استخدمنا --debug هنا لأنك في مرحلة التيست وتستخدم توقيع الديباج في الـ gradle
+        # نبني نسخة debug لأن الـ gradle مهيأ حالياً لتوقيع الـ debug فقط
         run: flutter build apk --debug
 
       - name: 📤 Upload APK
