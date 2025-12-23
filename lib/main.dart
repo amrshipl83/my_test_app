@@ -8,7 +8,8 @@ import 'package:sizer/sizer.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:firebase_messaging/firebase_messaging.dart'; // 🎯 استيراد الإشعارات
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart'; // 🎯 إضافة مكتبة الإشعارات المحلية
 
 // --- الاستيرادات الأساسية ---
 import 'package:my_test_app/firebase_options.dart';
@@ -63,7 +64,20 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('ar', null);
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  
+
+  // 🎯 برمجة قناة الإشعارات (لضمان ظهور الإشعار في أندرويد)
+  const AndroidNotificationChannel channel = AndroidNotificationChannel(
+    'high_importance_channel', // نفس الـ ID اللي حطيناه في المانيفست
+    'إشعارات هامة',
+    description: 'هذه القناة مخصصة لإشعارات الطلبات الهامة.',
+    importance: Importance.max,
+  );
+
+  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+  await flutterLocalNotificationsPlugin
+      .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+      ?.createNotificationChannel(channel);
+
   runApp(
     MultiProvider(
       providers: [
@@ -231,7 +245,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
   void initState() {
     super.initState();
     _userFuture = _checkUserLoginStatus();
-    
+
     // 🎯 تهيئة الإشعارات وطلب الإذن فور فتح التطبيق
     _initPushNotifications();
 
@@ -253,7 +267,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
       print('✅ تم منح إذن الإشعارات');
-      
       // الحصول على الـ Token لربطه بالسيرفر (SNS)
       String? token = await messaging.getToken();
       print('🔥 FCM Token: $token');
