@@ -1,21 +1,61 @@
+// lib/screens/consumer/consumer_home_screen.dart
 import 'package:flutter/material.dart';
 import 'package:my_test_app/screens/consumer/consumer_widgets.dart';
 import 'package:my_test_app/screens/consumer/consumer_data_models.dart';
 import 'package:my_test_app/services/consumer_data_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart'; // 🎯 إضافة الإشعارات
+import 'package:cloud_firestore/cloud_firestore.dart'; // 🎯 إضافة الفايرستور للتوكن
 
-class ConsumerHomeScreen extends StatelessWidget {
+class ConsumerHomeScreen extends StatefulWidget {
   static const routeName = '/consumerHome';
-  ConsumerHomeScreen({super.key});
+  const ConsumerHomeScreen({super.key});
 
+  @override
+  State<ConsumerHomeScreen> createState() => _ConsumerHomeScreenState();
+}
+
+class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
   final ConsumerDataService dataService = ConsumerDataService();
+
+  @override
+  void initState() {
+    super.initState();
+    _setupNotifications(); // 🚀 طلب الإذن فور الدخول
+  }
+
+  // 🎯 دالة إعداد الإشعارات للمستهلك
+  Future<void> _setupNotifications() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    FirebaseMessaging messaging = FirebaseMessaging.instance;
+
+    // طلب إذن الإشعارات
+    NotificationSettings settings = await messaging.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
+    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+      // الحصول على التوكن وحفظه في مستند المستهلك
+      String? token = await messaging.getToken();
+      if (token != null) {
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+          'fcmToken': token,
+          'lastTokenUpdate': FieldValue.serverTimestamp(),
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-
+    
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA), // خلفية فاتحة جداً تبرز العناصر
+      backgroundColor: const Color(0xFFF8F9FA), 
       // إضافة الـ Drawer هنا ليعمل مع زر المنيو
       drawer: const ConsumerSideMenu(),
       
@@ -25,7 +65,7 @@ class ConsumerHomeScreen extends StatelessWidget {
         child: Builder(
           builder: (context) => ConsumerCustomAppBar(
             userName: user?.displayName ?? 'مستخدم',
-            userPoints: 0, // سيتم تحديثها تلقائياً من الـ Stream داخل الودجت
+            userPoints: 0, 
             onMenuPressed: () => Scaffold.of(context).openDrawer(),
           ),
         ),
@@ -41,7 +81,7 @@ class ConsumerHomeScreen extends StatelessWidget {
               const SizedBox(height: 10),
               const ConsumerSearchBar(),
 
-              // 3. قسم الأقسام المميزة (تم حذف "عرض الكل" من داخل الودجت تلقائياً)
+              // 3. قسم الأقسام المميزة
               const ConsumerSectionTitle(title: 'الأقسام المميزة'),
               FutureBuilder<List<ConsumerCategory>>(
                 future: dataService.fetchMainCategories(),
@@ -71,18 +111,17 @@ class ConsumerHomeScreen extends StatelessWidget {
                     );
                   }
                   final banners = snapshot.data ?? [];
-                  // ارتفاع 220 ليناسب الشاشات المختلفة دون ضغط العناصر
                   return ConsumerPromoBanners(banners: banners, height: 220);
                 },
               ),
 
-              const SizedBox(height: 80), // مساحة كافية قبل الشريط السفلي
+              const SizedBox(height: 80), 
             ],
           ),
         ),
       ),
 
-      // 5. شريط التنقل السفلي - ثابت ومحمي بـ SafeArea
+      // 5. شريط التنقل السفلي
       bottomNavigationBar: const ConsumerFooterNav(cartCount: 0, activeIndex: 0),
     );
   }

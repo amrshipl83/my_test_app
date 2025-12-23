@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_messaging/firebase_messaging.dart'; // 🎯 إضافة الاستيراد
 import 'dart:convert';
 
 // الاستيرادات الأساسية
@@ -42,22 +43,44 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
     _initializeAppLogic();
   }
 
+  // 🎯 دالة طلب إذن الإشعارات وحفظ التوكن للمشتري
+  Future<void> _setupNotifications() async {
+    if (_currentUserId == null) return;
+
+    FirebaseMessaging messaging = FirebaseMessaging.instance;
+
+    // طلب الإذن (مهم جداً لأندرويد 13 فما فوق)
+    NotificationSettings settings = await messaging.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
+    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+      // الحصول على التوكن وتحديثه في مستند المستخدم
+      String? token = await messaging.getToken();
+      if (token != null) {
+        await _db.collection('users').doc(_currentUserId).update({
+          'fcmToken': token,
+          'lastTokenUpdate': FieldValue.serverTimestamp(),
+        });
+      }
+    }
+  }
+
   void _onItemTapped(int index) {
     if (mounted) {
       setState(() {
         _selectedIndex = index;
       });
     }
-    // ملاحظة: تم تفعيل التنقل الداخلي عبر IndexedStack 
-    // إذا كنت تريد فتح صفحات كاملة (Full Screen) لبعض الأيقونات، 
-    // يمكنك إعادة استخدام Navigator.push هنا.
   }
 
   void _handleLogout() async {
     try {
       await _auth.signOut();
       final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('userRole'); // نستخدم المفاتيح المتفق عليها [cite: 2025-11-02]
+      await prefs.remove('userRole');
       await prefs.remove('loggedUser');
       if (mounted) {
         Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
@@ -71,6 +94,10 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
     final userAuth = _auth.currentUser;
     if (userAuth == null) return;
     _currentUserId = userAuth.uid;
+
+    // 🚀 تشغيل منطق الإشعارات فور الدخول
+    await _setupNotifications();
+
     final prefs = await SharedPreferences.getInstance();
     _updateCartCount(prefs);
 
@@ -94,21 +121,33 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
     if (mounted) setState(() => _cartCount = 5); // قيمة تجريبية
   }
 
-  // --- دوال التحقق من حالة الدليفري والطلبات (تم الحفاظ عليها) ---
   Future<void> _checkDeliveryStatusAndDisplayIcons() async {
     final dealerId = _currentUserId;
     if (dealerId == null) return;
     try {
-      final approvedSnapshot = await _db.collection('deliverySupermarkets')
-          .where("ownerId", isEqualTo: dealerId).get();
+      final approvedSnapshot = await _db
+          .collection('deliverySupermarkets')
+          .where("ownerId", isEqualTo: dealerId)
+          .get();
+
       if (approvedSnapshot.docs.isNotEmpty) {
         final docData = approvedSnapshot.docs.first.data();
         if (docData['isActive'] == true) {
-          if (mounted) setState(() { _deliveryPricesAvailable = true; _deliveryIsActive = true; });
+          if (mounted) {
+            setState(() {
+              _deliveryPricesAvailable = true;
+              _deliveryIsActive = true;
+            });
+          }
           return;
         }
       }
-      if (mounted) setState(() { _deliverySettingsAvailable = true; _deliveryIsActive = false; });
+      if (mounted) {
+        setState(() {
+          _deliverySettingsAvailable = true;
+          _deliveryIsActive = false;
+        });
+      }
     } catch (e) {
       print("Delivery Status Error: $e");
     }
@@ -116,16 +155,17 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
 
   Future<void> _updateNewDealerOrdersCount() async {
     if (_currentUserId == null) return;
-    final q = await _db.collection('consumerorders')
+    final q = await _db
+        .collection('consumerorders')
         .where("supermarketId", isEqualTo: _currentUserId)
-        .where("status", isEqualTo: "new-order").get();
+        .where("status", isEqualTo: "new-order")
+        .get();
     if (mounted) setState(() => _newOrdersCount = q.size);
   }
 
   Future<void> _monitorUserOrdersStatusChanges() async {
     if (_currentUserId == null) return;
-    // منطق مراقبة التغييرات (Snapshot) كما هو لضمان استقرار الوظائف السابقة
-    if (mounted) setState(() => _ordersChanged = false); 
+    if (mounted) setState(() => _ordersChanged = false);
   }
 
   @override
@@ -145,15 +185,12 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
         ),
         body: Column(
           children: <Widget>[
-            // الهيدر ثابت في الأعلى
             BuyerHeaderWidget(
               onMenuToggle: () => _scaffoldKey.currentState?.openEndDrawer(),
               menuNotificationDotActive: _newOrdersCount > 0,
               userName: _userName,
               onLogout: _handleLogout,
             ),
-
-            // المحتوى المتغير بناءً على الأيقونات المختارة
             Expanded(
               child: IndexedStack(
                 index: _selectedIndex,
@@ -177,3 +214,4 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
     );
   }
 }
+
