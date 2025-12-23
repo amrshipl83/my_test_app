@@ -1,8 +1,7 @@
-// lib/widgets/login_form_widget.dart
 import 'package:flutter/material.dart';
 import 'package:my_test_app/helpers/auth_service.dart';
 import 'package:my_test_app/screens/forgot_password_screen.dart';
-// --- إضافات الـ API والإشعارات (نفس شغل الـ HTML) ---
+// --- المكتبات المطلوبة للـ API والإشعارات ---
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -18,31 +17,27 @@ class LoginFormWidget extends StatefulWidget {
 
 class _LoginFormWidgetState extends State<LoginFormWidget> {
   final _formKey = GlobalKey<FormState>();
-  String _email = '';
+  String _phone = ''; // استخدام الهاتف كما في نسختك الأصلية
   String _password = '';
   bool _isLoading = false;
   String? _errorMessage;
   final AuthService _authService = AuthService();
 
-  // 🎯 دالة الـ API المستمدة من الـ HTML لربط AWS
+  // 🎯 دالة الـ ARN اللي جبناها من الـ HTML
   Future<void> _registerWithAwsApi(String userId, String fcmToken, String role) async {
     const String apiUrl = "https://5uex7vzy64.execute-api.us-east-1.amazonaws.com/V2/new_nofiction";
     try {
-      final response = await http.post(
+      await http.post(
         Uri.parse(apiUrl),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({
           "userId": userId,
           "fcmToken": fcmToken,
           "role": role,
-          "address": "" // اختياري كما في الويب
         }),
       );
-      if (response.statusCode == 200) {
-        debugPrint("✅ AWS Registration Success");
-      }
     } catch (e) {
-      debugPrint("❌ AWS Registration Error: $e");
+      debugPrint("AWS Error: $e");
     }
   }
 
@@ -56,37 +51,36 @@ class _LoginFormWidgetState extends State<LoginFormWidget> {
     });
 
     try {
-      // 1. تسجيل الدخول الأصلي (بـ AuthService الذي يبحث في الـ 3 مجموعات)
-      final String userRole = await _authService.signInWithEmailAndPassword(_email, _password);
+      // 1. تحويل الهاتف لإيميل وهمي وتسجيل الدخول (منطقك الأصلي)
+      String fakeEmail = "${_phone.trim()}@aswaq.com";
+      final String userRole = await _authService.signInWithEmailAndPassword(fakeEmail, _password);
 
-      // 🎯 2. تحديث التوكن ونداء الـ API (نفس منطق الويب)
+      // 🎯 2. الدمج: إرسال التوكن لـ AWS و Firestore بناءً على الدور اللي رجع
       try {
         String? token = await FirebaseMessaging.instance.getToken();
         String? uid = FirebaseAuth.instance.currentUser?.uid;
 
         if (token != null && uid != null) {
-          // تحديد الكولكشن الصحيح بناءً على الدور المسترجع من AuthService
-          String collectionName = (userRole == 'seller') ? 'sellers' : (userRole == 'consumer' ? 'consumers' : 'users');
+          // تحديث الكولكشن الصحيح (sellers, consumers, users)
+          String collection = (userRole == 'seller') ? 'sellers' : (userRole == 'consumer' ? 'consumers' : 'users');
           
-          // تحديث Firestore (لتوثيق التوكن موبايل)
-          await FirebaseFirestore.instance.collection(collectionName).doc(uid).set({
+          await FirebaseFirestore.instance.collection(collection).doc(uid).set({
             'notificationToken': token,
-            'lastTokenUpdate': FieldValue.serverTimestamp(),
             'platform': 'android',
           }, SetOptions(merge: true));
 
-          // استدعاء الـ API الخاص بـ AWS
+          // نداء API أمازون
           await _registerWithAwsApi(uid, token, userRole);
         }
-      } catch (fcmError) {
-        debugPrint("⚠️ Notification setup failed but logging in: $fcmError");
+      } catch (e) {
+        debugPrint("Notification Setup Error: $e");
       }
 
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('✅ تم تسجيل الدخول بنجاح! جاري التحويل...', textAlign: TextAlign.center),
+          content: Text('✅ تم تسجيل الدخول بنجاح!', textAlign: TextAlign.center),
           backgroundColor: Color(0xFF43b97f),
           duration: Duration(milliseconds: 1000),
         ),
@@ -95,21 +89,14 @@ class _LoginFormWidgetState extends State<LoginFormWidget> {
       await Future.delayed(const Duration(milliseconds: 1500));
       if (!mounted) return;
 
-      // 3. التوجيه الأصلي كما كان (للمسار الرئيسي ليتعامل معه AuthWrapper)
+      // 3. التوجيه الأصلي للـ AuthWrapper
       Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
 
-    } on String catch (e) {
-      String message;
-      if (e == 'user-not-found' || e == 'invalid-email') {
-        message = 'البريد الإلكتروني غير مسجل.';
-      } else if (e == 'wrong-password') {
-        message = 'كلمة المرور غير صحيحة.';
-      } else {
-        message = 'حدث خطأ أثناء تسجيل الدخول.';
-      }
-      setState(() { _errorMessage = message; _isLoading = false; });
     } catch (e) {
-      setState(() { _errorMessage = 'حدث خطأ غير متوقع.'; _isLoading = false; });
+      setState(() {
+        _errorMessage = 'بيانات الدخول غير صحيحة';
+        _isLoading = false;
+      });
     }
   }
 
@@ -120,37 +107,31 @@ class _LoginFormWidgetState extends State<LoginFormWidget> {
       child: Column(
         children: [
           _InputGroup(
-            icon: Icons.mail_outline,
-            hintText: 'البريد الإلكتروني',
-            validator: (value) {
-              if (value == null || value.isEmpty || !value.contains('@')) return 'يرجى إدخال بريد إلكتروني صالح.';
-              return null;
-            },
-            onSaved: (value) => _email = value!,
+            icon: Icons.phone_android,
+            hintText: 'رقم الهاتف',
+            validator: (value) => (value == null || value.isEmpty) ? 'مطلوب' : null,
+            onSaved: (value) => _phone = value!,
           ),
           const SizedBox(height: 18),
           _InputGroup(
             icon: Icons.lock_outline,
             hintText: 'كلمة المرور',
             isPassword: true,
-            validator: (value) {
-              if (value == null || value.isEmpty || value.length < 6) return 'كلمة المرور يجب أن تكون 6 أحرف على الأقل.';
-              return null;
-            },
+            validator: (value) => (value == null || value.length < 6) ? 'قصيرة جداً' : null,
             onSaved: (value) => _password = value!,
           ),
           Align(
             alignment: Alignment.centerLeft,
             child: TextButton(
               onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (context) => const ForgotPasswordScreen())),
-              child: Text('نسيت كلمة المرور؟', style: TextStyle(fontSize: 13, color: Theme.of(context).primaryColor, fontWeight: FontWeight.w500)),
+              child: Text('نسيت كلمة المرور؟', style: TextStyle(color: Theme.of(context).primaryColor)),
             ),
           ),
           const SizedBox(height: 10),
           _buildSubmitButton(),
           const SizedBox(height: 25),
           _buildRegisterLink(),
-          if (_errorMessage != null) _buildErrorBox(),
+          if (_errorMessage != null) Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
         ],
       ),
     );
@@ -162,31 +143,27 @@ class _LoginFormWidgetState extends State<LoginFormWidget> {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
         gradient: const LinearGradient(colors: [Color(0xFF43b97f), Color(0xFF2d9e68)]),
-        boxShadow: [BoxShadow(color: const Color(0xFF2d9e68).withOpacity(0.35), blurRadius: 15, offset: const Offset(0, 5))],
       ),
       child: ElevatedButton(
         onPressed: _isLoading ? null : _submitLogin,
-        style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+        style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent),
         child: _isLoading 
-          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
-          : const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.login, color: Colors.white, size: 18), SizedBox(width: 8), Text('تسجيل الدخول', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold))]),
+          ? const CircularProgressIndicator(color: Colors.white) 
+          : const Text('تسجيل الدخول', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       ),
     );
   }
 
   Widget _buildRegisterLink() {
-    return Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-      const Text('ليس لديك حساب؟', style: TextStyle(fontSize: 14, color: Color(0xFF6c757d))),
-      TextButton(onPressed: () => Navigator.of(context).pushNamed('/register'), child: Text('إنشاء حساب', style: TextStyle(fontSize: 14, color: Theme.of(context).primaryColor, fontWeight: FontWeight.bold))),
-    ]);
-  }
-
-  Widget _buildErrorBox() {
-    return Container(
-      margin: const EdgeInsets.only(top: 15),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: const Color(0x1adc3545), border: Border.all(color: const Color(0xFFdc3545)), borderRadius: BorderRadius.circular(8)),
-      child: Text('❌ $_errorMessage', textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, color: Color(0xFFdc3545), fontWeight: FontWeight.w500)),
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Text('ليس لديك حساب؟'),
+        TextButton(
+          onPressed: () => Navigator.of(context).pushNamed('/register'),
+          child: Text('إنشاء حساب', style: TextStyle(color: Theme.of(context).primaryColor, fontWeight: FontWeight.bold)),
+        ),
+      ],
     );
   }
 }
@@ -195,27 +172,23 @@ class _InputGroup extends StatelessWidget {
   final IconData icon;
   final String hintText;
   final bool isPassword;
-  final String? Function(String?) validator;
-  final void Function(String?) onSaved;
+  final FormFieldValidator<String> validator;
+  final FormFieldSetter<String> onSaved;
 
   const _InputGroup({required this.icon, required this.hintText, required this.validator, required this.onSaved, this.isPassword = false});
 
   @override
   Widget build(BuildContext context) {
     return TextFormField(
-      onSaved: onSaved,
-      validator: validator,
       obscureText: isPassword,
       textAlign: TextAlign.right,
       decoration: InputDecoration(
+        suffixIcon: Icon(icon, color: Theme.of(context).primaryColor),
         hintText: hintText,
-        hintStyle: const TextStyle(color: Color(0xFF6c757d), fontSize: 14),
-        suffixIcon: Padding(padding: const EdgeInsets.symmetric(horizontal: 15.0), child: Icon(icon, size: 18, color: Theme.of(context).primaryColor)),
-        contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 15),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade300)),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade300)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Theme.of(context).primaryColor, width: 2)),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
       ),
+      validator: validator,
+      onSaved: onSaved,
     );
   }
 }
