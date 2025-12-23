@@ -1,3 +1,5 @@
+// android/app/build.gradle.kts
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -7,13 +9,15 @@ plugins {
 
 android {
     namespace = "com.aksabeg500"
-    compileSdk = flutter.compileSdkVersion
+    
+    // 🎯 قمنا بتثبيت النسخة على 34 بدلاً من flutter.compileSdkVersion لتجنب مشاكل API 36
+    compileSdk = 34
+    
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
-        // 🎯 تفعيل Desugaring لحل مشكلة مكتبة الإشعارات
+        // تفعيل Desugaring ضروري جداً لدعم الإشعارات على الأجهزة القديمة والحديثة
         isCoreLibraryDesugaringEnabled = true
-        
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -24,8 +28,11 @@ android {
 
     defaultConfig {
         applicationId = "com.aksabeg500"
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        
+        // 🎯 نستخدم 24 كحد أدنى و 34 كهدف مستقر
+        minSdk = 24 
+        targetSdk = 34 
+        
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         multiDexEnabled = true
@@ -33,6 +40,7 @@ android {
 
     buildTypes {
         release {
+            // بما أننا في مرحلة التيست، نستخدم توقيع الـ debug لضمان عمل الـ APK
             signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = false
             isShrinkResources = false
@@ -41,16 +49,19 @@ android {
 }
 
 dependencies {
-    // 🎯 تم تحديث النسخة إلى 2.1.4 لحل مشكلة التوافق مع مكتبة الإشعارات
+    // مكتبة Desugaring لحل مشاكل التوافق مع الوقت والتاريخ والإشعارات
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 
-    // التبعيات الأساسية
+    // دعم تعدد ملفات الـ DEX للأجهزة القديمة
     implementation("androidx.multidex:multidex:2.0.1")
 
-    // إضافة تبعيات Firebase platform
-    implementation(platform("com.google.firebase:firebase-bom:32.7.0"))
+    // Firebase BoM لضمان توافق إصدارات مكتبات فايربيز مع بعضها
+    implementation(platform("com.google.firebase:firebase-bom:33.1.0"))
+    implementation("com.google.firebase:firebase-messaging")
+    implementation("com.google.firebase:firebase-analytics")
 }
 
 flutter {
     source = "../.."
 }
+

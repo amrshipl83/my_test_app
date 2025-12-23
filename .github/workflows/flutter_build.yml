@@ -1,17 +1,19 @@
-name: Build Flutter APK                              
+name: Build Flutter APK
+
 on:
   push:
     branches:
       - main
-      - master                                       
+      - master
+
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: 🧩 Checkout Code
         uses: actions/checkout@v4
 
-      # ☕️ إضافة الجافا ضرورية لأن مشروعك يستخدم Java 17
       - name: ☕️ Setup Java
         uses: actions/setup-java@v4
         with:
@@ -26,12 +28,19 @@ jobs:
       - name: 📦 Install Dependencies
         run: flutter pub get
 
-      - name: 🏗️ Build Release APK
-        run: flutter build apk --release             
+      # 🎯 الخطوة الأهم: استخراج بصمة الـ SHA لربطها بـ Firebase
+      - name: 🔑 Get SHA Fingerprints
+        run: |
+          cd android
+          ./gradlew signingReport
 
-      - name: 📤 Upload Release APK
+      - name: 🏗️ Build Release APK
+        # استخدمنا --debug هنا لأنك في مرحلة التيست وتستخدم توقيع الديباج في الـ gradle
+        run: flutter build apk --debug
+
+      - name: 📤 Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-release
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: app-debug
+          path: build/app/outputs/flutter-apk/app-debug.apk
 
