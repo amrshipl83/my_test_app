@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:sizer/sizer.dart';
+// 1. استيراد الخدمة وصفحة الإدارة
+import 'package:my_test_app/services/notification_service.dart';
+import 'package:my_test_app/screens/seller/manage_gift_promos_screen.dart';
 
 class CreateGiftPromoScreen extends StatefulWidget {
   final String currentSellerId;
-
-  const CreateGiftPromoScreen({
-    super.key,
-    required this.currentSellerId,
-  });
+  const CreateGiftPromoScreen({super.key, required this.currentSellerId});
 
   @override
   State<CreateGiftPromoScreen> createState() => _CreateGiftPromoScreenState();
@@ -16,7 +15,6 @@ class CreateGiftPromoScreen extends StatefulWidget {
 
 class _CreateGiftPromoScreenState extends State<CreateGiftPromoScreen> {
   final _formKey = GlobalKey<FormState>();
-
   final TextEditingController _promoNameController = TextEditingController();
   final TextEditingController _minOrderController = TextEditingController();
   final TextEditingController _triggerQtyBaseController = TextEditingController();
@@ -24,7 +22,7 @@ class _CreateGiftPromoScreenState extends State<CreateGiftPromoScreen> {
   final TextEditingController _maxPromoQtyController = TextEditingController();
   final TextEditingController _expiryDateController = TextEditingController();
 
-  String _triggerType = 'min_order'; 
+  String _triggerType = 'min_order';
   String? _selectedTriggerOfferId;
   String? _selectedGiftOfferId;
   List<Map<String, dynamic>> _availableOffers = [];
@@ -76,7 +74,7 @@ class _CreateGiftPromoScreenState extends State<CreateGiftPromoScreen> {
     }
 
     setState(() => _isLoading = true);
-    
+
     try {
       final giftOffer = _availableOffers.firstWhere((o) => o['id'] == _selectedGiftOfferId);
       final int requestedQty = int.parse(_maxPromoQtyController.text);
@@ -105,6 +103,13 @@ class _CreateGiftPromoScreenState extends State<CreateGiftPromoScreen> {
         transaction.update(giftRef, {'units': units});
 
         final promoRef = FirebaseFirestore.instance.collection('giftPromos').doc();
+        
+        // 🚨 تصحيح: إضافة productName للمشغل لسهولة العرض لاحقاً
+        String triggerProductName = "";
+        if (_triggerType == 'specific_item' && _selectedTriggerOfferId != null) {
+           triggerProductName = _availableOffers.firstWhere((o) => o['id'] == _selectedTriggerOfferId)['productName'];
+        }
+
         transaction.set(promoRef, {
           'sellerId': widget.currentSellerId,
           'promoName': _promoNameController.text,
@@ -120,9 +125,10 @@ class _CreateGiftPromoScreenState extends State<CreateGiftPromoScreen> {
               : {
                   'type': 'specific_item',
                   'offerId': _selectedTriggerOfferId,
+                  'productName': triggerProductName,
                   'triggerQuantityBase': int.parse(_triggerQtyBaseController.text)
                 },
-          'expiryDate': _expiryDateController.text,
+          'expiryDate': Timestamp.fromDate(DateTime.parse(_expiryDateController.text)), // حفظ كـ Timestamp
           'maxQuantity': requestedQty,
           'usedQuantity': 0,
           'reservedQuantity': 0,
@@ -130,6 +136,14 @@ class _CreateGiftPromoScreenState extends State<CreateGiftPromoScreen> {
           'createdAt': FieldValue.serverTimestamp(),
         });
       });
+
+      // 🚀 2. مناداة خدمة الإشعارات (Batch) بعد نجاح العملية
+      NotificationService.broadcastPromoNotification(
+        sellerId: widget.currentSellerId,
+        sellerName: "موردك في اكسب", 
+        promoName: _promoNameController.text,
+        deliveryAreas: [], // يمكن جلبها من بروفايل التاجر لاحقاً
+      );
 
       _showSnackBar("تم إنشاء عرض الهدية وحجز الرصيد بنجاح ✅");
       if (mounted) Navigator.pop(context);
@@ -143,7 +157,17 @@ class _CreateGiftPromoScreenState extends State<CreateGiftPromoScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('إنشاء عرض هدايا ترويجي'), backgroundColor: Colors.green),
+      appBar: AppBar(
+        title: const Text('إنشاء عرض هدايا ترويجي'),
+        backgroundColor: Colors.green,
+        actions: [
+          // زرار ينقلك لصفحة الإدارة مباشرة
+          IconButton(
+            icon: const Icon(Icons.manage_history),
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => ManageGiftPromosScreen(currentSellerId: widget.currentSellerId))),
+          )
+        ],
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
@@ -167,7 +191,7 @@ class _CreateGiftPromoScreenState extends State<CreateGiftPromoScreen> {
                     _buildTextField(_giftQtyPerBaseController, "كمية الهدية الممنوحة", isNumber: true),
                     _buildTextField(_maxPromoQtyController, "إجمالي عدد الهدايا المتاحة (للحجز)", isNumber: true),
                     _buildDatePicker(),
-                    SizedBox(height: 30.sp),
+                    SizedBox(height: 20.sp),
                     ElevatedButton(
                       onPressed: _createGiftPromo,
                       style: ElevatedButton.styleFrom(
@@ -175,6 +199,13 @@ class _CreateGiftPromoScreenState extends State<CreateGiftPromoScreen> {
                         minimumSize: Size(double.infinity, 50.sp),
                       ),
                       child: const Text("إنشاء العرض الآن", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ),
+                    SizedBox(height: 10.sp),
+                    // زرار إضافي واضح للإدارة
+                    TextButton.icon(
+                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => ManageGiftPromosScreen(currentSellerId: widget.currentSellerId))),
+                      icon: const Icon(Icons.list_alt),
+                      label: const Text("الانتقال لصفحة إدارة الهدايا"),
                     )
                   ],
                 ),
@@ -183,6 +214,7 @@ class _CreateGiftPromoScreenState extends State<CreateGiftPromoScreen> {
     );
   }
 
+  // --- بقية الـ Widgets (TextField, Dropdown, DatePicker) تبقى كما هي في كودك الأصلي مع تغيير بسيط في الـ DatePicker لحفظ الـ Timestamp ---
   Widget _buildTextField(TextEditingController controller, String label, {bool isNumber = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
