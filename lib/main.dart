@@ -9,7 +9,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart'; 
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import 'package:my_test_app/firebase_options.dart';
 import 'package:my_test_app/theme/app_theme.dart';
@@ -23,6 +23,7 @@ import 'package:my_test_app/providers/cashback_provider.dart';
 import 'package:my_test_app/controllers/seller_dashboard_controller.dart';
 import 'package:my_test_app/models/logged_user.dart';
 
+// استيراد الشاشات
 import 'package:my_test_app/screens/login_screen.dart';
 import 'package:my_test_app/screens/seller_screen.dart';
 import 'package:my_test_app/screens/buyer/buyer_home_screen.dart';
@@ -52,6 +53,11 @@ import 'package:my_test_app/screens/consumer_orders_screen.dart';
 import 'package:my_test_app/screens/delivery/product_offer_screen.dart';
 import 'package:my_test_app/screens/delivery/delivery_offers_screen.dart';
 
+// استيراد شاشات المورد المفقودة لضمان عمل الـ Sidebar
+import 'package:my_test_app/screens/seller/add_offer_screen.dart';
+import 'package:my_test_app/screens/seller/create_gift_promo_screen.dart';
+import 'package:my_test_app/screens/delivery_area_screen.dart';
+
 import 'package:my_test_app/services/bubble_service.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -61,9 +67,8 @@ void main() async {
   await initializeDateFormatting('ar', null);
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  // تهيئة قناة الإشعارات (بدون طلب إذن) لضمان جاهزية النظام
   final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
-  
+
   const AndroidNotificationChannel channel = AndroidNotificationChannel(
     'high_importance_channel',
     'إشعارات هامة',
@@ -163,9 +168,13 @@ class MyApp extends StatelessWidget {
             '/updatsupermarket': (context) => const UpdateDeliverySettingsScreen(),
             '/con-orders': (context) => const ConsumerOrdersScreen(),
             '/constore': (context) => const BuyerHomeScreen(),
+            
+            // إضافة المسارات الخاصة بالمورد لضمان عمل الـ Navigation
+            '/add-offer': (context) => const AddOfferScreen(),
+            '/create-gift': (context) => const CreateGiftPromoScreen(currentSellerId: ''),
+            '/delivery-areas': (context) => const DeliveryAreaScreen(currentSellerId: ''),
           },
           onGenerateRoute: (settings) {
-            // ... (باقي كود الـ onGenerateRoute كما هو بدون تغيير)
             if (settings.name == MarketplaceHomeScreen.routeName) {
               final args = settings.arguments as Map<String, dynamic>?;
               return MaterialPageRoute(
@@ -232,6 +241,7 @@ class MyApp extends StatelessWidget {
 
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
+
   @override
   State<AuthWrapper> createState() => _AuthWrapperState();
 }
@@ -243,7 +253,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
   void initState() {
     super.initState();
     _userFuture = _checkUserLoginStatus();
-    // 🎯 تم إيقاف استدعاء الإشعارات هنا تماماً لمنع الكراش
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkAndShowActiveOrderBubble();
     });

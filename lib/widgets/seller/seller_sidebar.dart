@@ -1,7 +1,6 @@
 // lib/widgets/seller/seller_sidebar.dart
 import 'package:flutter/material.dart';
 import 'package:sizer/sizer.dart';
-// 🎯 استيراد الصفحة الصحيحة لنظرة عامة
 import 'package:my_test_app/screens/seller/seller_overview_screen.dart';
 import 'package:my_test_app/screens/seller/add_offer_screen.dart';
 import 'package:my_test_app/screens/seller/offers_screen.dart';
@@ -117,7 +116,6 @@ class SellerSidebar extends StatefulWidget {
   State<SellerSidebar> createState() => _SellerSidebarState();
 }
 
-// 🎯 تم تصحيح الاسم هنا من _SidebarState إلى _SellerSidebarState ليتطابق مع الـ Widget
 class _SellerSidebarState extends State<SellerSidebar> {
   late List<Map<String, dynamic>> _menuItems;
 
@@ -157,7 +155,8 @@ class _SellerSidebarState extends State<SellerSidebar> {
       {
         'title': 'الطلبات',
         'icon': Icons.assignment_rounded,
-        'screen': OrdersScreen(userId: currentSellerId, userRole: 'seller'),
+        // ✅ تم التصحيح: استبدال userId بـ sellerId وحذف userRole غير المعرف
+        'screen': OrdersScreen(sellerId: currentSellerId),
         'route': 'الطلبات'
       },
       {

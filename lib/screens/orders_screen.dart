@@ -33,15 +33,27 @@ class _OrdersScreenState extends State<OrdersScreen> {
     });
   }
 
-  // مطابقة الألوان مع الحالات الجديدة
+  // دالة لجلب لون الحالة الأساسي (للأيقونات والنصوص)
   Color _getStatusColor(String status) {
     switch (status) {
-      case 'new-order': return Colors.info.shade700;
+      case 'new-order': return Colors.blue.shade700; // تم استبدال info بـ blue
       case 'processing': return Colors.orange.shade700;
-      case 'shipped': return Colors.blue.shade700;
+      case 'shipped': return Colors.purple.shade700;
       case 'delivered': return Colors.green.shade700;
       case 'cancelled': return Colors.red.shade700;
-      default: return Colors.grey;
+      default: return Colors.grey.shade700;
+    }
+  }
+
+  // دالة لجلب لون خلفية الكارت (لون فاتح مريح)
+  Color _getCardBgColor(String status) {
+    switch (status) {
+      case 'new-order': return Colors.blue.shade50;
+      case 'processing': return Colors.orange.shade50;
+      case 'shipped': return Colors.purple.shade50;
+      case 'delivered': return const Color(0xFFF1F8E9); // أخضر فاتح جداً
+      case 'cancelled': return Colors.red.shade50;
+      default: return Colors.white;
     }
   }
 
@@ -50,9 +62,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
-        title: Text('الطلبات الواردة', 
-          style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w900, color: Colors.white)),
-        backgroundColor: const Color(0xFF28A745), // لون Primary في HTML
+        title: Text('الطلبات الواردة',
+            style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.bold, color: Colors.white)),
+        backgroundColor: const Color(0xFF28A745),
         centerTitle: true,
         actions: [
           IconButton(
@@ -129,24 +141,39 @@ class _OrdersScreenState extends State<OrdersScreen> {
   }
 
   Widget _buildOrderCard(OrderModel order) {
-    final color = _getStatusColor(order.status);
+    final statusColor = _getStatusColor(order.status);
+    final bgColor = _getCardBgColor(order.status);
+
     return Card(
       margin: EdgeInsets.only(bottom: 2.h),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      elevation: 0, // تقليل الظل لجعل التصميم Flat وأنيق
+      color: bgColor,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(15),
+        side: BorderSide(color: statusColor.withOpacity(0.3), width: 1), // إطار خفيف بنفس لون الحالة
+      ),
       child: ExpansionTile(
+        shape: const RoundedRectangleBorder(side: BorderSide.none), // إزالة حدود الـ ExpansionTile الافتراضية
+        collapsedShape: const RoundedRectangleBorder(side: BorderSide.none),
         leading: CircleAvatar(
-          backgroundColor: color.withOpacity(0.1),
-          child: Icon(Icons.receipt_long, color: color, size: 18.sp),
+          backgroundColor: statusColor.withOpacity(0.2),
+          child: Icon(Icons.receipt_long, color: statusColor, size: 18.sp),
         ),
         title: Text(order.buyerDetails.name, style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.bold)),
-        subtitle: Text("صافي المطلوب: ${order.totalAmount} ج.م", style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 11.sp)),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("صافي المطلوب: ${order.totalAmount} ج.م", 
+                 style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 11.sp)),
+            Text(_getStatusText(order.status), style: TextStyle(fontSize: 9.sp, color: statusColor.withOpacity(0.8))),
+          ],
+        ),
         children: [
-          Padding(
+          Container(
+            color: Colors.white.withOpacity(0.5), // خلفية بيضاء شفافة لمنطقة التفاصيل
             padding: EdgeInsets.all(4.w),
             child: Column(
               children: [
-                const Divider(),
                 _buildInfoRow(Icons.phone, "الهاتف: ${order.buyerDetails.phone}", Colors.blue),
                 _buildInfoRow(Icons.location_on, "العنوان: ${order.buyerDetails.address}", Colors.redAccent),
                 SizedBox(height: 2.h),
@@ -156,7 +183,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                       child: OutlinedButton.icon(
                         onPressed: () => _showOrderDetails(order),
                         icon: const Icon(Icons.list_alt),
-                        label: const Text("التفاصيل"),
+                        label: const Text("الأصناف"),
                       ),
                     ),
                     if (order.status != 'delivered' && order.status != 'cancelled') ...[
@@ -171,6 +198,17 @@ class _OrdersScreenState extends State<OrdersScreen> {
         ],
       ),
     );
+  }
+
+  String _getStatusText(String status) {
+    switch (status) {
+      case 'new-order': return 'انتظار المراجعة';
+      case 'processing': return 'جاري التجهيز';
+      case 'shipped': return 'في الطريق';
+      case 'delivered': return 'تم الاستلام';
+      case 'cancelled': return 'ملغى من المورد';
+      default: return status;
+    }
   }
 
   Widget _buildInfoRow(IconData icon, String text, Color col) {
@@ -202,12 +240,14 @@ class _OrdersScreenState extends State<OrdersScreen> {
                 itemBuilder: (context, i) => ListTile(
                   title: Text(order.items[i].name, style: const TextStyle(fontWeight: FontWeight.bold)),
                   subtitle: Text("الكمية: ${order.items[i].quantity}"),
-                  trailing: Text("${order.items[i].unitPrice * order.items[i].quantity} ج.م"),
+                  trailing: Text("${(order.items[i].unitPrice * order.items[i].quantity).toStringAsFixed(2)} ج.م"),
                 ),
               ),
             ),
             ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(minimumSize: Size(double.infinity, 6.h), backgroundColor: const Color(0xFF007BFF)),
+              style: ElevatedButton.styleFrom(
+                  minimumSize: Size(double.infinity, 6.h),
+                  backgroundColor: const Color(0xFF007BFF)),
               onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => InvoiceScreen(order: order))),
               icon: const Icon(Icons.print, color: Colors.white),
               label: const Text("فتح الفاتورة للطباعة", style: TextStyle(color: Colors.white)),
@@ -222,10 +262,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 2.w),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50, 
-        borderRadius: BorderRadius.circular(10), 
-        border: Border.all(color: Colors.grey.shade300)
-      ),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.grey.shade300)),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: order.status,
@@ -258,7 +297,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
     }
   }
 
-  Widget _buildEmptyState() => Center(child: Text("لا توجد طلبات في قسم ${_selectedFilter}", style: TextStyle(fontSize: 12.sp)));
+  Widget _buildEmptyState() => Center(child: Text("لا توجد طلبات في قسم ${_getStatusText(_selectedFilter)}", style: TextStyle(fontSize: 12.sp)));
   Widget _buildErrorState(String error) => Center(child: Text("خطأ في الاتصال: $error"));
 }
 
