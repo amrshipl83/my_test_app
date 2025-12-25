@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:sizer/sizer.dart';
-import 'package:my_test_app/services/notification_service.dart';
 import 'manage_gift_promos_screen.dart';
 
 class CreateGiftPromoScreen extends StatefulWidget {
@@ -79,6 +78,7 @@ class _CreateGiftPromoScreenState extends State<CreateGiftPromoScreen> {
       final int requestedQty = int.parse(_maxPromoQtyController.text);
       final String promoName = _promoNameController.text;
 
+      // تنفيذ العملية وحجز الرصيد
       await FirebaseFirestore.instance.runTransaction((transaction) async {
         final giftRef = FirebaseFirestore.instance.collection('productOffers').doc(_selectedGiftOfferId);
         final giftDoc = await transaction.get(giftRef);
@@ -120,37 +120,22 @@ class _CreateGiftPromoScreenState extends State<CreateGiftPromoScreen> {
           'maxQuantity': requestedQty,
           'usedQuantity': 0,
           'status': 'active',
+          'isNotified': false, // 👈 الحقل الأهم للمدا المجدولة (Cron Job)
           'createdAt': FieldValue.serverTimestamp(),
         });
       });
 
       if (mounted) {
-        _showSnackBar("تم إنشاء العرض بنجاح ✅");
-        // نوقف اللودينج قبل الخروج لضمان استقرار الواجهة
+        _showSnackBar("تم إنشاء العرض وحجز المخزن بنجاح ✅");
         setState(() => _isLoading = false);
         Navigator.pop(context);
-        // الإشعارات في الخلفية
-        _startNotificationBroadcast(promoName);
+        // تم حذف _startNotificationBroadcast تماماً
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
         _showSnackBar(e.toString(), isError: true);
       }
-    }
-  }
-
-  void _startNotificationBroadcast(String promoName) async {
-    try {
-      await NotificationService.broadcastPromoNotification(
-        sellerId: widget.currentSellerId,
-        sellerName: "موردك في اكسب",
-        promoName: promoName,
-        deliveryAreas: [],
-        productId: _selectedTriggerOfferId ?? "min_order_promo",
-      );
-    } catch (e) {
-      debugPrint("Notification silent fail: $e");
     }
   }
 
@@ -163,7 +148,6 @@ class _CreateGiftPromoScreenState extends State<CreateGiftPromoScreen> {
         backgroundColor: const Color(0xFF1B5E20),
         centerTitle: true,
         actions: [
-          // زر إدارة الهدايا في الـ AppBar
           IconButton(
             icon: const Icon(Icons.settings_suggest),
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => ManageGiftPromosScreen(currentSellerId: widget.currentSellerId))),
@@ -198,7 +182,6 @@ class _CreateGiftPromoScreenState extends State<CreateGiftPromoScreen> {
                       _buildTextField(_maxPromoQtyController, "إجمالي الهدايا المتاحة للحجز", Icons.inventory, isNumber: true),
                     ]),
                     SizedBox(height: 10.sp),
-                    // زر الحفظ بحجم أصغر وأكثر أناقة
                     SizedBox(
                       width: 80.w,
                       height: 45.sp,
@@ -209,8 +192,8 @@ class _CreateGiftPromoScreenState extends State<CreateGiftPromoScreen> {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                           elevation: 2,
                         ),
-                        child: Text(_isLoading ? "جاري الحفظ..." : "تفعيل العرض وحجز المخزن", 
-                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12.sp)),
+                        child: Text(_isLoading ? "جاري الحفظ..." : "تفعيل العرض وحجز المخزن",
+                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12.sp)),
                       ),
                     ),
                     SizedBox(height: 10.sp),
@@ -277,7 +260,8 @@ class _CreateGiftPromoScreenState extends State<CreateGiftPromoScreen> {
     );
   }
 
-  Widget _buildOfferPicker(String label, Function(String?) onSelected) => _buildDropdown(label, _availableOffers.map((e) => e['id'] as String).toList(), onSelected, isOffer: true);
+  Widget _buildOfferPicker(String label, Function(String?) onSelected) =>
+      _buildDropdown(label, _availableOffers.map((e) => e['id'] as String).toList(), onSelected, isOffer: true);
 
   Widget _buildDatePicker() {
     return Padding(
@@ -293,7 +277,11 @@ class _CreateGiftPromoScreenState extends State<CreateGiftPromoScreen> {
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
         ),
         onTap: () async {
-          DateTime? picked = await showDatePicker(context: context, initialDate: DateTime.now().add(const Duration(days: 7)), firstDate: DateTime.now(), lastDate: DateTime(2030));
+          DateTime? picked = await showDatePicker(
+              context: context,
+              initialDate: DateTime.now().add(const Duration(days: 7)),
+              firstDate: DateTime.now(),
+              lastDate: DateTime(2030));
           if (picked != null) setState(() => _expiryDateController.text = picked.toIso8601String().split('T')[0]);
         },
         validator: (v) => v == null || v.isEmpty ? "مطلوب" : null,
@@ -303,7 +291,8 @@ class _CreateGiftPromoScreenState extends State<CreateGiftPromoScreen> {
 
   void _showSnackBar(String msg, {bool isError = false}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: isError ? Colors.red : Colors.green, duration: const Duration(seconds: 2)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(msg), backgroundColor: isError ? Colors.red : Colors.green, duration: const Duration(seconds: 2)));
   }
 }
 
