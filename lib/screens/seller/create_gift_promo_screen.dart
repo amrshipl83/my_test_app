@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:sizer/sizer.dart';
 import 'package:google_fonts/google_fonts.dart';
+// استيراد شاشة الإدارة لضمان عمل التنقل المباشر
+import 'package:my_test_app/screens/seller/manage_gift_promos_screen.dart';
 
 class CreateGiftPromoScreen extends StatefulWidget {
   final String currentSellerId;
@@ -35,7 +37,6 @@ class _CreateGiftPromoScreenState extends State<CreateGiftPromoScreen> {
 
   @override
   void dispose() {
-    // ✅ تنظيف الـ Controllers لمنع تسريب الذاكرة (Memory Leaks)
     _promoNameController.dispose();
     _minOrderValueController.dispose();
     _triggerQtyBaseController.dispose();
@@ -160,13 +161,11 @@ class _CreateGiftPromoScreenState extends State<CreateGiftPromoScreen> {
       });
 
       _showSnackBar("🎉 تم حجز المخزن وإنشاء العرض بنجاح!");
-
       _formKey.currentState?.reset();
       _promoNameController.clear();
       _promoQuantityController.clear();
       _selectedGiftOfferId = null;
       _selectedTriggerOfferId = null;
-
       _fetchSellerOffers();
     } catch (e) {
       _showSnackBar(e.toString(), isError: true);
@@ -180,73 +179,90 @@ class _CreateGiftPromoScreenState extends State<CreateGiftPromoScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: Text("إنشاء هدايا ترويجية", style: _cairoStyle.copyWith(fontSize: 15.sp)),
+        title: Text("هدايا العملاء", style: _cairoStyle.copyWith(fontSize: 14.sp, color: Colors.white)),
         backgroundColor: const Color(0xFF1B5E20),
+        elevation: 0,
         centerTitle: true,
         actions: [
           IconButton(
-            // ✅ تم تصحيح اسم الأيقونة هنا (حرف صغير في البداية)
-            icon: const Icon(Icons.list_alt_rounded, size: 28),
-            onPressed: () => Navigator.pushNamed(context, '/manage_gifts_screen'),
-            tooltip: "إدارة الهدايا",
+            icon: const Icon(Icons.inventory_2_outlined, size: 26, color: Colors.white),
+            onPressed: () {
+              // ✅ الحل النهائي لمشكلة الوميض: التنقل المباشر وتمرير الـ ID
+              Navigator.push(
+                context, 
+                MaterialPageRoute(
+                  builder: (context) => ManageGiftPromosScreen(currentSellerId: widget.currentSellerId)
+                )
+              );
+            },
+            tooltip: "إدارة الهدايا الحالية",
           )
         ],
       ),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(12.sp),
-        child: Form(
-          key: _formKey,
+      body: Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFF1B5E20),
+          borderRadius: BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30))
+        ),
+        height: 10.h,
+        width: double.infinity,
+        child: SingleChildScrollView(
+          padding: EdgeInsets.only(top: 2.h),
           child: Column(
             children: [
-              _buildCard([
-                _buildTextField(_promoNameController, "اسم العرض الترويجي", Icons.campaign),
-                _buildDatePicker(),
-              ]),
-              _buildCard([
-                _buildDropdown("نوع تفعيل الهدية", {
-                  'min_order': 'عند الوصول لمبلغ فاتورة معين',
-                  'specific_item': 'عند شراء منتج محدد'
-                }, (val) => setState(() => _triggerType = val!)),
-                if (_triggerType == 'min_order')
-                  _buildTextField(_minOrderValueController, "المبلغ المطلوب (ج.م)", Icons.payments, isNumber: true),
-                if (_triggerType == 'specific_item') ...[
-                  _buildOfferPicker("المنتج الذي يجب شراؤه", (id) => _selectedTriggerOfferId = id),
-                  _buildTextField(_triggerQtyBaseController, "الكمية المطلوبة للتفعيل", Icons.shopping_basket, isNumber: true),
-                ]
-              ]),
-              _buildCard([
-                _buildOfferPicker("اختر الهدية الممنوحة 🎁", (id) => _selectedGiftOfferId = id),
-                _buildTextField(_giftQtyPerBaseController, "كمية الهدية لكل استحقاق", Icons.card_giftcard, isNumber: true),
-                _buildTextField(_promoQuantityController, "إجمالي الهدايا المحجوزة", Icons.inventory, isNumber: true),
-              ]),
-              SizedBox(height: 15.sp),
-              GestureDetector(
-                onTap: _isLoading ? null : _createGiftPromo,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  height: 40.sp,
-                  width: 100.w,
-                  decoration: BoxDecoration(
-                      color: _isLoading ? Colors.grey : Colors.green[800],
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [if (!_isLoading) const BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 4))]
-                  ),
-                  child: Center(
-                    child: _isLoading
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.add_circle_outline, color: Colors.white),
-                        SizedBox(width: 8.sp),
-                        Text("تأكيد الحجز والإنشاء", style: _cairoStyle.copyWith(color: Colors.white, fontSize: 13.sp)),
+              Container(
+                margin: EdgeInsets.symmetric(horizontal: 5.w),
+                padding: EdgeInsets.all(15.sp),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, 5))]
+                ),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _sectionTitle("بيانات الحملة الترويجية"),
+                      _buildTextField(_promoNameController, "اسم العرض (مثال: مهرجان الصيف)", Icons.campaign_rounded),
+                      _buildDatePicker(),
+                      
+                      const Divider(height: 30),
+                      _sectionTitle("شروط الحصول على الهدية"),
+                      _buildDropdown("متى يستحق العميل الهدية؟", {
+                        'min_order': 'عند الوصول لمبلغ فاتورة معين',
+                        'specific_item': 'عند شراء منتج محدد'
+                      }, (val) => setState(() => _triggerType = val!)),
+                      
+                      if (_triggerType == 'min_order')
+                        _buildTextField(_minOrderValueController, "المبلغ المطلوب بالجنية", Icons.payments_outlined, isNumber: true),
+                      
+                      if (_triggerType == 'specific_item') ...[
+                        _buildOfferPicker("اختر المنتج الشرطي", (id) => _selectedTriggerOfferId = id),
+                        _buildTextField(_triggerQtyBaseController, "الكمية اللازم شراؤها", Icons.shopping_cart_checkout, isNumber: true),
                       ],
-                    ),
+
+                      const Divider(height: 30),
+                      _sectionTitle("تفاصيل الهدية الممنوحة 🎁"),
+                      _buildOfferPicker("اختر منتج الهدية", (id) => _selectedGiftOfferId = id),
+                      Row(
+                        children: [
+                          Expanded(child: _buildTextField(_giftQtyPerBaseController, "كمية الهدية", Icons.card_giftcard, isNumber: true)),
+                          SizedBox(width: 3.w),
+                          Expanded(child: _buildTextField(_promoQuantityController, "إجمالي المحجوز", Icons.inventory_2, isNumber: true)),
+                        ],
+                      ),
+                      
+                      SizedBox(height: 20.sp),
+                      _buildSubmitButton(),
+                      SizedBox(height: 10.sp),
+                    ],
                   ),
                 ),
               ),
-              SizedBox(height: 10.sp),
+              SizedBox(height: 5.h),
             ],
           ),
         ),
@@ -254,77 +270,119 @@ class _CreateGiftPromoScreenState extends State<CreateGiftPromoScreen> {
     );
   }
 
-  // ... (بقيه الدوال المساعدة _buildCard, _buildTextField, إلخ تبقى كما هي)
-  Widget _buildCard(List<Widget> children) => Card(
-    elevation: 2,
-    margin: EdgeInsets.only(bottom: 10.sp),
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-    child: Padding(padding: EdgeInsets.all(10.sp), child: Column(children: children)),
+  Widget _sectionTitle(String title) => Padding(
+    padding: EdgeInsets.only(bottom: 8.sp),
+    child: Text(title, style: _cairoStyle.copyWith(fontSize: 11.sp, color: Colors.green[900])),
+  );
+
+  Widget _buildSubmitButton() => GestureDetector(
+    onTap: _isLoading ? null : _createGiftPromo,
+    child: AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      height: 45.sp,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: _isLoading ? [Colors.grey, Colors.grey] : [const Color(0xFF2E7D32), const Color(0xFF1B5E20)]),
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [if (!_isLoading) BoxShadow(color: Colors.green.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 5))]
+      ),
+      child: Center(
+        child: _isLoading
+          ? const CircularProgressIndicator(color: Colors.white)
+          : Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.check_circle_outline, color: Colors.white),
+                SizedBox(width: 10.sp),
+                Text("حجز الكمية وتفعيل العرض", style: _cairoStyle.copyWith(color: Colors.white, fontSize: 13.sp)),
+              ],
+            ),
+      ),
+    ),
   );
 
   Widget _buildTextField(TextEditingController ctrl, String label, IconData icon, {bool isNumber = false}) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 6),
+    padding: const EdgeInsets.symmetric(vertical: 8),
     child: TextFormField(
       controller: ctrl,
-      style: _cairoStyle.copyWith(fontSize: 12.sp),
+      style: _cairoStyle.copyWith(fontSize: 11.sp, fontWeight: FontWeight.normal),
       keyboardType: isNumber ? TextInputType.number : TextInputType.text,
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: Icon(icon, color: Colors.green[700]),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        prefixIcon: Icon(icon, color: Colors.green[700], size: 20),
+        filled: true,
+        fillColor: Colors.green[50]?.withOpacity(0.3),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.green, width: 1)),
       ),
-      validator: (v) => v!.isEmpty ? "مطلوب" : null,
+      validator: (v) => v!.isEmpty ? "هذا الحقل مطلوب" : null,
     ),
   );
 
   Widget _buildDropdown(String label, Map<String, String> items, Function(String?) onChanged) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 6),
+    padding: const EdgeInsets.symmetric(vertical: 8),
     child: DropdownButtonFormField<String>(
-      style: _cairoStyle.copyWith(color: Colors.black, fontSize: 12.sp),
-      decoration: InputDecoration(labelText: label, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-      value: items.keys.first,
-      items: items.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: _cairoStyle))).toList(),
+      style: _cairoStyle.copyWith(color: Colors.black, fontSize: 11.sp, fontWeight: FontWeight.normal),
+      decoration: InputDecoration(
+        labelText: label,
+        filled: true,
+        fillColor: Colors.blueGrey[50]?.withOpacity(0.3),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none)
+      ),
+      value: _triggerType,
+      items: items.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: _cairoStyle.copyWith(fontSize: 10.sp)))).toList(),
       onChanged: onChanged,
     ),
   );
 
   Widget _buildOfferPicker(String label, Function(String?) onSelected) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 6),
+    padding: const EdgeInsets.symmetric(vertical: 8),
     child: DropdownButtonFormField<String>(
       isExpanded: true,
-      hint: Text(label, style: _cairoStyle.copyWith(fontSize: 12.sp)),
-      decoration: InputDecoration(labelText: label, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+      hint: Text(label, style: _cairoStyle.copyWith(fontSize: 10.sp, fontWeight: FontWeight.normal)),
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: const Icon(Icons.shopping_bag_outlined, color: Colors.orange),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))
+      ),
       items: _availableOffers.map((o) => DropdownMenuItem(
         value: o['id'].toString(),
-        child: Text("${o['productName']} (متاح: ${o['availableStock']})",
-          style: _cairoStyle.copyWith(fontSize: 12.sp),
-        ),
+        child: Text("${o['productName']} (المتاح: ${o['availableStock']})", style: _cairoStyle.copyWith(fontSize: 10.sp)),
       )).toList(),
       onChanged: onSelected,
-      validator: (v) => v == null ? "مطلوب" : null,
+      validator: (v) => v == null ? "برجاء اختيار منتج" : null,
     ),
   );
 
   Widget _buildDatePicker() => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 6),
+    padding: const EdgeInsets.symmetric(vertical: 8),
     child: TextFormField(
       controller: _expiryDateController,
       readOnly: true,
-      style: _cairoStyle.copyWith(fontSize: 12.sp),
-      decoration: InputDecoration(labelText: "تاريخ انتهاء العرض", prefixIcon: const Icon(Icons.calendar_month), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+      style: _cairoStyle.copyWith(fontSize: 11.sp),
+      decoration: InputDecoration(
+        labelText: "تاريخ انتهاء الصلاحية",
+        prefixIcon: const Icon(Icons.calendar_today_rounded, color: Colors.redAccent),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      ),
       onTap: () async {
-        DateTime? picked = await showDatePicker(context: context, initialDate: DateTime.now().add(const Duration(days: 7)), firstDate: DateTime.now(), lastDate: DateTime(2030));
+        DateTime? picked = await showDatePicker(
+          context: context,
+          initialDate: DateTime.now().add(const Duration(days: 7)),
+          firstDate: DateTime.now(),
+          lastDate: DateTime(2030)
+        );
         if (picked != null) setState(() => _expiryDateController.text = picked.toIso8601String().split('T')[0]);
       },
-      validator: (v) => v!.isEmpty ? "مطلوب" : null,
+      validator: (v) => v!.isEmpty ? "التاريخ مطلوب" : null,
     ),
   );
 
   void _showSnackBar(String msg, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg, style: _cairoStyle.copyWith(fontSize: 11.sp)),
-      backgroundColor: isError ? Colors.red : Colors.green[900],
+      content: Text(msg, style: _cairoStyle.copyWith(fontSize: 11.sp, color: Colors.white)),
+      backgroundColor: isError ? Colors.redAccent : Colors.green[800],
       behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       duration: const Duration(seconds: 3),
     ));
   }
