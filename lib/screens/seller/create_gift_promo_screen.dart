@@ -33,7 +33,20 @@ class _CreateGiftPromoScreenState extends State<CreateGiftPromoScreen> {
     _fetchSellerOffers();
   }
 
+  @override
+  void dispose() {
+    // ✅ تنظيف الـ Controllers لمنع تسريب الذاكرة (Memory Leaks)
+    _promoNameController.dispose();
+    _minOrderValueController.dispose();
+    _triggerQtyBaseController.dispose();
+    _giftQtyPerBaseController.dispose();
+    _promoQuantityController.dispose();
+    _expiryDateController.dispose();
+    super.dispose();
+  }
+
   Future<void> _fetchSellerOffers() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
     try {
       final snapshot = await FirebaseFirestore.instance
@@ -57,13 +70,17 @@ class _CreateGiftPromoScreenState extends State<CreateGiftPromoScreen> {
         };
       }).toList();
 
-      setState(() {
-        _availableOffers = offers;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _availableOffers = offers;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      _showSnackBar("خطأ في تحميل العروض: $e", isError: true);
-      setState(() => _isLoading = false);
+      if (mounted) {
+        _showSnackBar("خطأ في تحميل العروض: $e", isError: true);
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -102,7 +119,7 @@ class _CreateGiftPromoScreenState extends State<CreateGiftPromoScreen> {
 
         final promoRef = FirebaseFirestore.instance.collection('giftPromos').doc();
         Map<String, dynamic> triggerCondition = {};
-        
+
         if (_triggerType == 'min_order') {
           triggerCondition = {
             'type': 'min_order',
@@ -143,17 +160,14 @@ class _CreateGiftPromoScreenState extends State<CreateGiftPromoScreen> {
       });
 
       _showSnackBar("🎉 تم حجز المخزن وإنشاء العرض بنجاح!");
-      
-      // ✅ تصفير الحقول والبقاء في الصفحة
+
       _formKey.currentState?.reset();
       _promoNameController.clear();
       _promoQuantityController.clear();
       _selectedGiftOfferId = null;
       _selectedTriggerOfferId = null;
-      
-      // ✅ تحديث المخزن المتاح فوراً أمام المستخدم
-      _fetchSellerOffers();
 
+      _fetchSellerOffers();
     } catch (e) {
       _showSnackBar(e.toString(), isError: true);
     } finally {
@@ -171,10 +185,10 @@ class _CreateGiftPromoScreenState extends State<CreateGiftPromoScreen> {
         backgroundColor: const Color(0xFF1B5E20),
         centerTitle: true,
         actions: [
-          // ✅ زر العودة لإدارة الهدايا
           IconButton(
-            icon: const Icon(Icons.List_alt_rounded, size: 28),
-            onPressed: () => Navigator.pushNamed(context, '/manage_gifts_screen'), 
+            // ✅ تم تصحيح اسم الأيقونة هنا (حرف صغير في البداية)
+            icon: const Icon(Icons.list_alt_rounded, size: 28),
+            onPressed: () => Navigator.pushNamed(context, '/manage_gifts_screen'),
             tooltip: "إدارة الهدايا",
           )
         ],
@@ -207,30 +221,28 @@ class _CreateGiftPromoScreenState extends State<CreateGiftPromoScreen> {
                 _buildTextField(_promoQuantityController, "إجمالي الهدايا المحجوزة", Icons.inventory, isNumber: true),
               ]),
               SizedBox(height: 15.sp),
-              
-              // ✅ زر الإضافة المطور (Animation + Size)
               GestureDetector(
                 onTap: _isLoading ? null : _createGiftPromo,
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 300),
-                  height: 40.sp, // ربع الارتفاع السابق تقريباً
+                  height: 40.sp,
                   width: 100.w,
                   decoration: BoxDecoration(
-                    color: _isLoading ? Colors.grey : Colors.green[800],
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [if (!_isLoading) const BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 4))]
+                      color: _isLoading ? Colors.grey : Colors.green[800],
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [if (!_isLoading) const BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 4))]
                   ),
                   child: Center(
-                    child: _isLoading 
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.add_circle_outline, color: Colors.white),
-                            SizedBox(width: 8.sp),
-                            Text("تأكيد الحجز والإنشاء", style: _cairoStyle.copyWith(color: Colors.white, fontSize: 13.sp)),
-                          ],
-                        ),
+                    child: _isLoading
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.add_circle_outline, color: Colors.white),
+                        SizedBox(width: 8.sp),
+                        Text("تأكيد الحجز والإنشاء", style: _cairoStyle.copyWith(color: Colors.white, fontSize: 13.sp)),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -242,6 +254,7 @@ class _CreateGiftPromoScreenState extends State<CreateGiftPromoScreen> {
     );
   }
 
+  // ... (بقيه الدوال المساعدة _buildCard, _buildTextField, إلخ تبقى كما هي)
   Widget _buildCard(List<Widget> children) => Card(
     elevation: 2,
     margin: EdgeInsets.only(bottom: 10.sp),
@@ -279,12 +292,12 @@ class _CreateGiftPromoScreenState extends State<CreateGiftPromoScreen> {
     padding: const EdgeInsets.symmetric(vertical: 6),
     child: DropdownButtonFormField<String>(
       isExpanded: true,
-      hint: Text(label, style: _cairoStyle.copyWith(fontSize: 12.sp)), // تكبير الخط هنا
+      hint: Text(label, style: _cairoStyle.copyWith(fontSize: 12.sp)),
       decoration: InputDecoration(labelText: label, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
       items: _availableOffers.map((o) => DropdownMenuItem(
         value: o['id'].toString(),
-        child: Text("${o['productName']} (متاح: ${o['availableStock']})", 
-          style: _cairoStyle.copyWith(fontSize: 12.sp), // ✅ تكبير الخط داخل المنسدلة
+        child: Text("${o['productName']} (متاح: ${o['availableStock']})",
+          style: _cairoStyle.copyWith(fontSize: 12.sp),
         ),
       )).toList(),
       onChanged: onSelected,
