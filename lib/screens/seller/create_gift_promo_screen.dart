@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:sizer/sizer.dart';
 import 'package:google_fonts/google_fonts.dart';
-// استيراد شاشة الإدارة لضمان عمل التنقل المباشر
 import 'package:my_test_app/screens/seller/manage_gift_promos_screen.dart';
 
 class CreateGiftPromoScreen extends StatefulWidget {
@@ -90,9 +89,7 @@ class _CreateGiftPromoScreenState extends State<CreateGiftPromoScreen> {
       _showSnackBar("الرجاء استكمال البيانات واختيار الهدية", isError: true);
       return;
     }
-
     setState(() => _isLoading = true);
-
     try {
       final selectedGiftOffer = _availableOffers.firstWhere((o) => o['id'] == _selectedGiftOfferId);
       final int totalPromoQuantity = int.parse(_promoQuantityController.text);
@@ -103,7 +100,6 @@ class _CreateGiftPromoScreenState extends State<CreateGiftPromoScreen> {
         final giftDoc = await transaction.get(giftRef);
 
         if (!giftDoc.exists) throw "وثيقة الهدية غير موجودة";
-
         final data = giftDoc.data()!;
         List units = List.from(data['units'] ?? []);
         Map unit0 = Map.from(units[0]);
@@ -120,7 +116,6 @@ class _CreateGiftPromoScreenState extends State<CreateGiftPromoScreen> {
 
         final promoRef = FirebaseFirestore.instance.collection('giftPromos').doc();
         Map<String, dynamic> triggerCondition = {};
-
         if (_triggerType == 'min_order') {
           triggerCondition = {
             'type': 'min_order',
@@ -156,7 +151,6 @@ class _CreateGiftPromoScreenState extends State<CreateGiftPromoScreen> {
           'isNotified': false,
           'createdAt': FieldValue.serverTimestamp(),
         });
-
         transaction.update(giftRef, {'units': units});
       });
 
@@ -189,82 +183,83 @@ class _CreateGiftPromoScreenState extends State<CreateGiftPromoScreen> {
           IconButton(
             icon: const Icon(Icons.inventory_2_outlined, size: 26, color: Colors.white),
             onPressed: () {
-              // ✅ الحل النهائي لمشكلة الوميض: التنقل المباشر وتمرير الـ ID
               Navigator.push(
-                context, 
-                MaterialPageRoute(
-                  builder: (context) => ManageGiftPromosScreen(currentSellerId: widget.currentSellerId)
-                )
+                context,
+                MaterialPageRoute(builder: (context) => ManageGiftPromosScreen(currentSellerId: widget.currentSellerId))
               );
             },
             tooltip: "إدارة الهدايا الحالية",
           )
         ],
       ),
-      body: Container(
-        decoration: const BoxDecoration(
-          color: Color(0xFF1B5E20),
-          borderRadius: BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30))
-        ),
-        height: 10.h,
-        width: double.infinity,
-        child: SingleChildScrollView(
-          padding: EdgeInsets.only(top: 2.h),
-          child: Column(
-            children: [
-              Container(
-                margin: EdgeInsets.symmetric(horizontal: 5.w),
-                padding: EdgeInsets.all(15.sp),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, 5))]
-                ),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _sectionTitle("بيانات الحملة الترويجية"),
-                      _buildTextField(_promoNameController, "اسم العرض (مثال: مهرجان الصيف)", Icons.campaign_rounded),
-                      _buildDatePicker(),
-                      
-                      const Divider(height: 30),
-                      _sectionTitle("شروط الحصول على الهدية"),
-                      _buildDropdown("متى يستحق العميل الهدية؟", {
-                        'min_order': 'عند الوصول لمبلغ فاتورة معين',
-                        'specific_item': 'عند شراء منتج محدد'
-                      }, (val) => setState(() => _triggerType = val!)),
-                      
-                      if (_triggerType == 'min_order')
-                        _buildTextField(_minOrderValueController, "المبلغ المطلوب بالجنية", Icons.payments_outlined, isNumber: true),
-                      
-                      if (_triggerType == 'specific_item') ...[
-                        _buildOfferPicker("اختر المنتج الشرطي", (id) => _selectedTriggerOfferId = id),
-                        _buildTextField(_triggerQtyBaseController, "الكمية اللازم شراؤها", Icons.shopping_cart_checkout, isNumber: true),
-                      ],
-
-                      const Divider(height: 30),
-                      _sectionTitle("تفاصيل الهدية الممنوحة 🎁"),
-                      _buildOfferPicker("اختر منتج الهدية", (id) => _selectedGiftOfferId = id),
-                      Row(
-                        children: [
-                          Expanded(child: _buildTextField(_giftQtyPerBaseController, "كمية الهدية", Icons.card_giftcard, isNumber: true)),
-                          SizedBox(width: 3.w),
-                          Expanded(child: _buildTextField(_promoQuantityController, "إجمالي المحجوز", Icons.inventory_2, isNumber: true)),
-                        ],
-                      ),
-                      
-                      SizedBox(height: 20.sp),
-                      _buildSubmitButton(),
-                      SizedBox(height: 10.sp),
-                    ],
+      // ✅ تعديل الـ Body ليسمح بالتمرير وعرض التصميم كاملاً
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            Stack(
+              children: [
+                // الخلفية الخضراء المنحنية
+                Container(
+                  height: 15.h,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF1B5E20),
+                    borderRadius: BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30))
                   ),
                 ),
-              ),
-              SizedBox(height: 5.h),
-            ],
-          ),
+                // الكارت الرئيسي
+                Container(
+                  margin: EdgeInsets.only(top: 2.h, left: 5.w, right: 5.w, bottom: 5.h),
+                  padding: EdgeInsets.all(15.sp),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: const Offset(0, 5))]
+                  ),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _sectionTitle("بيانات الحملة الترويجية"),
+                        _buildTextField(_promoNameController, "اسم العرض الترويجي", Icons.campaign_rounded),
+                        _buildDatePicker(),
+                        
+                        const Divider(height: 30),
+                        _sectionTitle("شروط الحصول على الهدية"),
+                        _buildDropdown("متى يستحق العميل الهدية؟", {
+                          'min_order': 'عند الوصول لمبلغ فاتورة معين',
+                          'specific_item': 'عند شراء منتج محدد'
+                        }, (val) => setState(() => _triggerType = val!)),
+                        
+                        if (_triggerType == 'min_order')
+                          _buildTextField(_minOrderValueController, "المبلغ المطلوب بالجنية", Icons.payments_outlined, isNumber: true),
+                        
+                        if (_triggerType == 'specific_item') ...[
+                          _buildOfferPicker("اختر المنتج الشرطي", (id) => _selectedTriggerOfferId = id),
+                          _buildTextField(_triggerQtyBaseController, "الكمية اللازم شراؤها", Icons.shopping_cart_checkout, isNumber: true),
+                        ],
+
+                        const Divider(height: 30),
+                        _sectionTitle("تفاصيل الهدية الممنوحة 🎁"),
+                        _buildOfferPicker("اختر منتج الهدية", (id) => _selectedGiftOfferId = id),
+                        Row(
+                          children: [
+                            Expanded(child: _buildTextField(_giftQtyPerBaseController, "كمية الهدية", Icons.card_giftcard, isNumber: true)),
+                            SizedBox(width: 3.w),
+                            Expanded(child: _buildTextField(_promoQuantityController, "إجمالي المحجوز", Icons.inventory_2, isNumber: true)),
+                          ],
+                        ),
+                        
+                        SizedBox(height: 20.sp),
+                        _buildSubmitButton(),
+                        SizedBox(height: 10.sp),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
