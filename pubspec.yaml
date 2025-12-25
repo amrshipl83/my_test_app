@@ -9,7 +9,6 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  # 🎯 إضافة دعم اللغات والاتجاهات (RTL)
   flutter_localizations:
     sdk: flutter
 
@@ -69,9 +68,18 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
+  # إضافة أداة الأيقونات هنا
+  flutter_launcher_icons: ^0.13.1
+
+# إعدادات الأيقونة الجديدة
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/app_icon.png"
 
 flutter:
   uses-material-design: true
   assets:
     - assets/
+    - assets/images/
 
