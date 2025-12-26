@@ -1,7 +1,7 @@
 // lib/widgets/seller/seller_sidebar.dart
 import 'package:flutter/material.dart';
 import 'package:sizer/sizer.dart';
-import 'package:my_test_app/services/user_session.dart'; // 🎯 استيراد الجلسة
+import 'package:my_test_app/services/user_session.dart'; // 🎯 استيراد الجلسة للصلاحيات
 import 'package:my_test_app/screens/seller/seller_overview_screen.dart';
 import 'package:my_test_app/screens/seller/add_offer_screen.dart';
 import 'package:my_test_app/screens/seller/offers_screen.dart';
@@ -132,14 +132,13 @@ class _SellerSidebarState extends State<SellerSidebar> {
     _initializeMenu();
   }
 
-  // 🕵️ دالة بناء القائمة بناءً على الصلاحيات
   void _initializeMenu() {
     final currentSellerId = widget.sellerId;
-    final bool canEdit = UserSession.canEdit; // التأكد من الصلاحية من الجلسة
+    final bool canEdit = UserSession.canEdit; // 🎯 التحقق من الصلاحية
 
     List<Map<String, dynamic>> items = [];
 
-    // 1. العناصر المتاحة دائماً (للمدير والموظف)
+    // 1. نظرة عامة (للجميع)
     items.add({
       'title': 'نظرة عامة',
       'icon': Icons.dashboard_rounded,
@@ -147,7 +146,7 @@ class _SellerSidebarState extends State<SellerSidebar> {
       'route': 'نظرة عامة'
     });
 
-    // 2. العناصر المشروطة بصلاحية التعديل (المدير فقط)
+    // 2. إضافة عرض (للمدير فقط) 🚫
     if (canEdit) {
       items.add({
         'title': 'إضافة عرض',
@@ -157,7 +156,7 @@ class _SellerSidebarState extends State<SellerSidebar> {
       });
     }
 
-    // 3. عناصر المتابعة (متاحة للجميع)
+    // 3. العروض، الطلبات، والتقارير (للجميع)
     items.addAll([
       {
         'title': 'العروض المتاحة',
@@ -171,17 +170,17 @@ class _SellerSidebarState extends State<SellerSidebar> {
         'screen': OrdersScreen(sellerId: currentSellerId),
         'route': 'الطلبات'
       },
+      {
+        'title': 'التقارير',
+        'icon': Icons.pie_chart_rounded,
+        'screen': ReportsScreen(sellerId: currentSellerId),
+        'route': 'التقارير'
+      },
     ]);
 
-    // 4. العناصر الإدارية (للمدير فقط)
+    // 4. الهدايا وتحديد مناطق التوصيل (للمدير فقط) 🚫
     if (canEdit) {
       items.addAll([
-        {
-          'title': 'التقارير',
-          'icon': Icons.pie_chart_rounded,
-          'screen': ReportsScreen(sellerId: currentSellerId),
-          'route': 'التقارير'
-        },
         {
           'title': 'الهدايا الترويجية',
           'icon': Icons.card_giftcard_rounded,
@@ -193,13 +192,13 @@ class _SellerSidebarState extends State<SellerSidebar> {
           'icon': Icons.map_rounded,
           'screen': DeliveryAreaScreen(
               currentSellerId: currentSellerId,
-              hasWriteAccess: widget.hasWriteAccess),
+              hasWriteAccess: true), 
           'route': 'تحديد مناطق التوصيل'
         },
       ]);
     }
 
-    // 5. عناصر الحساب (متاحة للجميع)
+    // 5. حساب المنصة وحسابي (للجميع)
     items.addAll([
       {
         'title': 'حساب المنصة',
