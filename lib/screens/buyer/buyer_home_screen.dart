@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_messaging/firebase_messaging.dart'; // 🎯 إضافة الاستيراد
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'dart:convert';
 
 // الاستيرادات الأساسية
@@ -12,6 +12,8 @@ import 'package:my_test_app/screens/buyer/cart_screen.dart';
 import 'package:my_test_app/screens/buyer/traders_screen.dart';
 import 'package:my_test_app/widgets/buyer_header_widget.dart';
 import 'package:my_test_app/widgets/buyer_mobile_nav_widget.dart';
+// 🎯 استيراد ودجت الشات
+import 'package:my_test_app/widgets/chat_support_widget.dart'; 
 
 final FirebaseAuth _auth = FirebaseAuth.instance;
 final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -48,8 +50,6 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
     if (_currentUserId == null) return;
 
     FirebaseMessaging messaging = FirebaseMessaging.instance;
-
-    // طلب الإذن (مهم جداً لأندرويد 13 فما فوق)
     NotificationSettings settings = await messaging.requestPermission(
       alert: true,
       badge: true,
@@ -57,7 +57,6 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
     );
 
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-      // الحصول على التوكن وتحديثه في مستند المستخدم
       String? token = await messaging.getToken();
       if (token != null) {
         await _db.collection('users').doc(_currentUserId).update({
@@ -95,9 +94,7 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
     if (userAuth == null) return;
     _currentUserId = userAuth.uid;
 
-    // 🚀 تشغيل منطق الإشعارات فور الدخول
     await _setupNotifications();
-
     final prefs = await SharedPreferences.getInstance();
     _updateCartCount(prefs);
 
@@ -205,10 +202,19 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
           cartCount: _cartCount,
           ordersChanged: _ordersChanged,
         ),
+        // 🚀 تم تحديث زر الشات هنا ليعمل مع المساعد الذكي
         floatingActionButton: FloatingActionButton(
-          onPressed: () {},
+          heroTag: "buyer_home_chat_btn",
+          onPressed: () {
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (context) => const ChatSupportWidget(),
+            );
+          },
           backgroundColor: const Color(0xFF4CAF50),
-          child: const Icon(Icons.message_rounded, color: Colors.white),
+          child: const Icon(Icons.support_agent, color: Colors.white, size: 30),
         ),
       ),
     );

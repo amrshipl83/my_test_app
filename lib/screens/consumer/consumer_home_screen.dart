@@ -6,6 +6,8 @@ import 'package:my_test_app/services/consumer_data_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart'; // 🎯 إضافة الإشعارات
 import 'package:cloud_firestore/cloud_firestore.dart'; // 🎯 إضافة الفايرستور للتوكن
+// 🎯 استيراد ودجت الشات
+import 'package:my_test_app/widgets/chat_support_widget.dart'; 
 
 class ConsumerHomeScreen extends StatefulWidget {
   static const routeName = '/consumerHome';
@@ -30,7 +32,6 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
     if (user == null) return;
 
     FirebaseMessaging messaging = FirebaseMessaging.instance;
-
     // طلب إذن الإشعارات
     NotificationSettings settings = await messaging.requestPermission(
       alert: true,
@@ -53,9 +54,9 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-    
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA), 
+      backgroundColor: const Color(0xFFF8F9FA),
       // إضافة الـ Drawer هنا ليعمل مع زر المنيو
       drawer: const ConsumerSideMenu(),
       
@@ -65,12 +66,12 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
         child: Builder(
           builder: (context) => ConsumerCustomAppBar(
             userName: user?.displayName ?? 'مستخدم',
-            userPoints: 0, 
+            userPoints: 0,
             onMenuPressed: () => Scaffold.of(context).openDrawer(),
           ),
         ),
       ),
-
+      
       body: SafeArea(
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
@@ -96,7 +97,6 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
                   return ConsumerCategoriesBanner(categories: categories);
                 },
               ),
-
               const SizedBox(height: 10),
 
               // 4. قسم العروض الحصرية
@@ -114,15 +114,29 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
                   return ConsumerPromoBanners(banners: banners, height: 220);
                 },
               ),
-
-              const SizedBox(height: 80), 
+              const SizedBox(height: 80),
             ],
           ),
         ),
       ),
-
+      
       // 5. شريط التنقل السفلي
       bottomNavigationBar: const ConsumerFooterNav(cartCount: 0, activeIndex: 0),
+
+      // 🚀 6. إضافة زر الشات الذكي للمستهلك
+      floatingActionButton: FloatingActionButton(
+        heroTag: "consumer_chat_btn", // تاغ فريد للمستهلك
+        onPressed: () {
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (context) => const ChatSupportWidget(),
+          );
+        },
+        backgroundColor: const Color(0xFF43A047), // لون المستهلك الأخضر
+        child: const Icon(Icons.support_agent, color: Colors.white, size: 30),
+      ),
     );
   }
 }
