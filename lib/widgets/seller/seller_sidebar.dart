@@ -1,6 +1,7 @@
 // lib/widgets/seller/seller_sidebar.dart
 import 'package:flutter/material.dart';
 import 'package:sizer/sizer.dart';
+import 'package:my_test_app/services/user_session.dart'; // 🎯 استيراد الجلسة
 import 'package:my_test_app/screens/seller/seller_overview_screen.dart';
 import 'package:my_test_app/screens/seller/add_offer_screen.dart';
 import 'package:my_test_app/screens/seller/offers_screen.dart';
@@ -131,21 +132,33 @@ class _SellerSidebarState extends State<SellerSidebar> {
     _initializeMenu();
   }
 
+  // 🕵️ دالة بناء القائمة بناءً على الصلاحيات
   void _initializeMenu() {
     final currentSellerId = widget.sellerId;
-    _menuItems = [
-      {
-        'title': 'نظرة عامة',
-        'icon': Icons.dashboard_rounded,
-        'screen': const SellerOverviewScreen(),
-        'route': 'نظرة عامة'
-      },
-      {
+    final bool canEdit = UserSession.canEdit; // التأكد من الصلاحية من الجلسة
+
+    List<Map<String, dynamic>> items = [];
+
+    // 1. العناصر المتاحة دائماً (للمدير والموظف)
+    items.add({
+      'title': 'نظرة عامة',
+      'icon': Icons.dashboard_rounded,
+      'screen': const SellerOverviewScreen(),
+      'route': 'نظرة عامة'
+    });
+
+    // 2. العناصر المشروطة بصلاحية التعديل (المدير فقط)
+    if (canEdit) {
+      items.add({
         'title': 'إضافة عرض',
         'icon': Icons.add_box_rounded,
         'screen': const AddOfferScreen(),
         'route': 'إضافة عرض'
-      },
+      });
+    }
+
+    // 3. عناصر المتابعة (متاحة للجميع)
+    items.addAll([
       {
         'title': 'العروض المتاحة',
         'icon': Icons.local_offer_rounded,
@@ -155,30 +168,39 @@ class _SellerSidebarState extends State<SellerSidebar> {
       {
         'title': 'الطلبات',
         'icon': Icons.assignment_rounded,
-        // ✅ تم التصحيح: استبدال userId بـ sellerId وحذف userRole غير المعرف
         'screen': OrdersScreen(sellerId: currentSellerId),
         'route': 'الطلبات'
       },
-      {
-        'title': 'التقارير',
-        'icon': Icons.pie_chart_rounded,
-        'screen': ReportsScreen(sellerId: currentSellerId),
-        'route': 'التقارير'
-      },
-      {
-        'title': 'الهدايا الترويجية',
-        'icon': Icons.card_giftcard_rounded,
-        'screen': CreateGiftPromoScreen(currentSellerId: currentSellerId),
-        'route': 'الهدايا الترويجية'
-      },
-      {
-        'title': 'تحديد مناطق التوصيل',
-        'icon': Icons.map_rounded,
-        'screen': DeliveryAreaScreen(
-            currentSellerId: currentSellerId,
-            hasWriteAccess: widget.hasWriteAccess),
-        'route': 'تحديد مناطق التوصيل'
-      },
+    ]);
+
+    // 4. العناصر الإدارية (للمدير فقط)
+    if (canEdit) {
+      items.addAll([
+        {
+          'title': 'التقارير',
+          'icon': Icons.pie_chart_rounded,
+          'screen': ReportsScreen(sellerId: currentSellerId),
+          'route': 'التقارير'
+        },
+        {
+          'title': 'الهدايا الترويجية',
+          'icon': Icons.card_giftcard_rounded,
+          'screen': CreateGiftPromoScreen(currentSellerId: currentSellerId),
+          'route': 'الهدايا الترويجية'
+        },
+        {
+          'title': 'تحديد مناطق التوصيل',
+          'icon': Icons.map_rounded,
+          'screen': DeliveryAreaScreen(
+              currentSellerId: currentSellerId,
+              hasWriteAccess: widget.hasWriteAccess),
+          'route': 'تحديد مناطق التوصيل'
+        },
+      ]);
+    }
+
+    // 5. عناصر الحساب (متاحة للجميع)
+    items.addAll([
       {
         'title': 'حساب المنصة',
         'icon': Icons.account_balance_rounded,
@@ -191,7 +213,9 @@ class _SellerSidebarState extends State<SellerSidebar> {
         'screen': SellerSettingsScreen(currentSellerId: currentSellerId),
         'route': 'حسابي'
       },
-    ];
+    ]);
+
+    _menuItems = items;
   }
 
   @override
@@ -251,8 +275,7 @@ class _SellerSidebarState extends State<SellerSidebar> {
               padding: EdgeInsets.symmetric(horizontal: 2.h, vertical: 1.h),
               child: TextButton.icon(
                 onPressed: widget.onLogout,
-                icon:
-                    const Icon(Icons.logout_rounded, color: Colors.redAccent),
+                icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
                 label: Text(
                   'تسجيل الخروج',
                   style: TextStyle(
