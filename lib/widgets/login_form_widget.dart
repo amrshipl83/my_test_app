@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:my_test_app/helpers/auth_service.dart';
 import 'package:my_test_app/screens/forgot_password_screen.dart';
-import 'package:my_test_app/services/user_session.dart'; // 🎯 الجلسة
+import 'package:my_test_app/services/user_session.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -25,10 +25,11 @@ class _LoginFormWidgetState extends State<LoginFormWidget> {
   final AuthService _authService = AuthService();
   final Color primaryGreen = const Color(0xff28a745);
 
-  // 1. 🕵️ دالة تحديد هل هو مدير أم موظف (مضافة للمنطق الجديد)
+  // 🎯 1. الدالة المعدلة: تبحث في المجموعات المستقلة وتفحص تغيير الباسورد
   Future<void> _setupSellerSession(String phone, String uid) async {
     final firestore = FirebaseFirestore.instance;
-    // فحص هل هو المورد الأساسي
+
+    // أولاً: هل هو التاجر الأساسي؟
     var adminDoc = await firestore.collection("sellers").doc(uid).get();
     if (adminDoc.exists && adminDoc.data()?['phone'] == phone) {
       UserSession.role = 'full';
@@ -36,18 +37,68 @@ class _LoginFormWidgetState extends State<LoginFormWidget> {
       UserSession.userId = uid;
       return;
     }
-    // فحص هل هو موظف (Sub-User) داخل مصفوفة أي مورد
-    var allSellers = await firestore.collection("sellers").get();
-    for (var doc in allSellers.docs) {
-      List subs = doc.data()['subUsers'] ?? [];
-      var match = subs.firstWhere((u) => u['phone'] == phone, orElse: () => null);
-      if (match != null) {
-        UserSession.role = match['role'];
-        UserSession.ownerId = doc.id; // ربطه بصاحب العمل الأساسي لإرسال الإشعارات
-        UserSession.userId = uid;
-        return;
+
+    // ثانياً: البحث في المجموعة المستقلة للموظفين (أسرع وأدق)
+    var subUserDoc = await firestore.collection("subUsers").doc(phone).get();
+    if (subUserDoc.exists) {
+      var data = subUserDoc.data()!;
+      UserSession.role = data['role'];
+      UserSession.ownerId = data['parentSellerId']; // ربطه بالتاجر الأساسي
+      UserSession.userId = uid;
+
+      // 🚨 فحص هل يحتاج تغيير كلمة السر؟
+      if (data['mustChangePassword'] == true) {
+        _showChangePasswordDialog(phone);
       }
+      return;
     }
+  }
+
+  // 🔐 2. المربع الحواري لإجبار الموظف على تغيير كلمة السر
+  void _showChangePasswordDialog(String phone) {
+    final TextEditingController newPassController = TextEditingController();
+    showDialog(
+      context: context,
+      barrierDismissible: false, // لا يمكن إغلاقه إلا بالتغيير
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text("تأمين الحساب", textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text("هذه أول مرة تدخل فيها، يرجى تعيين كلمة سر جديدة لحماية حسابك."),
+            const SizedBox(height: 15),
+            TextField(
+              controller: newPassController,
+              obscureText: true,
+              decoration: InputDecoration(
+                hintText: "كلمة السر الجديدة",
+                filled: true,
+                fillColor: Colors.grey[100],
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: primaryGreen),
+            onPressed: () async {
+              if (newPassController.text.length < 6) return;
+              
+              // تحديث الباسورد في Auth
+              await FirebaseAuth.instance.currentUser?.updatePassword(newPassController.text.trim());
+              // تحديث الحالة في Firestore
+              await FirebaseFirestore.instance.collection("subUsers").doc(phone).update({
+                'mustChangePassword': false,
+              });
+              Navigator.pop(context); // إغلاق المربع
+            },
+            child: const Text("حفظ ودخول", style: TextStyle(color: Colors.white)),
+          )
+        ],
+      ),
+    );
   }
 
   void _showPendingDialog() {
@@ -85,7 +136,6 @@ class _LoginFormWidgetState extends State<LoginFormWidget> {
       String fakeEmail = "${_phone.trim()}@aswaq.com";
       final String userRole = await _authService.signInWithEmailAndPassword(fakeEmail, _password);
 
-      // --- 🎯 الجزء الحاسم: إعداد الجلسة قبل الإشعارات ---
       if (userRole == 'seller') {
         User? currentUser = FirebaseAuth.instance.currentUser;
         if (currentUser != null) {
@@ -93,35 +143,32 @@ class _LoginFormWidgetState extends State<LoginFormWidget> {
         }
       }
 
-      // --- 🔔 جزء الإشعارات الأصلي + توافق الموظفين ---
+      // --- جزء الإشعارات المتوافق مع الموظفين ---
       try {
         String? token = await FirebaseMessaging.instance.getToken();
         String? uid = FirebaseAuth.instance.currentUser?.uid;
 
         if (token != null && uid != null) {
-          // الحفاظ على المنطق الأصلي في اختيار الـ Collection
+          // الموظف يتم معاملته كـ "seller" في الإشعارات لضمان وصول طلبات المحل له
           String collection = (userRole == 'seller') ? 'sellers' : (userRole == 'consumer' ? 'consumers' : 'users');
-          
-          // تحديث التوكن في فايرستور للمستخدم الحالي (سواء موظف أو مدير)
+
           await FirebaseFirestore.instance.collection(collection).doc(uid).set({
             'notificationToken': token,
-            'fcmToken': token, // لضمان التوافق مع أي كود خارجي
+            'fcmToken': token,
             'platform': 'android',
           }, SetOptions(merge: true));
 
-          // 🎯 إرسال التوكن لـ API أمازون (الرابط الأصلي)
-          // ملاحظة: الموظف سيرسل الـ ownerId لكي تصله طلبات المحل
-          String targetIdForApi = (userRole == 'seller' && UserSession.ownerId != null) 
-              ? UserSession.ownerId! 
+          String targetIdForApi = (userRole == 'seller' && UserSession.ownerId != null)
+              ? UserSession.ownerId!
               : uid;
 
           const String apiUrl = "https://5uex7vzy64.execute-api.us-east-1.amazonaws.com/V2/new_nofiction";
           await http.post(
-            Uri.parse(apiUrl), 
+            Uri.parse(apiUrl),
             headers: {"Content-Type": "application/json"},
             body: jsonEncode({
-              "userId": targetIdForApi, // هنا يتم الربط السحري
-              "fcmToken": token, 
+              "userId": targetIdForApi,
+              "fcmToken": token,
               "role": userRole
             })
           );
@@ -152,7 +199,6 @@ class _LoginFormWidgetState extends State<LoginFormWidget> {
 
   @override
   Widget build(BuildContext context) {
-    // ... (بقية كود الواجهة كما هو تماماً في الأصل دون تغيير) ...
     return Form(
       key: _formKey,
       child: Column(
@@ -195,7 +241,8 @@ class _LoginFormWidgetState extends State<LoginFormWidget> {
 
   Widget _buildSubmitButton() {
     return Container(
-      width: double.infinity, height: 55,
+      width: double.infinity,
+      height: 55,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(15),
         gradient: LinearGradient(colors: [primaryGreen, const Color(0xff1e7e34)]),
@@ -203,7 +250,8 @@ class _LoginFormWidgetState extends State<LoginFormWidget> {
       child: ElevatedButton(
         onPressed: _isLoading ? null : _submitLogin,
         style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.transparent, shadowColor: Colors.transparent,
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
         ),
         child: _isLoading
@@ -224,7 +272,6 @@ class _LoginFormWidgetState extends State<LoginFormWidget> {
   }
 }
 
-// ... (Widget _InputGroup remains same as original) ...
 class _InputGroup extends StatelessWidget {
   final IconData icon;
   final String hintText;
@@ -234,8 +281,12 @@ class _InputGroup extends StatelessWidget {
   final FormFieldSetter<String> onSaved;
 
   const _InputGroup({
-    required this.icon, required this.hintText, required this.validator, required this.onSaved,
-    this.isPassword = false, this.keyboardType = TextInputType.text,
+    required this.icon,
+    required this.hintText,
+    required this.validator,
+    required this.onSaved,
+    this.isPassword = false,
+    this.keyboardType = TextInputType.text,
   });
 
   @override

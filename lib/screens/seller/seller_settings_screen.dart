@@ -1,7 +1,7 @@
 // lib/screens/seller/seller_settings_screen.dart
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // 🎯 لإدارة بوابة الدخول
+import 'package:firebase_auth/firebase_auth.dart'; 
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -26,6 +26,8 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
   bool _isUploading = false;
 
   Map<String, dynamic> sellerDataCache = {};
+  List<Map<String, dynamic>> subUsersList = []; // قائمة الموظفين من المجموعة الجديدة
+
   final _merchantNameController = TextEditingController();
   final _minOrderTotalController = TextEditingController();
   final _deliveryFeeController = TextEditingController();
@@ -36,27 +38,45 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
   @override
   void initState() {
     super.initState();
-    _loadSellerData();
+    _refreshData();
+  }
+
+  // تحديث البيانات (التاجر + الموظفين)
+  Future<void> _refreshData() async {
+    setState(() => _isLoading = true);
+    await _loadSellerData();
+    await _loadSubUsersFromCollection();
+    setState(() => _isLoading = false);
   }
 
   Future<void> _loadSellerData() async {
-    setState(() => _isLoading = true);
     try {
       final doc = await _firestore.collection("sellers").doc(widget.currentSellerId).get();
       if (doc.exists) {
-        setState(() {
-          sellerDataCache = doc.data()!;
-          _merchantNameController.text = sellerDataCache['merchantName'] ?? '';
-          _minOrderTotalController.text = (sellerDataCache['minOrderTotal'] ?? 0.0).toString();
-          _deliveryFeeController.text = (sellerDataCache['deliveryFee'] ?? 0.0).toString();
-        });
+        sellerDataCache = doc.data()!;
+        _merchantNameController.text = sellerDataCache['merchantName'] ?? '';
+        _minOrderTotalController.text = (sellerDataCache['minOrderTotal'] ?? 0.0).toString();
+        _deliveryFeeController.text = (sellerDataCache['deliveryFee'] ?? 0.0).toString();
       }
-    } finally {
-      setState(() => _isLoading = false);
+    } catch (e) {
+      debugPrint("Error loading seller data: $e");
     }
   }
 
-  // 🎯 تحديث الحد الأدنى ومصاريف التوصيل
+  // 🎯 تحميل الموظفين من المجموعة المستقلة
+  Future<void> _loadSubUsersFromCollection() async {
+    try {
+      final snapshot = await _firestore
+          .collection("subUsers")
+          .where("parentSellerId", isEqualTo: widget.currentSellerId)
+          .get();
+      
+      subUsersList = snapshot.docs.map((doc) => doc.data()).toList();
+    } catch (e) {
+      debugPrint("Error loading sub-users: $e");
+    }
+  }
+
   Future<void> _updateSettings() async {
     setState(() => _isLoading = true);
     try {
@@ -73,20 +93,18 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
     }
   }
 
-  // 🗑️ حذف الموظف من القائمة
-  Future<void> _removeSubUser(Map u) async {
+  // 🗑️ حذف الموظف من المجموعة المستقلة
+  Future<void> _removeSubUser(String phone) async {
     try {
-      await _firestore.collection("sellers").doc(widget.currentSellerId).update({
-        'subUsers': FieldValue.arrayRemove([u])
-      });
-      _loadSellerData();
-      _showFloatingAlert("🗑️ تم حذف الموظف من القائمة");
+      await _firestore.collection("subUsers").doc(phone).delete();
+      await _refreshData(); // إعادة تحميل القائمة
+      _showFloatingAlert("🗑️ تم حذف الموظف وإلغاء صلاحياته");
     } catch (e) {
       _showFloatingAlert("❌ خطأ أثناء الحذف", isError: true);
     }
   }
 
-  // ➕ إضافة موظف جديد + إنشاء حساب Auth تلقائياً
+  // ➕ إضافة موظف جديد (مجموعة مستقلة + Auth)
   Future<void> _addSubUser() async {
     final phone = _subUserPhoneController.text.trim();
     if (phone.isEmpty) {
@@ -96,33 +114,32 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
 
     setState(() => _isLoading = true);
     try {
-      // 1. 🔑 الخطوة الأهم: إنشاء الإيميل الوهمي والحساب في بوابة الدخول
+      // 1. إنشاء حساب Auth
       String fakeEmail = "$phone@aswaq.com";
       try {
         await _auth.createUserWithEmailAndPassword(
           email: fakeEmail,
-          password: "123456", // كلمة المرور الافتراضية
+          password: "123456",
         );
       } catch (authError) {
-        // إذا كان الحساب موجوداً مسبقاً لا نتوقف، فقط نحدث بياناته في Firestore
-        debugPrint("Auth Error (User might exist): $authError");
+        debugPrint("Auth User might already exist: $authError");
       }
 
-      // 2. 📝 إضافة الموظف في Firestore
-      final newSub = {
+      // 2. إضافة لـ Firestore في مجموعة subUsers
+      final subData = {
         'phone': phone,
         'role': _selectedSubUserRole,
-        'mustChangePassword': true,
-        'addedAt': DateTime.now().toIso8601String(),
+        'parentSellerId': widget.currentSellerId,
+        'mustChangePassword': true, // 🎯 المطلب الأساسي للتغيير عند الدخول
+        'addedAt': FieldValue.serverTimestamp(),
+        'merchantName': sellerDataCache['merchantName'] ?? 'متجر',
       };
 
-      await _firestore.collection("sellers").doc(widget.currentSellerId).update({
-        'subUsers': FieldValue.arrayUnion([newSub])
-      });
+      await _firestore.collection("subUsers").doc(phone).set(subData, SetOptions(merge: true));
 
       _subUserPhoneController.clear();
-      _loadSellerData();
-      _showFloatingAlert("✅ تمت إضافة الموظف وتفعيل حسابه.\nكلمة المرور: 123456");
+      await _refreshData();
+      _showFloatingAlert("✅ تمت إضافة الموظف بنجاح.\nكلمة المرور الافتراضية: 123456");
     } catch (e) {
       _showFloatingAlert("❌ فشل في إضافة الموظف: $e", isError: true);
     } finally {
@@ -141,10 +158,10 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(isError ? Icons.error_outline : Icons.check_circle_outline,
-                   color: isError ? Colors.red : primaryColor, size: 60),
+                  color: isError ? Colors.red : primaryColor, size: 60),
               const SizedBox(height: 20),
               Text(message, textAlign: TextAlign.center,
-                   style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.bold, height: 1.5)),
+                  style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.bold, height: 1.5)),
               const SizedBox(height: 25),
               SizedBox(
                 width: double.infinity,
@@ -179,62 +196,61 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
           centerTitle: true,
         ),
         body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: primaryColor))
-          : SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-              child: Column(
-                children: [
-                  _buildLogoHeader(),
-                  const SizedBox(height: 30),
-                  _buildSectionTitle("بيانات العمل"),
-                  _buildModernField("اسم النشاط", _merchantNameController, Icons.storefront),
-                  _buildReadOnlyField("نوع النشاط", sellerDataCache['businessType'] ?? 'فلاتر', Icons.category),
-                  Row(
-                    children: [
-                      Expanded(child: _buildModernField("الحد الأدنى للطلب", _minOrderTotalController, Icons.shopping_basket, isNum: true)),
-                      const SizedBox(width: 15),
-                      Expanded(child: _buildModernField("مصاريف الشحن", _deliveryFeeController, Icons.local_shipping, isNum: true)),
-                    ],
-                  ),
-                  _buildMainButton("حفظ الإعدادات", Icons.check_circle, _updateSettings),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 25),
-                    child: Divider(color: Color(0xfff1f1f1)),
-                  ),
-                  _buildSectionTitle("الموظفين (الصلاحيات)"),
-                  _buildModernField("رقم هاتف الموظف", _subUserPhoneController, Icons.phone_android, isNum: true),
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 15),
-                    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xfff8f9fa),
-                      borderRadius: BorderRadius.circular(15),
-                      border: Border.all(color: const Color(0xffe9ecef)),
+            ? const Center(child: CircularProgressIndicator(color: primaryColor))
+            : SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                child: Column(
+                  children: [
+                    _buildLogoHeader(),
+                    const SizedBox(height: 30),
+                    _buildSectionTitle("بيانات العمل"),
+                    _buildModernField("اسم النشاط", _merchantNameController, Icons.storefront),
+                    _buildReadOnlyField("نوع النشاط", sellerDataCache['businessType'] ?? 'غير محدد', Icons.category),
+                    Row(
+                      children: [
+                        Expanded(child: _buildModernField("الحد الأدنى", _minOrderTotalController, Icons.shopping_basket, isNum: true)),
+                        const SizedBox(width: 15),
+                        Expanded(child: _buildModernField("التوصيل", _deliveryFeeController, Icons.local_shipping, isNum: true)),
+                      ],
                     ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: _selectedSubUserRole,
-                        isExpanded: true,
-                        items: const [
-                          DropdownMenuItem(value: 'full', child: Text('صلاحية كاملة (مدير)')),
-                          DropdownMenuItem(value: 'read_only', child: Text('صلاحية عرض فقط (موظف)')),
-                        ],
-                        onChanged: (v) => setState(() => _selectedSubUserRole = v!),
+                    _buildMainButton("حفظ الإعدادات", Icons.check_circle, _updateSettings),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 25),
+                      child: Divider(color: Color(0xfff1f1f1)),
+                    ),
+                    _buildSectionTitle("الموظفين (الصلاحيات)"),
+                    _buildModernField("رقم هاتف الموظف", _subUserPhoneController, Icons.phone_android, isNum: true),
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 15),
+                      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xfff8f9fa),
+                        borderRadius: BorderRadius.circular(15),
+                        border: Border.all(color: const Color(0xffe9ecef)),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _selectedSubUserRole,
+                          isExpanded: true,
+                          items: const [
+                            DropdownMenuItem(value: 'full', child: Text('صلاحية كاملة (مدير)')),
+                            DropdownMenuItem(value: 'read_only', child: Text('عرض فقط (موظف)')),
+                          ],
+                          onChanged: (v) => setState(() => _selectedSubUserRole = v!),
+                        ),
                       ),
                     ),
-                  ),
-                  _buildMainButton("إضافة موظف", Icons.person_add, _addSubUser, color: Colors.blueGrey[700]!),
-                  const SizedBox(height: 25),
-                  _buildSubUsersList(),
-                  const SizedBox(height: 40),
-                ],
+                    _buildMainButton("إضافة موظف", Icons.person_add, _addSubUser, color: Colors.blueGrey[700]!),
+                    const SizedBox(height: 25),
+                    _buildSubUsersList(),
+                    const SizedBox(height: 40),
+                  ],
+                ),
               ),
-            ),
       ),
     );
   }
 
-  // --- UI Components ---
   Widget _buildModernField(String label, TextEditingController ctrl, IconData icon, {bool isNum = false}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 15),
@@ -318,16 +334,18 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
   }
 
   Widget _buildSubUsersList() {
-    final List users = sellerDataCache['subUsers'] as List? ?? [];
     return Column(
-      children: users.map((u) => Container(
+      children: subUsersList.map((u) => Container(
         margin: const EdgeInsets.only(bottom: 10),
         decoration: BoxDecoration(color: const Color(0xfff8f9fa), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xffe9ecef))),
         child: ListTile(
           leading: const CircleAvatar(backgroundColor: Colors.blueGrey, child: Icon(Icons.person, color: Colors.white)),
-          title: Text(u['phone'], style: const TextStyle(fontWeight: FontWeight.bold)),
+          title: Text(u['phone'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
           subtitle: Text(u['role'] == 'full' ? 'صلاحية كاملة' : 'عرض فقط'),
-          trailing: IconButton(icon: const Icon(Icons.delete_outline, color: Colors.redAccent), onPressed: () => _removeSubUser(u)),
+          trailing: IconButton(
+            icon: const Icon(Icons.delete_outline, color: Colors.redAccent), 
+            onPressed: () => _removeSubUser(u['phone'])
+          ),
         ),
       )).toList(),
     );
@@ -347,7 +365,7 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
         var responseData = await res.stream.bytesToString();
         var jsonRes = json.decode(responseData);
         await _firestore.collection("sellers").doc(widget.currentSellerId).update({'merchantLogoUrl': jsonRes['secure_url']});
-        _loadSellerData();
+        await _refreshData();
         _showFloatingAlert("✅ تم تحديث الشعار بنجاح");
       }
     } finally {

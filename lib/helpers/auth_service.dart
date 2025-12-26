@@ -23,44 +23,48 @@ class AuthService {
         email: email,
         password: password,
       );
-      
+
       final User? user = userCredential.user;
       if (user == null) throw Exception("user-null");
 
-      // البحث عن بيانات المستخدم كاملة في كل المجموعات بما فيها الانتظار
+      // البحث عن بيانات المستخدم في كل المجموعات بما فيها الموظفين الجدد
       final userData = await _getUserDataByEmail(email);
       final String userRole = userData['role'];
 
-      // 🎯 منطق التحقق من الحساب المعلق (Pending)
+      // منطق التحقق من الحساب المعلق
       if (userRole == 'pending') {
-        await _auth.signOut(); // طرده فوراً من النظام
-        throw 'auth/account-not-active'; // إرسال كود خطأ مخصص للـ UI
+        await _auth.signOut();
+        throw 'auth/account-not-active';
       }
 
       final String userAddress = userData['address'] ?? '';
       final String? userFullName = userData['fullname'] ?? userData['fullName'];
       final String? merchantName = userData['merchantName'];
       final String phoneToShow = userData['phone'] ?? email.split('@')[0];
-      
-      // جلب اللوكيشن {lat, lng} من الفايرستور
       final dynamic userLocation = userData['location'];
 
-      // حفظ البيانات في الذاكرة المحلية (فقط إذا كان الحساب مفعل)
+      // 🎯 تحديد الـ ownerId: إذا كان موظف نأخذ parentSellerId، وإذا كان تاجر نأخذ الـ UID الخاص به
+      final String effectiveOwnerId = (userData['parentSellerId'] != null) 
+          ? userData['parentSellerId'] 
+          : user.uid;
+
+      // حفظ البيانات في الذاكرة المحلية
       await _saveUserToLocalStorage(
         id: user.uid,
+        ownerId: effectiveOwnerId, // 🎯 حفظ الـ ownerId الصحيح للموظف
         role: userRole,
         fullname: userFullName,
         address: userAddress,
         merchantName: merchantName,
         phone: phoneToShow,
         location: userLocation,
+        isSubUser: userData['isSubUser'] ?? false, // 🎯 حفظ هل هو موظف أم لا
       );
 
       return userRole;
     } on FirebaseAuthException catch (e) {
       throw e.code;
     } catch (e) {
-      // إذا كان الخطأ هو عدم تفعيل الحساب، نمرره كما هو
       if (e == 'auth/account-not-active') throw e;
       throw 'auth/unknown-error';
     }
@@ -78,28 +82,39 @@ class AuthService {
   }
 
   Future<Map<String, dynamic>> _getUserDataByEmail(String email) async {
-    // 🎯 أضفنا pendingSellers هنا لتكون ضمن نطاق البحث
-    final collections = ['sellers', 'consumers', 'users', 'pendingSellers'];
-    
+    // 🎯 أضفنا 'subUsers' لمصفوفة المجموعات للبحث فيها
+    final collections = ['sellers', 'consumers', 'users', 'pendingSellers', 'subUsers'];
+
     for (var colName in collections) {
       try {
-        final snap = await _db.collection(colName).where('email', isEqualTo: email).limit(1).get();
-        if (snap.docs.isNotEmpty) {
-          final data = snap.docs.first.data();
-          String role = 'buyer';
+        // ملحوظة: في subUsers الإيميل هو (رقم الهاتف + @aswaq.com)
+        final snap = await _db.collection(colName).where('phone', isEqualTo: email.split('@')[0]).limit(1).get();
+        
+        // إذا لم نجد بالهاتف (للحسابات العادية) نبحث بالإيميل
+        QuerySnapshot snapToUse = snap;
+        if (snapToUse.docs.isEmpty) {
+          snapToUse = await _db.collection(colName).where('email', isEqualTo: email).limit(1).get();
+        }
 
-          // تحويل اسم المجموعة إلى "دور" (Role) برمي
+        if (snapToUse.docs.isNotEmpty) {
+          final data = snapToUse.docs.first.data();
+          String role = 'buyer';
+          bool isSubUser = false;
+
           if (colName == 'sellers') {
             role = 'seller';
+          } else if (colName == 'subUsers') {
+            role = 'seller'; // 🎯 الموظف يعامل كـ "seller" في الواجهة لكن بصلاحيات محددة
+            isSubUser = true;
           } else if (colName == 'consumers') {
             role = 'consumer';
           } else if (colName == 'users') {
             role = 'buyer';
           } else if (colName == 'pendingSellers') {
-            role = 'pending'; // 🎯 وسم الحساب كـ "معلق"
+            role = 'pending';
           }
 
-          return {...data, 'role': role};
+          return {...data, 'role': role, 'isSubUser': isSubUser};
         }
       } catch (e) {
         debugPrint("⚠️ خطأ في قراءة $colName: $e");
@@ -110,53 +125,29 @@ class AuthService {
 
   Future<void> _saveUserToLocalStorage({
     required String id,
+    required String ownerId, // 🎯 تم التحديث
     required String role,
     String? fullname,
     String? address,
     String? merchantName,
     String? phone,
     dynamic location,
+    bool isSubUser = false, // 🎯 تم التحديث
   }) async {
     final data = {
       'id': id,
-      'ownerId': id,
+      'ownerId': ownerId, // الآن الـ ownerId سليم للموظف والمدير
       'role': role,
       'fullname': fullname,
       'address': address,
       'merchantName': merchantName,
       'phone': phone,
       'location': location,
+      'isSubUser': isSubUser,
     };
     final prefs = await SharedPreferences.getInstance();
-    // 🎯 استخدام Key 'loggedUser' كما اتفقنا لضمان الثبات [2025-11-02]
     await prefs.setString('loggedUser', json.encode(data));
-    debugPrint("✅ تم حفظ بيانات المستخدم واللوكيشن بنجاح");
-  }
-
-  Future<String?> _requestFCMToken() async { 
-    try { 
-      return await FirebaseMessaging.instance.getToken(); 
-    } catch (e) { 
-      return null; 
-    } 
-  }
-
-  Future<void> _registerFcmEndpoint(String userId, String fcmToken, String userRole, String userAddress) async {
-    try {
-      final apiData = { 
-        'userId': userId, 
-        'fcmToken': fcmToken, 
-        'role': userRole, 
-        'address': userAddress 
-      };
-      await http.post(
-        Uri.parse(_notificationApiEndpoint), 
-        headers: {'Content-Type': 'application/json'}, 
-        body: json.encode(apiData)
-      );
-    } catch (e) { 
-      debugPrint("⚠️ AWS Error: $e"); 
-    }
+    debugPrint("✅ تم حفظ بيانات المستخدم والـ ownerId بنجاح");
   }
 }
 
