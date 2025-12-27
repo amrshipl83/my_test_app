@@ -41,7 +41,7 @@ class AuthService {
       final String phoneToShow = userData['phone'] ?? email.split('@')[0];
       final dynamic userLocation = userData['location'];
 
-      // 🎯 التصحيح هنا: استخدام sellerId بدلاً من parentSellerId للربط مع التاجر الأب
+      // 🎯 تحديد الـ OwnerId: إذا كان موظفاً نأخذ sellerId، وإذا كان تاجراً نأخذ uid الخاص به
       final String effectiveOwnerId = (userData['sellerId'] != null)
           ? userData['sellerId']
           : user.uid;
@@ -84,18 +84,16 @@ class AuthService {
 
     for (var colName in collections) {
       try {
-        // محاولة البحث بالـ Document ID أولاً (أسرع للموظفين) ثم بـ field phone
         DocumentSnapshot? docSnap;
         if (colName == 'subUsers') {
           docSnap = await _db.collection(colName).doc(phoneFromEmail).get();
         }
 
         if (docSnap != null && docSnap.exists) {
-           final Map<String, dynamic> data = docSnap.data() as Map<String, dynamic>;
-           return {...data, 'role': 'seller', 'isSubUser': true};
+          final Map<String, dynamic> data = docSnap.data() as Map<String, dynamic>;
+          return {...data, 'role': 'seller', 'isSubUser': true};
         }
 
-        // البحث التقليدي بالـ Query
         final snap = await _db
             .collection(colName)
             .where('phone', isEqualTo: phoneFromEmail)
@@ -109,7 +107,7 @@ class AuthService {
 
         if (snapToUse.docs.isNotEmpty) {
           final Map<String, dynamic> data = snapToUse.docs.first.data() as Map<String, dynamic>;
-          
+
           String role = 'buyer';
           bool isSubUser = false;
 
@@ -147,7 +145,10 @@ class AuthService {
     bool isSubUser = false,
   }) async {
     final data = {
-      'id': id,
+      // 🎯 توحيد الهوية: نضع ID المحل في خانة الـ ID الأساسية لجلب البيانات
+      'id': isSubUser ? ownerId : id,
+      // الاحتفاظ بـ ID الموظف الحقيقي للعمليات التي تتطلب معرفة الشخص
+      'realUserId': id,
       'ownerId': ownerId,
       'role': role,
       'fullname': fullname,
@@ -157,9 +158,11 @@ class AuthService {
       'location': location,
       'isSubUser': isSubUser,
     };
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('loggedUser', json.encode(data));
-    debugPrint("✅ تم حفظ البيانات (OwnerId: $ownerId, isSubUser: $isSubUser)");
+    debugPrint("✅ تم توحيد الهوية للمحل (OwnerId: $ownerId)");
+    if (isSubUser) debugPrint("👤 الهوية الحقيقية للموظف محفوظة بـ realUserId");
   }
 }
 
