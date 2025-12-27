@@ -162,15 +162,17 @@ class AuthService {
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('loggedUser', json.encode(data));
-    
+
     // تحديث بيانات الجلسة الحالية في الـ RAM لتعمل الصفحات فوراً
-    UserSession.id = id;
+    // 🎯 تم التعديل هنا ليكون userId بدلاً من id ليطابق كلاس UserSession
+    UserSession.userId = id; 
     UserSession.ownerId = ownerId;
     UserSession.role = role;
     UserSession.isSubUser = isSubUser;
     UserSession.merchantName = merchantName;
+    UserSession.phoneNumber = phone;
 
-    debugPrint("✅ تم حفظ الجلسة: الموظف ($id) يتبع المحر ($ownerId)");
+    debugPrint("✅ تم حفظ الجلسة: الموظف ($id) يتبع المحل ($ownerId)");
   }
 }
 
