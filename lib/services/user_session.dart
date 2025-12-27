@@ -1,27 +1,48 @@
 // lib/services/user_session.dart
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class UserSession {
-  // جعل الكلاس Singleton لضمان وجود نسخة واحدة فقط من البيانات في الذاكرة
   static final UserSession _instance = UserSession._internal();
   factory UserSession() => _instance;
-
   UserSession._internal();
 
-  // البيانات التي سيتم تخزينها فور تسجيل الدخول
-  static String? userId;      // الـ UID من Firebase Auth
-  static String? ownerId;     // معرف المورد الأساسي (صاحب العمل)
-  static String? role;        // 'full' أو 'read_only'
-  static String? phoneNumber; // رقم الهاتف
-  static String? merchantName; // اسم النشاط التجاري
-  static bool isSubUser = false; // 🎯 حقل جديد لتمييز الموظف عن التاجر صاحب الحساب
+  static String? userId;      
+  static String? ownerId;     
+  static String? role;        
+  static String? phoneNumber; 
+  static String? merchantName; 
+  static bool isSubUser = false;
 
-  // دالة ذكية لفحص الصلاحية
   static bool get isReadOnly => role == 'read_only';
+  static bool get canEdit => role == 'full' || !isSubUser;
 
-  // الصلاحية الكاملة تكون للمدير أو إذا لم يتم تحديد دور (كحساب تاجر أساسي)
-  static bool get canEdit => role == 'full' || !isSubUser; 
+  // 🎯 دالة جديدة لتحميل البيانات من الذاكرة الدائمة للذاكرة الحية
+  static Future<void> loadSession() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userData = prefs.getString('loggedUser');
+    
+    if (userData != null) {
+      final Map<String, dynamic> data = json.decode(userData);
+      userId = data['id'];
+      ownerId = data['ownerId'];
+      role = data['role'];
+      phoneNumber = data['phone'];
+      merchantName = data['merchantName'];
+      isSubUser = data['isSubUser'] ?? false;
+    }
+  }
 
-  // دالة لمسح البيانات عند تسجيل الخروج
+  // 🎯 دالة لتحديث البيانات يدوياً عند الحاجة
+  static void updateFromMap(Map<String, dynamic> data) {
+    userId = data['id'];
+    ownerId = data['ownerId'];
+    role = data['role'];
+    phoneNumber = data['phone'];
+    merchantName = data['merchantName'];
+    isSubUser = data['isSubUser'] ?? false;
+  }
+
   static void clear() {
     userId = null;
     ownerId = null;
