@@ -1,15 +1,18 @@
 // lib/screens/seller/seller_settings_screen.dart
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart'; 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:sizer/sizer.dart';
 
-const Color primaryColor = Color(0xff28a745);
-const String CLOUDINARY_URL = "https://api.cloudinary.com/v1_1/dcl96v8p6/image/upload";
-const String UPLOAD_PRESET = "aksab_presets";
+// 🎯 الألوان والثوابت - مطابقة للمرجع
+const Color primaryColor = Color(0xff28a745); 
+
+// 🎯 تعديل بيانات كلوديناري لتطابق الـ HTML تماماً
+const String CLOUDINARY_URL = "https://api.cloudinary.com/v1_1/dgmmx6jbu/image/upload";
+const String UPLOAD_PRESET = "preset_name"; 
 
 class SellerSettingsScreen extends StatefulWidget {
   final String currentSellerId;
@@ -26,7 +29,7 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
   bool _isUploading = false;
 
   Map<String, dynamic> sellerDataCache = {};
-  List<Map<String, dynamic>> subUsersList = []; // قائمة الموظفين من المجموعة الجديدة
+  List<Map<String, dynamic>> subUsersList = [];
 
   final _merchantNameController = TextEditingController();
   final _minOrderTotalController = TextEditingController();
@@ -41,7 +44,6 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
     _refreshData();
   }
 
-  // تحديث البيانات (التاجر + الموظفين)
   Future<void> _refreshData() async {
     setState(() => _isLoading = true);
     await _loadSellerData();
@@ -63,14 +65,12 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
     }
   }
 
-  // 🎯 تحميل الموظفين من المجموعة المستقلة
   Future<void> _loadSubUsersFromCollection() async {
     try {
       final snapshot = await _firestore
           .collection("subUsers")
           .where("parentSellerId", isEqualTo: widget.currentSellerId)
           .get();
-      
       subUsersList = snapshot.docs.map((doc) => doc.data()).toList();
     } catch (e) {
       debugPrint("Error loading sub-users: $e");
@@ -93,18 +93,42 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
     }
   }
 
-  // 🗑️ حذف الموظف من المجموعة المستقلة
-  Future<void> _removeSubUser(String phone) async {
+  Future<void> _uploadLogo() async {
+    final picker = ImagePicker();
+    final image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 50);
+    
+    if (image == null) return;
+
+    setState(() => _isUploading = true);
     try {
-      await _firestore.collection("subUsers").doc(phone).delete();
-      await _refreshData(); // إعادة تحميل القائمة
-      _showFloatingAlert("🗑️ تم حذف الموظف وإلغاء صلاحياته");
+      var request = http.MultipartRequest('POST', Uri.parse(CLOUDINARY_URL));
+      request.fields['upload_preset'] = UPLOAD_PRESET;
+      request.fields['folder'] = 'merchant_logos'; // كما هو في الـ HTML
+      request.files.add(await http.MultipartFile.fromPath('file', image.path));
+
+      var res = await request.send();
+      if (res.statusCode == 200) {
+        var responseData = await res.stream.bytesToString();
+        var jsonRes = json.decode(responseData);
+        String newUrl = jsonRes['secure_url'];
+
+        // تحديث الحقل المتوافق مع الـ HTML
+        await _firestore.collection("sellers").doc(widget.currentSellerId).update({
+          'merchantLogoUrl': newUrl
+        });
+        
+        await _refreshData();
+        _showFloatingAlert("✅ تم تحديث الشعار بنجاح");
+      } else {
+        _showFloatingAlert("❌ فشل رفع الصورة للسيرفر", isError: true);
+      }
     } catch (e) {
-      _showFloatingAlert("❌ خطأ أثناء الحذف", isError: true);
+      _showFloatingAlert("❌ حدث خطأ أثناء الرفع", isError: true);
+    } finally {
+      setState(() => _isUploading = false);
     }
   }
 
-  // ➕ إضافة موظف جديد (مجموعة مستقلة + Auth)
   Future<void> _addSubUser() async {
     final phone = _subUserPhoneController.text.trim();
     if (phone.isEmpty) {
@@ -114,72 +138,37 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
 
     setState(() => _isLoading = true);
     try {
-      // 1. إنشاء حساب Auth
       String fakeEmail = "$phone@aswaq.com";
       try {
-        await _auth.createUserWithEmailAndPassword(
-          email: fakeEmail,
-          password: "123456",
-        );
-      } catch (authError) {
-        debugPrint("Auth User might already exist: $authError");
-      }
+        await _auth.createUserWithEmailAndPassword(email: fakeEmail, password: "123456");
+      } catch (_) {}
 
-      // 2. إضافة لـ Firestore في مجموعة subUsers
       final subData = {
         'phone': phone,
         'role': _selectedSubUserRole,
         'parentSellerId': widget.currentSellerId,
-        'mustChangePassword': true, // 🎯 المطلب الأساسي للتغيير عند الدخول
+        'mustChangePassword': true,
         'addedAt': FieldValue.serverTimestamp(),
         'merchantName': sellerDataCache['merchantName'] ?? 'متجر',
       };
 
       await _firestore.collection("subUsers").doc(phone).set(subData, SetOptions(merge: true));
-
       _subUserPhoneController.clear();
       await _refreshData();
-      _showFloatingAlert("✅ تمت إضافة الموظف بنجاح.\nكلمة المرور الافتراضية: 123456");
-    } catch (e) {
-      _showFloatingAlert("❌ فشل في إضافة الموظف: $e", isError: true);
+      _showFloatingAlert("✅ تمت إضافة الموظف بنجاح.\nكلمة المرور: 123456");
     } finally {
       setState(() => _isLoading = false);
     }
   }
 
-  void _showFloatingAlert(String message, {bool isError = false}) {
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Padding(
-          padding: const EdgeInsets.all(25),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(isError ? Icons.error_outline : Icons.check_circle_outline,
-                  color: isError ? Colors.red : primaryColor, size: 60),
-              const SizedBox(height: 20),
-              Text(message, textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.bold, height: 1.5)),
-              const SizedBox(height: 25),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: isError ? Colors.red : primaryColor,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(vertical: 12)
-                  ),
-                  child: const Text("استمرار", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                ),
-              )
-            ],
-          ),
-        ),
-      ),
-    );
+  Future<void> _removeSubUser(String phone) async {
+    try {
+      await _firestore.collection("subUsers").doc(phone).delete();
+      await _refreshData();
+      _showFloatingAlert("🗑️ تم حذف الموظف بنجاح");
+    } catch (e) {
+      _showFloatingAlert("❌ خطأ أثناء الحذف", isError: true);
+    }
   }
 
   @override
@@ -190,7 +179,7 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
         backgroundColor: Colors.white,
         appBar: AppBar(
           elevation: 0,
-          title: const Text('إعدادات الحساب', style: TextStyle(fontWeight: FontWeight.w900)),
+          title: Text('إعدادات الحساب', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16.sp)),
           backgroundColor: primaryColor,
           foregroundColor: Colors.white,
           centerTitle: true,
@@ -198,52 +187,34 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
         body: _isLoading
             ? const Center(child: CircularProgressIndicator(color: primaryColor))
             : SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                padding: EdgeInsets.symmetric(horizontal: 5.w, vertical: 2.h),
                 child: Column(
                   children: [
                     _buildLogoHeader(),
-                    const SizedBox(height: 30),
+                    SizedBox(height: 4.h),
                     _buildSectionTitle("بيانات العمل"),
                     _buildModernField("اسم النشاط", _merchantNameController, Icons.storefront),
                     _buildReadOnlyField("نوع النشاط", sellerDataCache['businessType'] ?? 'غير محدد', Icons.category),
                     Row(
                       children: [
                         Expanded(child: _buildModernField("الحد الأدنى", _minOrderTotalController, Icons.shopping_basket, isNum: true)),
-                        const SizedBox(width: 15),
+                        SizedBox(width: 3.w),
                         Expanded(child: _buildModernField("التوصيل", _deliveryFeeController, Icons.local_shipping, isNum: true)),
                       ],
                     ),
                     _buildMainButton("حفظ الإعدادات", Icons.check_circle, _updateSettings),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 25),
-                      child: Divider(color: Color(0xfff1f1f1)),
+                    Padding(
+                      padding: EdgeInsets.symmetric(vertical: 3.h),
+                      child: const Divider(color: Color(0xfff1f1f1), thickness: 2),
                     ),
-                    _buildSectionTitle("الموظفين (الصلاحيات)"),
+                    _buildSectionTitle("الموظفين والصلاحيات"),
                     _buildModernField("رقم هاتف الموظف", _subUserPhoneController, Icons.phone_android, isNum: true),
-                    Container(
-                      margin: const EdgeInsets.only(bottom: 15),
-                      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: const Color(0xfff8f9fa),
-                        borderRadius: BorderRadius.circular(15),
-                        border: Border.all(color: const Color(0xffe9ecef)),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          value: _selectedSubUserRole,
-                          isExpanded: true,
-                          items: const [
-                            DropdownMenuItem(value: 'full', child: Text('صلاحية كاملة (مدير)')),
-                            DropdownMenuItem(value: 'read_only', child: Text('عرض فقط (موظف)')),
-                          ],
-                          onChanged: (v) => setState(() => _selectedSubUserRole = v!),
-                        ),
-                      ),
-                    ),
-                    _buildMainButton("إضافة موظف", Icons.person_add, _addSubUser, color: Colors.blueGrey[700]!),
-                    const SizedBox(height: 25),
+                    _buildRoleDropdown(),
+                    SizedBox(height: 1.h),
+                    _buildMainButton("إضافة موظف جديد", Icons.person_add, _addSubUser, color: Colors.blueGrey[800]!),
+                    SizedBox(height: 3.h),
                     _buildSubUsersList(),
-                    const SizedBox(height: 40),
+                    SizedBox(height: 5.h),
                   ],
                 ),
               ),
@@ -251,14 +222,95 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
     );
   }
 
+  Widget _buildRoleDropdown() {
+    return Container(
+      margin: EdgeInsets.only(bottom: 2.h),
+      padding: EdgeInsets.symmetric(horizontal: 4.w, vertical: 0.5.h),
+      decoration: BoxDecoration(
+        color: const Color(0xfff8f9fa),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: const Color(0xffe9ecef)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _selectedSubUserRole,
+          isExpanded: true,
+          icon: const Icon(Icons.arrow_drop_down, color: primaryColor),
+          items: const [
+            DropdownMenuItem(value: 'full', child: Text('صلاحية كاملة (مدير)')),
+            DropdownMenuItem(value: 'read_only', child: Text('عرض فقط (موظف)')),
+          ],
+          onChanged: (v) => setState(() => _selectedSubUserRole = v!),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLogoHeader() {
+    return Stack(
+      alignment: Alignment.bottomRight,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: primaryColor.withOpacity(0.2), width: 4),
+          ),
+          child: CircleAvatar(
+            radius: 65,
+            backgroundColor: const Color(0xfff8f9fa),
+            backgroundImage: sellerDataCache['merchantLogoUrl'] != null 
+                ? NetworkImage(sellerDataCache['merchantLogoUrl']) 
+                : null,
+            child: sellerDataCache['merchantLogoUrl'] == null 
+                ? Icon(Icons.store, size: 50, color: Colors.grey[400]) 
+                : null,
+          ),
+        ),
+        CircleAvatar(
+          backgroundColor: primaryColor,
+          radius: 20,
+          child: _isUploading 
+            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+            : IconButton(
+                icon: const Icon(Icons.camera_alt, size: 20, color: Colors.white),
+                onPressed: _uploadLogo,
+              ),
+        )
+      ],
+    );
+  }
+
+  Widget _buildSubUsersList() {
+    if (subUsersList.isEmpty) return const SizedBox();
+    return Column(
+      children: subUsersList.map((u) => Container(
+            margin: EdgeInsets.only(bottom: 1.5.h),
+            decoration: BoxDecoration(
+                color: const Color(0xfff8f9fa),
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(color: const Color(0xffe9ecef))),
+            child: ListTile(
+              leading: const CircleAvatar(backgroundColor: Colors.blueGrey, child: Icon(Icons.person, color: Colors.white)),
+              title: Text(u['phone'] ?? '', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.sp)),
+              subtitle: Text(u['role'] == 'full' ? 'صلاحية كاملة' : 'عرض فقط', style: TextStyle(fontSize: 11.sp)),
+              trailing: IconButton(
+                  icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                  onPressed: () => _removeSubUser(u['phone'])),
+            ),
+          )).toList(),
+    );
+  }
+
   Widget _buildModernField(String label, TextEditingController ctrl, IconData icon, {bool isNum = false}) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 15),
+      padding: EdgeInsets.only(bottom: 2.h),
       child: TextField(
         controller: ctrl,
         keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
+        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.sp),
         decoration: InputDecoration(
           labelText: label,
+          labelStyle: const TextStyle(color: Colors.grey, fontWeight: FontWeight.normal),
           prefixIcon: Icon(icon, color: primaryColor, size: 20),
           filled: true,
           fillColor: const Color(0xfff8f9fa),
@@ -272,7 +324,7 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
 
   Widget _buildReadOnlyField(String label, String value, IconData icon) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 15),
+      padding: EdgeInsets.only(bottom: 2.h),
       child: TextField(
         controller: TextEditingController(text: value),
         enabled: false,
@@ -290,11 +342,11 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
   Widget _buildMainButton(String label, IconData icon, VoidCallback onPressed, {Color color = primaryColor}) {
     return ElevatedButton.icon(
       onPressed: onPressed,
-      icon: Icon(icon, color: Colors.white, size: 22),
-      label: Text(label, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+      icon: Icon(icon, color: Colors.white, size: 20),
+      label: Text(label, style: TextStyle(color: Colors.white, fontSize: 14.sp, fontWeight: FontWeight.bold)),
       style: ElevatedButton.styleFrom(
         backgroundColor: color,
-        minimumSize: const Size(double.infinity, 58),
+        minimumSize: Size(double.infinity, 7.h),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
         elevation: 0,
       ),
@@ -305,72 +357,43 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
     return Align(
       alignment: Alignment.centerRight,
       child: Padding(
-        padding: const EdgeInsets.only(bottom: 15),
-        child: Text(title, style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.w900, color: Colors.black87)),
+        padding: EdgeInsets.only(bottom: 2.h),
+        child: Text(title, style: TextStyle(fontSize: 15.sp, fontWeight: FontWeight.w900, color: Colors.black87)),
       ),
     );
   }
 
-  Widget _buildLogoHeader() {
-    return Stack(
-      alignment: Alignment.bottomRight,
-      children: [
-        CircleAvatar(
-          radius: 60,
-          backgroundColor: const Color(0xfff8f9fa),
-          backgroundImage: sellerDataCache['merchantLogoUrl'] != null ? NetworkImage(sellerDataCache['merchantLogoUrl']) : null,
-          child: sellerDataCache['merchantLogoUrl'] == null ? const Icon(Icons.store, size: 50, color: Colors.grey) : null,
-        ),
-        CircleAvatar(
-          backgroundColor: primaryColor,
-          radius: 18,
-          child: IconButton(
-            icon: const Icon(Icons.camera_alt, size: 18, color: Colors.white),
-            onPressed: _isUploading ? null : _uploadLogo,
-          ),
-        )
-      ],
-    );
-  }
-
-  Widget _buildSubUsersList() {
-    return Column(
-      children: subUsersList.map((u) => Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        decoration: BoxDecoration(color: const Color(0xfff8f9fa), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xffe9ecef))),
-        child: ListTile(
-          leading: const CircleAvatar(backgroundColor: Colors.blueGrey, child: Icon(Icons.person, color: Colors.white)),
-          title: Text(u['phone'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
-          subtitle: Text(u['role'] == 'full' ? 'صلاحية كاملة' : 'عرض فقط'),
-          trailing: IconButton(
-            icon: const Icon(Icons.delete_outline, color: Colors.redAccent), 
-            onPressed: () => _removeSubUser(u['phone'])
+  void _showFloatingAlert(String message, {bool isError = false}) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: EdgeInsets.all(6.w),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(isError ? Icons.error_outline : Icons.check_circle_outline, color: isError ? Colors.red : primaryColor, size: 50.sp),
+              SizedBox(height: 2.h),
+              Text(message, textAlign: TextAlign.center, style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.bold, height: 1.5)),
+              SizedBox(height: 3.h),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isError ? Colors.red : primaryColor,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: EdgeInsets.symmetric(vertical: 1.5.h)
+                  ),
+                  child: const Text("استمرار", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              )
+            ],
           ),
         ),
-      )).toList(),
+      ),
     );
-  }
-
-  Future<void> _uploadLogo() async {
-    final picker = ImagePicker();
-    final image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 50);
-    if (image == null) return;
-    setState(() => _isUploading = true);
-    try {
-      var request = http.MultipartRequest('POST', Uri.parse(CLOUDINARY_URL));
-      request.fields['upload_preset'] = UPLOAD_PRESET;
-      request.files.add(await http.MultipartFile.fromPath('file', image.path));
-      var res = await request.send();
-      if (res.statusCode == 200) {
-        var responseData = await res.stream.bytesToString();
-        var jsonRes = json.decode(responseData);
-        await _firestore.collection("sellers").doc(widget.currentSellerId).update({'merchantLogoUrl': jsonRes['secure_url']});
-        await _refreshData();
-        _showFloatingAlert("✅ تم تحديث الشعار بنجاح");
-      }
-    } finally {
-      setState(() => _isUploading = false);
-    }
   }
 }
 
