@@ -1,7 +1,7 @@
 // lib/widgets/seller/seller_sidebar.dart
 import 'package:flutter/material.dart';
 import 'package:sizer/sizer.dart';
-import 'package:my_test_app/services/user_session.dart'; 
+import 'package:my_test_app/services/user_session.dart';
 import 'package:my_test_app/screens/seller/seller_overview_screen.dart';
 import 'package:my_test_app/screens/seller/add_offer_screen.dart';
 import 'package:my_test_app/screens/seller/offers_screen.dart';
@@ -14,11 +14,9 @@ import 'package:my_test_app/screens/platform_balance_screen.dart';
 
 class SellerUserData {
   final String? fullname;
-  final bool isSubUser; // تم إضافة هذا الحقل
+  final bool isSubUser; // أضفناها للتوافق مع التعديلات السابقة
   SellerUserData({this.fullname, this.isSubUser = false});
 }
-
-// ... كود _SidebarItem يبقى كما هو بدون تغيير ...
 
 class SellerSidebar extends StatefulWidget {
   final SellerUserData userData;
@@ -59,15 +57,11 @@ class _SellerSidebarState extends State<SellerSidebar> {
 
   void _initializeMenu() {
     final currentSellerId = widget.sellerId;
-    
-    // تحديد نوع الصلاحية من الجلسة
-    // نفترض أن UserSession.role يحدد: 'full' للأساسي، 'editor' للصلاحية الكاملة، 'viewer' للقراءة فقط
-    final bool isOwner = !widget.userData.isSubUser; 
-    final bool canEdit = UserSession.canEdit; // true للأساسي والـ editor
+    final bool canEdit = UserSession.canEdit;
+    final bool isOwner = !widget.userData.isSubUser;
 
     List<Map<String, dynamic>> items = [];
 
-    // 1. نظرة عامة (للجميع)
     items.add({
       'title': 'نظرة عامة',
       'icon': Icons.dashboard_rounded,
@@ -75,7 +69,6 @@ class _SellerSidebarState extends State<SellerSidebar> {
       'route': 'نظرة عامة'
     });
 
-    // 2. إضافة عرض (للأساسي والكامل فقط)
     if (canEdit) {
       items.add({
         'title': 'إضافة عرض',
@@ -85,64 +78,23 @@ class _SellerSidebarState extends State<SellerSidebar> {
       });
     }
 
-    // 3. العروض والطلبات والتقارير (للجميع)
     items.addAll([
-      {
-        'title': 'العروض المتاحة',
-        'icon': Icons.local_offer_rounded,
-        'screen': const OffersScreen(),
-        'route': 'العروض المتاحة'
-      },
-      {
-        'title': 'الطلبات',
-        'icon': Icons.assignment_rounded,
-        'screen': OrdersScreen(sellerId: currentSellerId),
-        'route': 'الطلبات'
-      },
-      {
-        'title': 'التقارير',
-        'icon': Icons.pie_chart_rounded,
-        'screen': ReportsScreen(sellerId: currentSellerId),
-        'route': 'التقارير'
-      },
+      {'title': 'العروض المتاحة', 'icon': Icons.local_offer_rounded, 'screen': const OffersScreen(), 'route': 'العروض المتاحة'},
+      {'title': 'الطلبات', 'icon': Icons.assignment_rounded, 'screen': OrdersScreen(sellerId: currentSellerId), 'route': 'الطلبات'},
+      {'title': 'التقارير', 'icon': Icons.pie_chart_rounded, 'screen': ReportsScreen(sellerId: currentSellerId), 'route': 'التقارير'},
     ]);
 
-    // 4. الهدايا ومناطق التوصيل (للأساسي والكامل فقط)
     if (canEdit) {
       items.addAll([
-        {
-          'title': 'الهدايا الترويجية',
-          'icon': Icons.card_giftcard_rounded,
-          'screen': CreateGiftPromoScreen(currentSellerId: currentSellerId),
-          'route': 'الهدايا الترويجية'
-        },
-        {
-          'title': 'تحديد مناطق التوصيل',
-          'icon': Icons.map_rounded,
-          'screen': DeliveryAreaScreen(
-              currentSellerId: currentSellerId,
-              hasWriteAccess: true),
-          'route': 'تحديد مناطق التوصيل'
-        },
+        {'title': 'الهدايا الترويجية', 'icon': Icons.card_giftcard_rounded, 'screen': CreateGiftPromoScreen(currentSellerId: currentSellerId), 'route': 'الهدايا الترويجية'},
+        {'title': 'تحديد مناطق التوصيل', 'icon': Icons.map_rounded, 'screen': DeliveryAreaScreen(currentSellerId: currentSellerId, hasWriteAccess: true), 'route': 'تحديد مناطق التوصيل'},
       ]);
     }
 
-    // 5. حساب المنصة (للجميع)
-    items.add({
-      'title': 'حساب المنصة',
-      'icon': Icons.account_balance_rounded,
-      'screen': const PlatformBalanceScreen(),
-      'route': 'حساب المنصة'
-    });
+    items.add({'title': 'حساب المنصة', 'icon': Icons.account_balance_rounded, 'screen': const PlatformBalanceScreen(), 'route': 'حساب المنصة'});
 
-    // 6. "حسابي" (للأساسي فقط 🚫 يُحظر على كل الموظفين)
     if (isOwner) {
-      items.add({
-        'title': 'حسابي',
-        'icon': Icons.manage_accounts_rounded,
-        'screen': SellerSettingsScreen(currentSellerId: currentSellerId),
-        'route': 'حسابي'
-      });
+      items.add({'title': 'حسابي', 'icon': Icons.manage_accounts_rounded, 'screen': SellerSettingsScreen(currentSellerId: currentSellerId), 'route': 'حسابي'});
     }
 
     _menuItems = items;
@@ -150,8 +102,6 @@ class _SellerSidebarState extends State<SellerSidebar> {
 
   @override
   Widget build(BuildContext context) {
-    // ... كود الـ UI (Drawer, Header, ListView) يبقى كما هو ...
-    // تأكد فقط من استخدام Cairo Font للأناقة
     return Drawer(
       backgroundColor: const Color(0xff1a1d21),
       child: Column(
@@ -160,23 +110,15 @@ class _SellerSidebarState extends State<SellerSidebar> {
             decoration: const BoxDecoration(color: Color(0xff212529)),
             currentAccountPicture: CircleAvatar(
               backgroundColor: const Color(0xff28a745),
-              child: Text(
-                widget.userData.fullname?.substring(0, 1).toUpperCase() ?? "S",
-                style: TextStyle(fontSize: 22.sp, color: Colors.white, fontWeight: FontWeight.bold),
-              ),
+              child: Text(widget.userData.fullname?.substring(0, 1).toUpperCase() ?? "S", style: TextStyle(fontSize: 22.sp, color: Colors.white, fontWeight: FontWeight.bold)),
             ),
-            accountName: Text(
-              widget.userData.fullname ?? "مورد أكساب",
-              style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.bold, color: Colors.white, fontFamily: 'Cairo'),
-            ),
-            accountEmail: Text(
-              widget.userData.isSubUser ? "حساب موظف" : "حساب إداري (مالك)",
-              style: const TextStyle(color: Colors.white70, fontFamily: 'Cairo'),
-            ),
+            accountName: Text(widget.userData.fullname ?? "مورد أكساب", style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w900, color: Colors.white)),
+            accountEmail: Text(widget.userData.isSubUser ? "حساب موظف" : "لوحة التحكم الإدارية", style: const TextStyle(color: Colors.white70)),
           ),
           Expanded(
             child: ListView(
               padding: EdgeInsets.zero,
+              // 🎯 التصحيح هنا: إضافة .cast<Widget>() لضمان النوع الصحيح
               children: _menuItems.map((item) {
                 return _SidebarItem(
                   icon: item['icon'] as IconData,
@@ -189,7 +131,7 @@ class _SellerSidebarState extends State<SellerSidebar> {
                   isActive: widget.activeRoute == item['route'],
                   notificationCount: item['route'] == 'الطلبات' ? widget.newOrdersCount : 0,
                 );
-              }).toList(),
+              }).toList().cast<Widget>(),
             ),
           ),
           const Divider(color: Colors.white10),
@@ -200,12 +142,80 @@ class _SellerSidebarState extends State<SellerSidebar> {
               child: TextButton.icon(
                 onPressed: widget.onLogout,
                 icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
-                label: Text('تسجيل الخروج', style: TextStyle(color: Colors.redAccent, fontSize: 13.sp, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+                label: Text('تسجيل الخروج', style: TextStyle(color: Colors.redAccent, fontSize: 14.sp, fontWeight: FontWeight.bold)),
                 style: TextButton.styleFrom(minimumSize: Size(double.infinity, 6.h), alignment: Alignment.centerRight),
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// 🎯 التأكد من وجود الكلاس هنا ليكون متاحاً للـ Build
+class _SidebarItem extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final Widget targetScreen;
+  final bool isActive;
+  final int notificationCount;
+  final Function(Widget screen) onNavigate;
+
+  const _SidebarItem({
+    required this.icon,
+    required this.title,
+    required this.targetScreen,
+    required this.isActive,
+    required this.onNavigate,
+    this.notificationCount = 0,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const sidebarTextColor = Color(0xffdee2e6);
+    const primaryColor = Color(0xff28a745);
+
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 0.5.h),
+      child: Material(
+        color: isActive ? primaryColor.withOpacity(0.15) : Colors.transparent,
+        borderRadius: BorderRadius.circular(15),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(15),
+          onTap: () => onNavigate(targetScreen),
+          child: Container(
+            padding: EdgeInsets.symmetric(horizontal: 15, vertical: 1.8.h),
+            decoration: BoxDecoration(
+              border: isActive ? const Border(right: BorderSide(color: primaryColor, width: 5)) : null,
+            ),
+            child: Row(
+              children: [
+                Icon(icon, size: 24.sp, color: isActive ? primaryColor : sidebarTextColor),
+                const SizedBox(width: 15),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      color: isActive ? Colors.white : sidebarTextColor,
+                      fontSize: 14.sp,
+                      fontWeight: isActive ? FontWeight.w900 : FontWeight.w600,
+                    ),
+                  ),
+                ),
+                if (notificationCount > 0)
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                    child: Text(
+                      notificationCount.toString(),
+                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
