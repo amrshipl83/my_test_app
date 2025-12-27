@@ -1,17 +1,10 @@
 // lib/screens/platform_balance_screen.dart
-
 import 'package:flutter/material.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart'; // لاستخدام أيقونات Font Awesome
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart'; // 🛠️ تم إضافة استيراد debugPrint
-
-// 🚀 إضافة استيراد شاشة الفواتير
-import 'package:my_test_app/screens/invoices_screen.dart';
-
-// 💡 تعريف الـ API Key لتطابق كود HTML.
-// 🛠️ تم تصحيح الاسم ليتوافق مع قاعدة constant_identifier_names
-const String apiKey = "AIzaSyAA2JbmtD52JMCz483glEV8eX1ZDeK0fZE"; 
+import 'package:my_test_app/screens/invoices_screen.dart'; // 🎯 الصفحة المستهدفة
+import 'package:sizer/sizer.dart';
 
 class PlatformBalanceScreen extends StatefulWidget {
   const PlatformBalanceScreen({super.key});
@@ -21,13 +14,11 @@ class PlatformBalanceScreen extends StatefulWidget {
 }
 
 class _PlatformBalanceScreenState extends State<PlatformBalanceScreen> {
-  // متغيرات حالة الأرصدة
-  double realizedAmount = 0.0;
-  double unrealizedAmount = 0.0;
-  double cashbackDebtAmount = 0.0;
-  double cashbackCreditAmount = 0.0;
+  double realizedAmount = 0.0;      // عمولة مستحقة للمنصة
+  double unrealizedAmount = 0.0;    // عمولة تحت التحصيل
+  double cashbackDebtAmount = 0.0;  // مديونية كاش باك (على التاجر)
+  double cashbackCreditAmount = 0.0;// ائتمان كاش باك (للتاجر)
   bool hasPendingInvoice = false;
-
   bool _isLoading = true;
   String _errorMessage = '';
 
@@ -37,301 +28,186 @@ class _PlatformBalanceScreenState extends State<PlatformBalanceScreen> {
     _fetchSellerBalances();
   }
 
-  // ----------------------------------------------------------------------
-  // دالة جلب البيانات من Firestore (مطابقة لمنطق الـ HTML)
-  // ----------------------------------------------------------------------
+  // دالة جلب البيانات من Firestore
   Future<void> _fetchSellerBalances() async {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _errorMessage = 'الرجاء تسجيل الدخول أولاً للوصول إلى هذه الصفحة.';
-        });
-      }
-      return;
-    }
+    if (user == null) return;
 
-    final sellerId = user.uid;
     try {
-      // 1. جلب وثيقة التاجر (Seller Doc)
+      // جلب وثيقة التاجر
       final sellerSnapshot = await FirebaseFirestore.instance
           .collection('sellers')
-          .doc(sellerId)
+          .doc(user.uid)
           .get();
 
-      if (!sellerSnapshot.exists) {
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-            _errorMessage = 'خطأ: لم يتم العثور على وثيقة بيانات لهذا التاجر في Firestore.';
-          });
-        }
-        return;
-      }
-
-      final data = sellerSnapshot.data()!;
-
-      // 2. استخراج الأرصدة (مطابقة لمفاتيح الـ HTML)
-      // يتم التحويل إلى double بشكل صريح لأن Firestore قد يعيد int أو double
-      realizedAmount = (data['realizedCommission'] as num? ?? 0).toDouble(); 
-      unrealizedAmount = (data['unrealizedCommission'] as num? ?? 0).toDouble();
-      cashbackDebtAmount = (data['cashbackAccruedDebt'] as num? ?? 0).toDouble();
-      cashbackCreditAmount = (data['cashbackPlatformCredit'] as num? ?? 0).toDouble();
-
-      // 3. التحقق من الفواتير المعلقة (مطابقة لمنطق الـ HTML)
-      final invoicesQuery = FirebaseFirestore.instance
-          .collection('invoices')
-          .where('sellerId', isEqualTo: sellerId)
-          .where('status', isEqualTo: 'pending');
-
-      final pendingInvoicesSnapshot = await invoicesQuery.get();
-      hasPendingInvoice = pendingInvoicesSnapshot.docs.isNotEmpty;
-
-    } catch (e) {
-      _errorMessage = 'حدث خطأ أثناء الاتصال بقاعدة البيانات. (${e.toString()})';
-      // 🛠️ تم استبدال print بـ debugPrint لتجنب avoid_print
-      debugPrint('فشل جلب الأرصدة: $e'); 
-    } finally {
-      if (mounted) {
+      if (sellerSnapshot.exists) {
+        final data = sellerSnapshot.data()!;
         setState(() {
-          _isLoading = false;
+          realizedAmount = (data['realizedCommission'] as num? ?? 0).toDouble();
+          unrealizedAmount = (data['unrealizedCommission'] as num? ?? 0).toDouble();
+          cashbackDebtAmount = (data['cashbackAccruedDebt'] as num? ?? 0).toDouble();
+          cashbackCreditAmount = (data['cashbackPlatformCredit'] as num? ?? 0).toDouble();
         });
       }
+
+      // التحقق من وجود فواتير معلقة (نفس منطق الـ HTML)
+      final invoicesQuery = await FirebaseFirestore.instance
+          .collection('invoices')
+          .where('sellerId', isEqualTo: user.uid)
+          .where('status', isEqualTo: 'pending')
+          .get();
+
+      setState(() => hasPendingInvoice = invoicesQuery.docs.isNotEmpty);
+    } catch (e) {
+      setState(() => _errorMessage = 'خطأ في جلب البيانات');
+    } finally {
+      setState(() => _isLoading = false);
     }
   }
 
-  // ----------------------------------------------------------------------
-  // دالة تنسيق العملة (مطابقة لتنسيق HTML)
-  // ----------------------------------------------------------------------
-  String _formatCurrency(double amount) {
-    // تتطلب حزمة intl لـ NumberFormat (للتنسيق الكامل). حالياً نستخدم تنسيق مبسط.
-    return '${amount.toStringAsFixed(2)} ج.م';
+  // دالة الانتقال الآمن لصفحة الفواتير
+  void _navigateToInvoices() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => InvoiceScreen(sellerId: user.uid), // تمرير المعرف بأمان
+        ),
+      );
+    }
   }
-
-  // ----------------------------------------------------------------------
-  // UI BUILDER
-  // ----------------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('حساب المنصة - ملخص العمولات', style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: const Color(0xFF007bff), // لون أزرق مطابق لرأس الصفحة
-        foregroundColor: Colors.white,
-      ),
-      body: _isLoading
-          ? Center(child: _buildLoadingIndicator())
-          : _errorMessage.isNotEmpty
-              ? Center(child: _buildErrorWidget())
-              : SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    children: [
-                      _buildHeader(),
-                      const SizedBox(height: 30),
-                      _buildBalanceGrid(),
-                    ],
-                  ),
-                ),
-    );
-  }
-
-  // مؤشر التحميل
-  Widget _buildLoadingIndicator() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        const CircularProgressIndicator(),
-        const SizedBox(height: 15),
-        Text(
-          _errorMessage.isEmpty
-              ? 'جاري التحقق من الصلاحيات وتحميل البيانات...'
-              : _errorMessage,
-          style: const TextStyle(fontSize: 16, color: Color(0xFF007bff)),
-          textAlign: TextAlign.center,
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF8F9FB),
+        appBar: AppBar(
+          elevation: 0,
+          backgroundColor: const Color(0xFF007bff),
+          title: Text('الحساب المالي للمنصة', 
+            style: TextStyle(fontSize: 15.sp, fontWeight: FontWeight.bold)),
+          centerTitle: true,
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(left: 10),
+              child: IconButton(
+                icon: const FaIcon(FontAwesomeIcons.receipt, color: Colors.white),
+                onPressed: _navigateToInvoices, // استدعاء دالة الانتقال الآمن
+                tooltip: 'الفواتير الشهرية',
+              ),
+            )
+          ],
         ),
-      ],
-    );
-  }
-
-  // شاشة الخطأ
-  Widget _buildErrorWidget() {
-    return Padding(
-      padding: const EdgeInsets.all(20.0),
-      child: Text(
-        _errorMessage,
-        style: const TextStyle(fontSize: 18, color: Colors.red),
-        textAlign: TextAlign.center,
+        body: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : SingleChildScrollView(
+                padding: EdgeInsets.all(5.w),
+                child: Column(
+                  children: [
+                    _buildAlertBanner(),
+                    SizedBox(height: 2.h),
+                    _buildBalanceCard(
+                      "عمولات مستحقة للمنصة", 
+                      realizedAmount, 
+                      "رسوم الطلبات المسلمة فعلياً", 
+                      const Color(0xFF28a745), 
+                      FontAwesomeIcons.calculator
+                    ),
+                    _buildBalanceCard(
+                      "عمولات قيد المعالجة", 
+                      unrealizedAmount, 
+                      "طلبات لم يكتمل تسليمها بعد", 
+                      const Color(0xFFffc107), 
+                      FontAwesomeIcons.hourglassHalf
+                    ),
+                    const Divider(height: 40, thickness: 1),
+                    _buildBalanceCard(
+                      "مديونية كاش باك (عليكم)", 
+                      cashbackDebtAmount, 
+                      "فرق كاش باك لمورد آخر", 
+                      const Color(0xFFdc3545), 
+                      FontAwesomeIcons.arrowDown
+                    ),
+                    _buildBalanceCard(
+                      "ائتمان كاش باك (لكم)", 
+                      cashbackCreditAmount, 
+                      "تعويض كاش باك من المنصة", 
+                      const Color(0xFF007bff), 
+                      FontAwesomeIcons.arrowUp
+                    ),
+                  ],
+                ),
+              ),
       ),
     );
   }
 
-  // رأس الصفحة مع رابط الفواتير
-  Widget _buildHeader() {
+  Widget _buildAlertBanner() {
+    if (!hasPendingInvoice) return const SizedBox();
     return Container(
-      padding: const EdgeInsets.only(bottom: 10),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0xFF007bff), width: 2)),
+      width: double.infinity,
+      padding: EdgeInsets.all(4.w),
+      margin: EdgeInsets.only(bottom: 2.h),
+      decoration: BoxDecoration(
+        color: Colors.red.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.red.shade200),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // عنوان الحساب (تم نقله إلى AppBar)
-          const Text(
-            'حساب المنصة - ملخص العمولات',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF007bff),
+          const Icon(Icons.warning_amber_rounded, color: Colors.red),
+          SizedBox(width: 3.w),
+          Expanded(
+            child: Text(
+              "توجد فاتورة شهرية مستحقة الدفع حالياً. يرجى المراجعة.",
+              style: TextStyle(color: Colors.red.shade900, fontWeight: FontWeight.bold, fontSize: 11.sp),
             ),
           ),
+          TextButton(
+            onPressed: _navigateToInvoices, // استدعاء دالة الانتقال الآمن
+            child: const Text("عرض", style: TextStyle(fontWeight: FontWeight.bold)),
+          )
+        ],
+      ),
+    );
+  }
 
-          // رابط الفواتير مع الإشعار
-          InkWell(
-            onTap: () {
-              // ⭐️ التعديل الحاسم: الانتقال إلى شاشة الفواتير ⭐️
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const InvoiceScreen(), // فتح شاشة الفواتير
-                ),
-              );
-            },
-            child: Stack(
-              clipBehavior: Clip.none,
+  Widget _buildBalanceCard(String title, double amount, String desc, Color color, IconData icon) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 2.h),
+      padding: EdgeInsets.all(5.w),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: EdgeInsets.all(3.w),
+            decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
+            child: FaIcon(icon, color: color, size: 20),
+          ),
+          SizedBox(width: 4.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 💡 أيقونة الفاتورة (مطابقة لـ fas fa-file-invoice)
-                const FaIcon(
-                  FontAwesomeIcons.fileInvoice,
-                  size: 30,
-                  color: Color(0xFF007bff),
-                ),
-                // نقطة الإشعار الحمراء (مطابقة لمنطق hasPendingInvoice)
-                if (hasPendingInvoice)
-                  Positioned(
-                    top: -2,
-                    right: -2,
-                    child: Container(
-                      height: 12,
-                      width: 12,
-                      decoration: BoxDecoration(
-                        color: Colors.red,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
-                      ),
-                    ),
-                  ),
+                Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.sp)),
+                Text(desc, style: TextStyle(color: Colors.grey, fontSize: 10.sp)),
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  // شبكة بطاقات الأرصدة
-  Widget _buildBalanceGrid() {
-    // تعريف البطاقات الأربعة
-    final cards = [
-      _buildBalanceCard(
-        title: 'صافي العمولة المستحقة (للمنصة)',
-        amount: realizedAmount,
-        bgColor: const Color(0xFFd4edda), // #d4edda
-        borderColor: const Color(0xFF28a745), // #28a745
-      ),
-      _buildBalanceCard(
-        title: 'عمولة غير محققة (قيد التجميع)',
-        amount: unrealizedAmount,
-        bgColor: const Color(0xFFfff3cd), // #fff3cd
-        borderColor: const Color(0xFFffc107), // #ffc107
-      ),
-      _buildBalanceCard(
-        title: 'دين الكاش باك المتراكم (عليكم)',
-        amount: cashbackDebtAmount,
-        bgColor: const Color(0xFFf8d7da), // #f8d7da
-        borderColor: const Color(0xFFdc3545), // #dc3545
-      ),
-      _buildBalanceCard(
-        title: 'ائتمان الكاش باك (لكم عند المنصة)',
-        amount: cashbackCreditAmount,
-        bgColor: const Color(0xFFcfe2ff), // #cfe2ff
-        borderColor: const Color(0xFF007bff), // #007bff
-      ),
-    ];
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // استخدام GridView أو Column بناءً على العرض
-        if (constraints.maxWidth > 600) {
-          // تصميم الشاشة الكبيرة (أفقي)
-          return GridView.count(
-            crossAxisCount: 2,
-            crossAxisSpacing: 20,
-            mainAxisSpacing: 20,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            childAspectRatio: 2.5, // لتقليل ارتفاع البطاقات
-            children: cards,
-          );
-        } else {
-          // تصميم الشاشة الصغيرة (عمودي)
-          return Column(
-            children: cards.map((card) => Padding(
-              padding: const EdgeInsets.only(bottom: 20),
-              child: card,
-            )).toList(),
-          );
-        }
-      },
-    );
-  }
-
-  // بناء بطاقة الرصيد المفردة
-  Widget _buildBalanceCard({
-    required String title,
-    required double amount,
-    required Color bgColor,
-    required Color borderColor,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 15),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(8),
-        border: Border(left: BorderSide(color: borderColor, width: 5)),
-        boxShadow: [
-          BoxShadow(
-            // 🛠️ تم تصحيح withOpacity باستخدام قيمة ARGB ثابتة (0x0D = 0.05 * 255)
-            color: const Color(0x0D000000), 
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
           Text(
-            title,
-            style: const TextStyle(
-              fontSize: 16,
-              color: Color(0xFF6c757d), // #6c757d
-              fontWeight: FontWeight.w400,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 10),
-          Text(
-            _formatCurrency(amount),
-            style: const TextStyle(
-              fontSize: 26, // أصغر قليلاً من 2.2rem لتناسب Flutter
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF343a40), // #343a40
-            ),
+            "${amount.toStringAsFixed(2)} ج.م",
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14.sp, color: color),
           ),
         ],
       ),
     );
   }
 }
+
