@@ -92,7 +92,9 @@ class AuthService {
 
         if (docSnap != null && docSnap.exists) {
           final Map<String, dynamic> data = docSnap.data() as Map<String, dynamic>;
-          return {...data, 'role': 'seller', 'isSubUser': true};
+          // 🎯 التعديل 1: نأخذ الـ role الفعلي من الداتا (مثل full) بدلاً من كلمة 'seller' الثابتة
+          String actualRole = data['role'] ?? 'seller'; 
+          return {...data, 'role': actualRole, 'isSubUser': true};
         }
 
         final snap = await _db.collection(colName).where('phone', isEqualTo: phoneFromEmail).limit(1).get();
@@ -103,13 +105,15 @@ class AuthService {
 
         if (snapToUse.docs.isNotEmpty) {
           final Map<String, dynamic> data = snapToUse.docs.first.data() as Map<String, dynamic>;
-          String role = 'buyer';
+          
+          // 🎯 التعديل 2: نعتمد على الـ role المخزن في Firestore أولاً
+          String role = data['role'] ?? 'buyer'; 
           bool isSubUser = false;
 
           if (colName == 'sellers') {
             role = 'seller';
           } else if (colName == 'subUsers') {
-            role = 'seller';
+            // نترك الـ role كما هو (full أو read_only) ونحدد فقط أنه موظف
             isSubUser = true;
           } else if (colName == 'consumers') {
             role = 'consumer';
@@ -153,7 +157,6 @@ class AuthService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('loggedUser', json.encode(data));
     
-    // 🎯 تم التصحيح هنا ليتوافق مع UserSession
     UserSession.userId = id;
     UserSession.ownerId = ownerId;
     UserSession.role = role;
@@ -161,7 +164,7 @@ class AuthService {
     UserSession.merchantName = merchantName;
     UserSession.phoneNumber = phone;
 
-    debugPrint("✅ تم تحديث الجلسة بنجاح: $id");
+    debugPrint("✅ تم تحديث الجلسة بنجاح: $id برتبة: $role");
   }
 }
 
