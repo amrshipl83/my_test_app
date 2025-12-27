@@ -1,13 +1,11 @@
-// lib/screens/consumer/consumer_home_screen.dart
 import 'package:flutter/material.dart';
 import 'package:my_test_app/screens/consumer/consumer_widgets.dart';
 import 'package:my_test_app/screens/consumer/consumer_data_models.dart';
 import 'package:my_test_app/services/consumer_data_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_messaging/firebase_messaging.dart'; // 🎯 إضافة الإشعارات
-import 'package:cloud_firestore/cloud_firestore.dart'; // 🎯 إضافة الفايرستور للتوكن
-// 🎯 استيراد ودجت الشات
-import 'package:my_test_app/widgets/chat_support_widget.dart'; 
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:my_test_app/widgets/chat_support_widget.dart';
 
 class ConsumerHomeScreen extends StatefulWidget {
   static const routeName = '/consumerHome';
@@ -23,24 +21,19 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
   @override
   void initState() {
     super.initState();
-    _setupNotifications(); // 🚀 طلب الإذن فور الدخول
+    _setupNotifications();
   }
 
-  // 🎯 دالة إعداد الإشعارات للمستهلك
   Future<void> _setupNotifications() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-
     FirebaseMessaging messaging = FirebaseMessaging.instance;
-    // طلب إذن الإشعارات
     NotificationSettings settings = await messaging.requestPermission(
       alert: true,
       badge: true,
       sound: true,
     );
-
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-      // الحصول على التوكن وحفظه في مستند المستهلك
       String? token = await messaging.getToken();
       if (token != null) {
         await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
@@ -57,10 +50,7 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
-      // إضافة الـ Drawer هنا ليعمل مع زر المنيو
       drawer: const ConsumerSideMenu(),
-      
-      // 1. الـ AppBar مع تمرير الـ Context الصحيح لفتح المنيو
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(70),
         child: Builder(
@@ -71,61 +61,70 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
           ),
         ),
       ),
-      
       body: SafeArea(
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 2. شريط الرادار (اكتشف ما حولك)
-              const SizedBox(height: 10),
-              const ConsumerSearchBar(),
+        child: Stack(
+          children: [
+            // 1. المحتوى القابل للتمرير
+            SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // مساحة فارغة علوية لترك مكان لزر الرادار العائم
+                  const SizedBox(height: 100),
 
-              // 3. قسم الأقسام المميزة
-              const ConsumerSectionTitle(title: 'الأقسام المميزة'),
-              FutureBuilder<List<ConsumerCategory>>(
-                future: dataService.fetchMainCategories(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const SizedBox(
-                      height: 130,
-                      child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF43A047))),
-                    );
-                  }
-                  final categories = snapshot.data ?? [];
-                  return ConsumerCategoriesBanner(categories: categories);
-                },
-              ),
-              const SizedBox(height: 10),
+                  // 2. قسم الأقسام المميزة
+                  const ConsumerSectionTitle(title: 'الأقسام المميزة'),
+                  FutureBuilder<List<ConsumerCategory>>(
+                    future: dataService.fetchMainCategories(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const SizedBox(
+                          height: 130,
+                          child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF43A047))),
+                        );
+                      }
+                      final categories = snapshot.data ?? [];
+                      return ConsumerCategoriesBanner(categories: categories);
+                    },
+                  ),
 
-              // 4. قسم العروض الحصرية
-              const ConsumerSectionTitle(title: 'أحدث العروض الحصرية'),
-              FutureBuilder<List<ConsumerBanner>>(
-                future: dataService.fetchPromoBanners(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const SizedBox(
-                      height: 200,
-                      child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF43A047))),
-                    );
-                  }
-                  final banners = snapshot.data ?? [];
-                  return ConsumerPromoBanners(banners: banners, height: 220);
-                },
+                  const SizedBox(height: 10),
+
+                  // 3. قسم العروض الحصرية
+                  const ConsumerSectionTitle(title: 'أحدث العروض الحصرية'),
+                  FutureBuilder<List<ConsumerBanner>>(
+                    future: dataService.fetchPromoBanners(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const SizedBox(
+                          height: 200,
+                          child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF43A047))),
+                        );
+                      }
+                      final banners = snapshot.data ?? [];
+                      return ConsumerPromoBanners(banners: banners, height: 220);
+                    },
+                  ),
+                  
+                  const SizedBox(height: 100), // مساحة أمان سفلية
+                ],
               ),
-              const SizedBox(height: 80),
-            ],
-          ),
+            ),
+
+            // 🎯 4. زر الرادار الذكي (اكتشف المحلات القريبة) - بديل شريط البحث
+            Positioned(
+              top: 15,
+              left: 15,
+              right: 15,
+              child: _buildSmartRadarButton(),
+            ),
+          ],
         ),
       ),
-      
-      // 5. شريط التنقل السفلي
       bottomNavigationBar: const ConsumerFooterNav(cartCount: 0, activeIndex: 0),
-
-      // 🚀 6. إضافة زر الشات الذكي للمستهلك
       floatingActionButton: FloatingActionButton(
-        heroTag: "consumer_chat_btn", // تاغ فريد للمستهلك
+        heroTag: "consumer_chat_btn",
         onPressed: () {
           showModalBottomSheet(
             context: context,
@@ -134,8 +133,85 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
             builder: (context) => const ChatSupportWidget(),
           );
         },
-        backgroundColor: const Color(0xFF43A047), // لون المستهلك الأخضر
+        backgroundColor: const Color(0xFF43A047),
         child: const Icon(Icons.support_agent, color: Colors.white, size: 30),
+      ),
+    );
+  }
+
+  // 🛠️ ودجت "الرادار الذكي" بتصميم كبسولة فخمة
+  Widget _buildSmartRadarButton() {
+    return Container(
+      height: 75,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF43A047), Color(0xFF2E7D32)],
+          begin: Alignment.centerRight,
+          end: Alignment.centerLeft,
+        ),
+        borderRadius: BorderRadius.circular(40),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF43A047).withOpacity(0.4),
+            blurRadius: 20,
+            spreadRadius: 2,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(40),
+          onPressed: () {
+            // هنا يتم استدعاء خريطة المحلات أو البحث الجغرافي
+            debugPrint("📡 تشغيل رادار البحث عن الأقرب...");
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                // أيقونة الرادار مع خلفية مضيئة
+                Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.radar, color: Colors.white, size: 30),
+                ),
+                const SizedBox(width: 15),
+                // نصوص التوضيح
+                const Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "اكتشف المحلات القريبة",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        "اضغط لتفعيل رادار البحث الذكي",
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // سهم الإرشاد
+                const Icon(Icons.location_on_outlined, color: Colors.white, size: 28),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
