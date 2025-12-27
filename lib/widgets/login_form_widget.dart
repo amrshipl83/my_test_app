@@ -25,38 +25,75 @@ class _LoginFormWidgetState extends State<LoginFormWidget> {
   final AuthService _authService = AuthService();
   final Color primaryGreen = const Color(0xff28a745);
 
-  // 1. دالة تهيئة الجلسة: أصبحت تعيد true إذا كان هناك تغيير كلمة سر مطلوب
-  Future<bool> _setupSellerSession(String phone, String uid) async {
-    final firestore = FirebaseFirestore.instance;
+  // 1. معالجة تسجيل الدخول الأساسية
+  Future<void> _submitLogin() async {
+    if (!_formKey.currentState!.validate()) return;
+    _formKey.currentState!.save();
+    
+    setState(() { 
+      _isLoading = true; 
+      _errorMessage = null; 
+    });
 
-    // أولاً: التاجر الأساسي
-    var adminDoc = await firestore.collection("sellers").doc(uid).get();
-    if (adminDoc.exists && adminDoc.data()?['phone'] == phone) {
-      UserSession.role = 'full';
-      UserSession.ownerId = uid;
-      UserSession.userId = uid;
-      return false; 
-    }
+    try {
+      // أ- تسجيل الدخول (سيقوم AuthService بحفظ البيانات في LocalStorage)
+      String fakeEmail = "${_phone.trim()}@aswaq.com";
+      final String userRole = await _authService.signInWithEmailAndPassword(fakeEmail, _password);
 
-    // ثانياً: الموظف (SubUser)
-    var subUserDoc = await firestore.collection("subUsers").doc(phone).get();
-    if (subUserDoc.exists) {
-      var data = subUserDoc.data()!;
-      UserSession.role = data['role'];
-      UserSession.ownerId = data['parentSellerId']; 
-      UserSession.userId = uid;
+      // ب- تحديث الجلسة الحية من البيانات المحفوظة
+      await UserSession.init();
 
-      if (data['mustChangePassword'] == true) {
-        _showChangePasswordDialog(phone);
-        return true; // يجب الانتظار لتغيير كلمة السر
+      // ج- فحص خاص للموظفين (تغيير كلمة السر الإجباري)
+      if (UserSession.isSubUser) {
+        final subUserDoc = await FirebaseFirestore.instance
+            .collection("subUsers")
+            .doc(_phone.trim())
+            .get();
+
+        if (subUserDoc.exists && subUserDoc.data()?['mustChangePassword'] == true) {
+          setState(() => _isLoading = false);
+          _showChangePasswordDialog(_phone.trim());
+          return; // التوقف حتى يتم التغيير
+        }
       }
+
+      // د- إرسال توكن الإشعارات للـ AWS
+      await _sendNotificationDataToAWS();
+
+      if (!mounted) return;
+
+      // هـ- التوجيه الصريح بناءً على الدور
+      _navigateToHome(userRole);
+
+    } catch (e) {
+      debugPrint("Login Error: $e");
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'بيانات الدخول غير صحيحة أو الحساب معطل';
+      });
     }
-    return false;
   }
 
-  // 2. المربع الحواري المحدث مع ربط الـ AWS
+  // 2. دالة التوجيه الذكية
+  void _navigateToHome(String role) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: const Text('✅ تم تسجيل الدخول بنجاح!'), backgroundColor: primaryGreen),
+    );
+
+    String route = '/';
+    if (role == 'seller') {
+      route = '/sellerhome';
+    } else if (role == 'consumer') {
+      route = '/consumerhome';
+    }
+
+    Navigator.of(context).pushNamedAndRemoveUntil(route, (route) => false);
+  }
+
+  // 3. ديالوج تغيير كلمة السر للموظف
   void _showChangePasswordDialog(String phone) {
     final TextEditingController newPassController = TextEditingController();
+    
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -85,19 +122,19 @@ class _LoginFormWidgetState extends State<LoginFormWidget> {
             style: ElevatedButton.styleFrom(backgroundColor: primaryGreen),
             onPressed: () async {
               if (newPassController.text.length < 6) return;
-              
+
               try {
-                // تحديث الباسورد و Firestore
+                // تحديث الباسورد في Auth وفي Firestore
                 await FirebaseAuth.instance.currentUser?.updatePassword(newPassController.text.trim());
                 await FirebaseFirestore.instance.collection("subUsers").doc(phone).update({
                   'mustChangePassword': false,
                 });
 
-                // إرسال الإشعار للـ AWS فور التحديث
                 await _sendNotificationDataToAWS();
-
+                
                 if (!mounted) return;
-                Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+                // بعد التغيير نتوجه لصفحة التاجر مباشرة
+                Navigator.of(context).pushNamedAndRemoveUntil('/sellerhome', (route) => false);
               } catch (e) {
                 debugPrint("Error updating password: $e");
               }
@@ -109,7 +146,7 @@ class _LoginFormWidgetState extends State<LoginFormWidget> {
     );
   }
 
-  // دالة مساعدة لإرسال بيانات الـ AWS
+  // 4. إرسال البيانات للـ AWS
   Future<void> _sendNotificationDataToAWS() async {
     try {
       String? token = await FirebaseMessaging.instance.getToken();
@@ -120,7 +157,7 @@ class _LoginFormWidgetState extends State<LoginFormWidget> {
           Uri.parse(apiUrl),
           headers: {"Content-Type": "application/json"},
           body: jsonEncode({
-            "userId": uid, // UID الموظف
+            "userId": uid,
             "fcmToken": token,
             "role": "seller"
           })
@@ -131,48 +168,6 @@ class _LoginFormWidgetState extends State<LoginFormWidget> {
     }
   }
 
-  Future<void> _submitLogin() async {
-    if (!_formKey.currentState!.validate()) return;
-    _formKey.currentState!.save();
-    setState(() { _isLoading = true; _errorMessage = null; });
-
-    try {
-      String fakeEmail = "${_phone.trim()}@aswaq.com";
-      final String userRole = await _authService.signInWithEmailAndPassword(fakeEmail, _password);
-
-      if (userRole == 'seller') {
-        User? currentUser = FirebaseAuth.instance.currentUser;
-        if (currentUser != null) {
-          bool shouldWait = await _setupSellerSession(_phone.trim(), currentUser.uid);
-          
-          if (shouldWait) {
-            setState(() => _isLoading = false);
-            return; // 🛑 التوقف هنا للسماح للموظف بتغيير الباسورد
-          }
-        }
-      }
-
-      // إذا وصلنا هنا، يعني المستخدم لا يحتاج لتغيير باسورد
-      await _sendNotificationDataToAWS();
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: const Text('✅ تم تسجيل الدخول بنجاح!'), backgroundColor: primaryGreen),
-      );
-
-      await Future.delayed(const Duration(milliseconds: 1500));
-      if (!mounted) return;
-      Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
-
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-        _errorMessage = 'بيانات الدخول غير صحيحة';
-      });
-    }
-  }
-
-  // ... باقي كود الـ UI (Build, InputGroup, الخ) كما هو لديك ...
   @override
   Widget build(BuildContext context) {
     return Form(
@@ -248,7 +243,6 @@ class _LoginFormWidgetState extends State<LoginFormWidget> {
   }
 }
 
-// كود الـ _InputGroup يبقى كما هو في ملفك الأصلي
 class _InputGroup extends StatelessWidget {
   final IconData icon;
   final String hintText;

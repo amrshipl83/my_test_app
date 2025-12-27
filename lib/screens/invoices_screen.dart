@@ -1,8 +1,10 @@
+// lib/screens/invoices_screen.dart
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:my_test_app/screens/invoice_details_screen.dart';
+import 'package:my_test_app/services/user_session.dart'; // تأكد من استيراد الجلسة
 import 'package:sizer/sizer.dart';
 
 class InvoiceScreen extends StatefulWidget {
@@ -16,14 +18,23 @@ class InvoiceScreen extends StatefulWidget {
 class _InvoiceScreenState extends State<InvoiceScreen> {
   
   Stream<QuerySnapshot> _fetchInvoices() {
-    final uid = widget.sellerId ?? FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return const Stream.empty();
+    // 🎯 استخدام ownerId من الجلسة لضمان جلب فواتير التاجر الأب للموظفين
+    // وإذا لم يتوفر نستخدم ID المستخدم الحالي
+    final String? uid = widget.sellerId ?? 
+                        (UserSession.ownerId.isNotEmpty ? UserSession.ownerId : FirebaseAuth.instance.currentUser?.uid);
 
-    // ملاحظة: إذا استمر الاختفاء، احذف .orderBy مؤقتاً لحين عمل Index في Firestore
+    if (uid == null) {
+      debugPrint("🚨 Error: No valid sellerId found for fetching invoices");
+      return const Stream.empty();
+    }
+
+    debugPrint("🔍 Fetching invoices for sellerId: $uid");
+
+    // 🎯 تم إلغاء .orderBy لتجنب طلب إنشاء فهرس (Index)
+    // ستظهر الفواتير بترتيب Firestore الافتراضي (غالباً حسب وقت الإضافة)
     return FirebaseFirestore.instance
         .collection('invoices')
         .where('sellerId', isEqualTo: uid)
-        .orderBy('creationDate', descending: true) 
         .snapshots();
   }
 
@@ -32,8 +43,8 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FB),
       appBar: AppBar(
-        title: Text('كشف الفواتير الشهرية', 
-          style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold, fontSize: 16.sp)),
+        title: Text('كشف الفواتير الشهرية',
+            style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold, fontSize: 16.sp)),
         backgroundColor: const Color(0xFF007bff),
         foregroundColor: Colors.white,
         centerTitle: true,
@@ -56,8 +67,8 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
                 children: [
                   Icon(Icons.receipt_long_outlined, size: 50.sp, color: Colors.grey),
                   SizedBox(height: 2.h),
-                  Text("لا توجد فواتير سابقة لهذا الحساب", 
-                    style: TextStyle(fontFamily: 'Cairo', fontSize: 13.sp, color: Colors.grey)),
+                  Text("لا توجد فواتير سابقة لهذا الحساب",
+                      style: TextStyle(fontFamily: 'Cairo', fontSize: 13.sp, color: Colors.grey)),
                 ],
               ),
             );
@@ -118,7 +129,6 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
       if (dateVal is Timestamp) {
         return DateFormat('yyyy/MM', 'ar_EG').format(dateVal.toDate());
       } else if (dateVal is String) {
-        // تحويل النص (ISO String) إلى DateTime
         DateTime dt = DateTime.parse(dateVal);
         return DateFormat('yyyy/MM', 'ar_EG').format(dt);
       }
