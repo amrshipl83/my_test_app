@@ -6,6 +6,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:my_test_app/widgets/chat_support_widget.dart';
+// استيراد صفحة البحث لاستخدام الـ routeName الخاص بها
+import 'package:my_test_app/screens/consumer/consumer_store_search_screen.dart';
 
 class ConsumerHomeScreen extends StatefulWidget {
   static const routeName = '/consumerHome';
@@ -18,6 +20,10 @@ class ConsumerHomeScreen extends StatefulWidget {
 class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
   final ConsumerDataService dataService = ConsumerDataService();
 
+  // 🎨 درجات الأخضر الفاتح المريحة للعين
+  final Color softGreen = const Color(0xFF66BB6A); 
+  final Color darkGreenText = const Color(0xFF2E7D32);
+
   @override
   void initState() {
     super.initState();
@@ -29,9 +35,7 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
     if (user == null) return;
     FirebaseMessaging messaging = FirebaseMessaging.instance;
     NotificationSettings settings = await messaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
+      alert: true, badge: true, sound: true,
     );
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
       String? token = await messaging.getToken();
@@ -49,60 +53,93 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
     final user = FirebaseAuth.instance.currentUser;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
+      backgroundColor: const Color(0xFFFBFBFB), // خلفية بيضاء مريحة
       drawer: const ConsumerSideMenu(),
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(70),
-        child: Builder(
-          builder: (context) => ConsumerCustomAppBar(
-            userName: user?.displayName ?? 'مستخدم',
-            userPoints: 0,
-            onMenuPressed: () => Scaffold.of(context).openDrawer(),
-          ),
+      // 🎯 الشريط العلوي باللون الأبيض لزيادة "الوسع" البصري
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        toolbarHeight: 75,
+        iconTheme: IconThemeData(color: softGreen),
+        centerTitle: true,
+        title: Column(
+          children: [
+            Text(
+              "مرحباً بك، ${user?.displayName ?? 'مستخدم'}",
+              style: const TextStyle(color: Colors.black54, fontSize: 12),
+            ),
+            Text(
+              "AMR", 
+              style: TextStyle(color: darkGreenText, fontWeight: FontWeight.bold, fontSize: 22),
+            ),
+          ],
         ),
+        actions: [
+          // أيقونة النقاط بشكل مبسط
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            decoration: BoxDecoration(
+              color: Colors.amber.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.stars, color: Colors.orange, size: 18),
+                const SizedBox(width: 4),
+                Text("0", style: TextStyle(color: darkGreenText, fontWeight: FontWeight.bold)),
+              ],
+            ),
+          )
+        ],
       ),
       body: SafeArea(
         child: Stack(
           children: [
+            // 1. المحتوى القابل للتمرير
             SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SizedBox(height: 100),
+                  const SizedBox(height: 105), // مساحة لزر الرادار العائم
+
                   const ConsumerSectionTitle(title: 'الأقسام المميزة'),
                   FutureBuilder<List<ConsumerCategory>>(
                     future: dataService.fetchMainCategories(),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const SizedBox(
+                        return SizedBox(
                           height: 130,
-                          child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF43A047))),
+                          child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: softGreen)),
                         );
                       }
-                      final categories = snapshot.data ?? [];
-                      return ConsumerCategoriesBanner(categories: categories);
+                      return ConsumerCategoriesBanner(categories: snapshot.data ?? []);
                     },
                   ),
+
                   const SizedBox(height: 10),
+
                   const ConsumerSectionTitle(title: 'أحدث العروض الحصرية'),
                   FutureBuilder<List<ConsumerBanner>>(
                     future: dataService.fetchPromoBanners(),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const SizedBox(
+                        return SizedBox(
                           height: 200,
-                          child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF43A047))),
+                          child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: softGreen)),
                         );
                       }
-                      final banners = snapshot.data ?? [];
-                      return ConsumerPromoBanners(banners: banners, height: 220);
+                      return ConsumerPromoBanners(banners: snapshot.data ?? [], height: 220);
                     },
                   ),
-                  const SizedBox(height: 100),
+                  
+                  const SizedBox(height: 120), // مساحة أمان سفلية
                 ],
               ),
             ),
+
+            // 🎯 2. زر الرادار الذكي (تم تصحيح الـ onTap والمسار)
             Positioned(
               top: 15,
               left: 15,
@@ -123,7 +160,7 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
             builder: (context) => const ChatSupportWidget(),
           );
         },
-        backgroundColor: const Color(0xFF43A047),
+        backgroundColor: softGreen,
         child: const Icon(Icons.support_agent, color: Colors.white, size: 30),
       ),
     );
@@ -133,18 +170,18 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
     return Container(
       height: 75,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF43A047), Color(0xFF2E7D32)],
+        gradient: LinearGradient(
+          colors: [softGreen, const Color(0xFF4CAF50)],
           begin: Alignment.centerRight,
           end: Alignment.centerLeft,
         ),
         borderRadius: BorderRadius.circular(40),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF43A047).withOpacity(0.4),
-            blurRadius: 20,
-            spreadRadius: 2,
-            offset: const Offset(0, 10),
+            color: softGreen.withOpacity(0.2),
+            blurRadius: 15,
+            spreadRadius: 1,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -152,8 +189,10 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(40),
-          onTap: () { // 🎯 تم التصحيح هنا من onPressed إلى onTap
-            debugPrint("📡 تشغيل رادار البحث عن الأقرب...");
+          // 🚀 التصحيح: استخدام onTap بدلاً من onPressed وإضافة التوجيه الصحيح
+          onTap: () {
+            Navigator.pushNamed(context, ConsumerStoreSearchScreen.routeName);
+            debugPrint("📡 فتح صفحة رادار البحث...");
           },
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -163,7 +202,7 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
                   width: 50,
                   height: 50,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
+                    color: Colors.white.withOpacity(0.25),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(Icons.radar, color: Colors.white, size: 30),
@@ -179,13 +218,13 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
                         style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
                       ),
                       Text(
-                        "اضغط لتفعيل رادار البحث الذكي",
+                        "تفعيل رادار البحث الذكي",
                         style: TextStyle(color: Colors.white70, fontSize: 12),
                       ),
                     ],
                   ),
                 ),
-                const Icon(Icons.location_on_outlined, color: Colors.white, size: 28),
+                const Icon(Icons.my_location, color: Colors.white, size: 26),
               ],
             ),
           ),
