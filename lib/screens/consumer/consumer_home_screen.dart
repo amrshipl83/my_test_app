@@ -25,15 +25,17 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTick
   final ConsumerDataService dataService = ConsumerDataService();
   final Color softGreen = const Color(0xFF66BB6A);
   final Color darkGreenText = const Color(0xFF2E7D32);
-  bool _celebrationTriggered = false; // لمنع التكرار في نفس الجلسة
+  bool _celebrationTriggered = false; 
 
   @override
   void initState() {
     super.initState();
-    _initSequence();
+    // استخدام Frame Callback لضمان تشغيل الأذونات بعد استقرار الواجهة
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initSequence();
+    });
   }
 
-  // تسلسل التشغيل: إشعارات ثم فحص النقاط
   Future<void> _initSequence() async {
     await _setupNotifications();
   }
@@ -41,19 +43,29 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTick
   Future<void> _setupNotifications() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
+
     FirebaseMessaging messaging = FirebaseMessaging.instance;
-    // طلب الإذن أولاً
-    await messaging.requestPermission(alert: true, badge: true, sound: true);
-    String? token = await messaging.getToken();
-    if (token != null) {
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
-        'fcmToken': token,
-        'lastTokenUpdate': FieldValue.serverTimestamp(),
-      });
+    
+    // تأخير نصف ثانية إضافي لضمان عدم تداخل النوافذ المنبثقة
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    NotificationSettings settings = await messaging.requestPermission(
+      alert: true, 
+      badge: true, 
+      sound: true
+    );
+
+    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+      String? token = await messaging.getToken();
+      if (token != null) {
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+          'fcmToken': token,
+          'lastTokenUpdate': FieldValue.serverTimestamp(),
+        });
+      }
     }
   }
 
-  // دالة إظهار الاحتفال المبتكر (Overlay)
   void _showCelebrationOverlay(int points) {
     if (_celebrationTriggered) return;
     _celebrationTriggered = true;
@@ -69,6 +81,22 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTick
     );
 
     overlayState.insert(overlayEntry);
+  }
+
+  Future<void> _checkFirstTimeWelcome(int points) async {
+    final prefs = await SharedPreferences.getInstance();
+    // استخدام v2 للتأكد من ظهورها لك الآن في التجربة
+    bool shown = prefs.getBool('welcome_anim_shown_v2') ?? false; 
+    
+    if (!shown) {
+      // استخدام microtask لضمان عدم مقاطعة عملية الـ build الحالية لـ Flutter
+      Future.microtask(() {
+        if (mounted) {
+          _showCelebrationOverlay(points);
+        }
+      });
+      await prefs.setBool('welcome_anim_shown_v2', true);
+    }
   }
 
   Future<void> _handleAbaatlyHad() async {
@@ -124,7 +152,6 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTick
                 points = userData['loyaltyPoints'] ?? 0;
                 bool isProcessed = userData['welcomePointsProcessed'] ?? false;
 
-                // فحص الاحتفال داخل الـ Stream
                 if (isProcessed && points > 0) {
                   _checkFirstTimeWelcome(points);
                 }
@@ -154,15 +181,6 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTick
       ),
       bottomNavigationBar: const ConsumerFooterNav(cartCount: 0, activeIndex: 0),
     );
-  }
-
-  Future<void> _checkFirstTimeWelcome(int points) async {
-    final prefs = await SharedPreferences.getInstance();
-    bool shown = prefs.getBool('welcome_anim_shown') ?? false;
-    if (!shown) {
-      _showCelebrationOverlay(points);
-      await prefs.setBool('welcome_anim_shown', true);
-    }
   }
 
   Widget _buildSmartRadarButton() {
@@ -287,7 +305,6 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTick
       );
 }
 
-// الويجيت الاحتفالي المنفصل للتحكم في الأنيميشن
 class _CelebrationWidget extends StatefulWidget {
   final int points;
   final VoidCallback onDismiss;
@@ -308,7 +325,6 @@ class _CelebrationWidgetState extends State<_CelebrationWidget> with SingleTicke
     _scaleAnimation = CurvedAnimation(parent: _controller, curve: Curves.elasticOut);
     _controller.forward();
 
-    // التلاشي التلقائي بعد 4 ثوانٍ
     Future.delayed(const Duration(seconds: 4), () {
       if (mounted) {
         _controller.reverse().then((value) => widget.onDismiss());

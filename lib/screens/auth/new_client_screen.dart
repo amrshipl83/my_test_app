@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:sizer/sizer.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // تم إضافة الاستيراد للتأمين
 import 'package:my_test_app/data_sources/client_data_source.dart';
 import 'package:my_test_app/screens/auth/client_selection_step.dart';
 import 'package:my_test_app/screens/auth/client_details_step.dart';
@@ -23,7 +24,7 @@ class _NewClientScreenState extends State<NewClientScreen> {
 
   final Map<String, TextEditingController> _controllers = {
     'fullname': TextEditingController(),
-    'phone': TextEditingController(), // 🎯 الحقل الجديد والأساسي
+    'phone': TextEditingController(),
     'password': TextEditingController(),
     'confirmPassword': TextEditingController(),
     'address': TextEditingController(),
@@ -69,7 +70,7 @@ class _NewClientScreenState extends State<NewClientScreen> {
         _location = {'lat': position.latitude, 'lng': position.longitude};
       });
     } catch (e) {
-      print("Error location: $e");
+      debugPrint("Error location: $e");
     }
   }
 
@@ -82,8 +83,7 @@ class _NewClientScreenState extends State<NewClientScreen> {
     );
   }
 
-  void _handleSelectionStep(
-      {required String country, required String userType}) {
+  void _handleSelectionStep({required String country, required String userType}) {
     setState(() {
       _selectedCountry = country;
       _selectedUserType = userType;
@@ -91,17 +91,15 @@ class _NewClientScreenState extends State<NewClientScreen> {
     _goToStep(3);
   }
 
-  // 🎯 دالة إظهار رسالة النجاح الاحترافية
+  // 🎯 رسالة النجاح: مسار إجباري واحد لتسجيل الدخول
   void _showSuccessDialog() {
     bool isSeller = _selectedUserType == 'seller';
-
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        icon: const Icon(Icons.check_circle_outline,
-            color: Color(0xFF2D9E68), size: 60),
+        icon: const Icon(Icons.check_circle_outline, color: Color(0xFF2D9E68), size: 60),
         title: const Text(
           'تم التسجيل بنجاح',
           textAlign: TextAlign.center,
@@ -110,7 +108,7 @@ class _NewClientScreenState extends State<NewClientScreen> {
         content: Text(
           isSeller
               ? "تم استلام طلب انضمامك بنجاح! يسعدنا تواجدك معنا، يمكنك تسجيل الدخول فور موافقة الإدارة على حسابك."
-              : "مرحباً بك في أكسب! تم إنشاء حسابك بنجاح، يمكنك الآن تسجيل الدخول والاستمتاع بخدماتنا.",
+              : "مرحباً بك في أكسب! تم إنشاء حسابك بنجاح، يرجى تسجيل الدخول للاستمتاع بخدماتنا.",
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 12.sp),
         ),
@@ -120,17 +118,15 @@ class _NewClientScreenState extends State<NewClientScreen> {
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF2D9E68),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 padding: const EdgeInsets.symmetric(vertical: 12),
               ),
               onPressed: () {
-                Navigator.of(context)
-                    .pushNamedAndRemoveUntil('/', (route) => false);
+                // تصفير الـ Stack بالكامل والعودة للبداية (Login)
+                Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
               },
-              child: const Text('تسجيل الدخول',
-                  style: TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.bold)),
+              child: const Text('الذهاب لتسجيل الدخول',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
           ),
         ],
@@ -138,27 +134,22 @@ class _NewClientScreenState extends State<NewClientScreen> {
     );
   }
 
-  // 🎯 الدالة المعدلة لتحويل الهاتف إلى بريد وهمي والرسائل الاحترافية
+  // 🎯 معالجة التسجيل مع تأمين تسجيل الخروج
   Future<void> _handleRegistration() async {
     final phone = _controllers['phone']!.text.trim();
     final pass = _controllers['password']!.text;
     final confirmPass = _controllers['confirmPassword']!.text;
 
-    // التحققات الأساسية
     if (phone.length < 8) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('❌ يرجى إدخال رقم هاتف صحيح')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('❌ يرجى إدخال رقم هاتف صحيح')));
       return;
     }
     if (pass != confirmPass) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('❌ كلمة المرور غير متطابقة')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('❌ كلمة المرور غير متطابقة')));
       return;
     }
 
-    // إنشاء البريد الوهمي
     String fakeEmail = "$phone@aswaq.com";
-
     if (_location == null) {
       await _determinePosition();
     }
@@ -167,7 +158,7 @@ class _NewClientScreenState extends State<NewClientScreen> {
     try {
       await _dataSource.registerClient(
         fullname: _controllers['fullname']!.text,
-        email: fakeEmail, // 🚀 نرسل البريد الوهمي لـ Firebase
+        email: fakeEmail,
         password: pass,
         address: _controllers['address']!.text,
         country: _selectedCountry,
@@ -179,13 +170,15 @@ class _NewClientScreenState extends State<NewClientScreen> {
         additionalPhone: _controllers['additionalPhone']!.text,
       );
 
+      // 🔐 تأمين: تسجيل الخروج فوراً لضمان عدم وجود جلسة معلقة
+      await FirebaseAuth.instance.signOut();
+
       if (mounted) {
-        _showSuccessDialog(); // 🎯 استدعاء الرسالة الاحترافية
+        _showSuccessDialog();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('❌ خطأ: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('❌ خطأ: $e')));
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
@@ -210,8 +203,7 @@ class _NewClientScreenState extends State<NewClientScreen> {
                   SizedBox(height: 4.h),
                   Container(
                     width: double.infinity,
-                    constraints:
-                        BoxConstraints(minHeight: 60.h, maxHeight: 80.h),
+                    constraints: BoxConstraints(minHeight: 60.h, maxHeight: 80.h),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(30),
@@ -233,7 +225,6 @@ class _NewClientScreenState extends State<NewClientScreen> {
                             onCountrySelected: (country) => _goToStep(2),
                             initialCountry: _selectedCountry,
                             initialUserType: _selectedUserType,
-                            onCompleted: ({required country, required userType}) {},
                           ),
                           ClientSelectionStep(
                             stepNumber: 2,
@@ -247,8 +238,7 @@ class _NewClientScreenState extends State<NewClientScreen> {
                             controllers: _controllers,
                             selectedUserType: _selectedUserType,
                             isSaving: _isSaving,
-                            onBusinessTypeChanged: (v) =>
-                                setState(() => _businessType = v),
+                            onBusinessTypeChanged: (v) => setState(() => _businessType = v),
                             onFilePicked: ({required field, required file}) {
                               setState(() {
                                 if (field == 'logo') _logoFile = file;
@@ -257,8 +247,7 @@ class _NewClientScreenState extends State<NewClientScreen> {
                               });
                             },
                             onLocationChanged: ({required lat, required lng}) {
-                              setState(
-                                  () => _location = {'lat': lat, 'lng': lng});
+                              setState(() => _location = {'lat': lat, 'lng': lng});
                             },
                             onRegister: _handleRegistration,
                             onGoBack: () => _goToStep(2),
@@ -292,9 +281,7 @@ class _NewClientScreenState extends State<NewClientScreen> {
               height: 35,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: isActive || isCompleted
-                    ? const Color(0xFF2D9E68)
-                    : Colors.grey.shade200,
+                color: isActive || isCompleted ? const Color(0xFF2D9E68) : Colors.grey.shade200,
               ),
               child: Center(
                 child: isCompleted
@@ -309,9 +296,7 @@ class _NewClientScreenState extends State<NewClientScreen> {
               Container(
                   width: 15.w,
                   height: 2,
-                  color: isCompleted
-                      ? const Color(0xFF2D9E68)
-                      : Colors.grey.shade200),
+                  color: isCompleted ? const Color(0xFF2D9E68) : Colors.grey.shade200),
           ],
         );
       }),
@@ -329,9 +314,7 @@ class _LogoHeader extends StatelessWidget {
         const SizedBox(height: 12),
         Text('إنشاء حساب جديد',
             style: TextStyle(
-                fontSize: 20.sp,
-                fontWeight: FontWeight.bold,
-                color: const Color(0xFF1A1A1A))),
+                fontSize: 20.sp, fontWeight: FontWeight.bold, color: const Color(0xFF1A1A1A))),
         const SizedBox(height: 4),
         Text('سجل برقم هاتفك لسهولة الوصول',
             style: TextStyle(fontSize: 11.sp, color: Colors.grey.shade600)),
@@ -353,8 +336,7 @@ class _Footer extends StatelessWidget {
           children: const [
             TextSpan(
               text: 'تسجيل الدخول',
-              style: TextStyle(
-                  color: Color(0xFF2D9E68), fontWeight: FontWeight.bold),
+              style: TextStyle(color: Color(0xFF2D9E68), fontWeight: FontWeight.bold),
             ),
           ],
         ),
