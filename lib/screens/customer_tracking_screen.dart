@@ -26,7 +26,7 @@ class CustomerTrackingScreen extends StatelessWidget {
         var orderData = orderSnapshot.data!.data() as Map<String, dynamic>;
         String status = orderData['status'] ?? "pending";
         String? driverId = orderData['driverId'];
-        String verificationCode = orderData['verificationCode'] ?? "----"; // جلب كود الأمان
+        String verificationCode = orderData['verificationCode'] ?? "----";
 
         GeoPoint pickup = orderData['pickupLocation'];
         GeoPoint dropoff = orderData['dropoffLocation'];
@@ -56,9 +56,9 @@ class CustomerTrackingScreen extends StatelessWidget {
                 appBar: AppBar(
                   backgroundColor: Colors.white.withOpacity(0.9),
                   elevation: 0,
-                  iconTheme: const IconThemeData(color: Colors.black),
+                  iconTheme: const IconThemeData(color: Colors.black, size: 28),
                   title: Text("تتبع رحلة Aksab", 
-                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16.sp, color: Colors.black)),
+                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18.sp, color: Colors.black)),
                   centerTitle: true,
                 ),
                 body: Stack(
@@ -87,14 +87,14 @@ class CustomerTrackingScreen extends StatelessWidget {
                             if (driverLatLng != null)
                               Marker(
                                 point: driverLatLng,
-                                width: 70, height: 70,
+                                width: 75, height: 75,
                                 child: _buildDriverMarker(orderData['vehicleType'] ?? 'motorcycle'),
                               ),
                           ],
                         ),
                       ],
                     ),
-                    _buildUnifiedBottomPanel(status, orderData, driverData, verificationCode),
+                    _buildUnifiedBottomPanel(context, status, orderData, driverData, verificationCode),
                   ],
                 ),
               ),
@@ -105,7 +105,10 @@ class CustomerTrackingScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildUnifiedBottomPanel(String status, Map<String, dynamic> order, Map<String, dynamic>? driver, String code) {
+  Widget _buildUnifiedBottomPanel(BuildContext context, String status, Map<String, dynamic> order, Map<String, dynamic>? driver, String code) {
+    // حساب المساحة الآمنة السفلية (Safe Area bottom padding)
+    double bottomPadding = MediaQuery.of(context).padding.bottom;
+    
     double progress = 0.1;
     String statusDesc = "بانتظار قبول مندوب...";
     Color progressColor = Colors.orange;
@@ -129,76 +132,95 @@ class CustomerTrackingScreen extends StatelessWidget {
     }
 
     return Positioned(
-      bottom: 20, left: 15, right: 15,
+      // جعل الـ bottom يعتمد على مساحة الهاتف الآمنة لمنع التداخل مع أزرار التنقل
+      bottom: bottomPadding + 15, left: 12, right: 12,
       child: Container(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(22),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(25),
-          boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 20)],
+          borderRadius: BorderRadius.circular(30),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 25, offset: const Offset(0, -5))],
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: LinearProgressIndicator(
-                      value: progress,
-                      minHeight: 10,
-                      backgroundColor: Colors.grey[200],
-                      color: progressColor,
+        child: SingleChildScrollView( // لحماية الشاشات الصغيرة من الـ Overflow
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: LinearProgressIndicator(
+                        value: progress,
+                        minHeight: 12,
+                        backgroundColor: Colors.grey[200],
+                        color: progressColor,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 15),
-                Text("${(progress * 100).toInt()}%", style: const TextStyle(fontWeight: FontWeight.bold)),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(statusDesc, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13.sp, color: progressColor)),
-            const Divider(height: 30),
-
-            if (status == 'accepted' || status == 'at_pickup')
-              Container(
-                padding: const EdgeInsets.all(12),
-                margin: const EdgeInsets.only(bottom: 15),
-                decoration: BoxDecoration(color: Colors.amber[50], borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.amber)),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.security, color: Colors.amber),
-                    const SizedBox(width: 10),
-                    Text("كود تسليم الشحنة للمندوب: ", style: TextStyle(fontSize: 11.sp, fontWeight: FontWeight.bold)),
-                    // 🛠️ تم تصحيح الخطأ هنا بتغيير FontWeight.black إلى FontWeight.w900
-                    Text(code, style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w900, letterSpacing: 2, color: Colors.red[900])),
-                  ],
-                ),
+                  const SizedBox(width: 15),
+                  Text("${(progress * 100).toInt()}%", 
+                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15.sp)),
+                ],
               ),
+              const SizedBox(height: 15),
+              Text(statusDesc, 
+                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16.sp, color: progressColor)),
+              const Divider(height: 35, thickness: 1.2),
 
-            Row(
-              children: [
-                CircleAvatar(radius: 30, backgroundColor: Colors.grey[100], child: const Icon(Icons.person, size: 35)),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+              if (status == 'accepted' || status == 'at_pickup')
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 10),
+                  margin: const EdgeInsets.only(bottom: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.amber[50], 
+                    borderRadius: BorderRadius.circular(20), 
+                    border: Border.all(color: Colors.amber, width: 1.5)
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(driver != null ? driver['fullname'] : "بحث عن مندوب...", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14.sp)),
-                      Text("Aksab Delivery", style: TextStyle(color: Colors.grey, fontSize: 10.sp)),
+                      const Icon(Icons.security, color: Colors.amber, size: 28),
+                      const SizedBox(width: 12),
+                      Text("كود التسليم: ", 
+                          style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold, color: Colors.black87)),
+                      Text(code, 
+                          style: TextStyle(fontSize: 20.sp, fontWeight: FontWeight.w900, letterSpacing: 3, color: Colors.red[900])),
                     ],
                   ),
                 ),
-                if (driver != null)
-                  IconButton(
-                    onPressed: () => _makePhoneCall(driver['phone']),
-                    icon: const Icon(Icons.phone_in_talk, color: Colors.green, size: 35),
+
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 35, 
+                    backgroundColor: Colors.grey[100], 
+                    child: Icon(Icons.person, size: 45, color: Colors.blue[900])
                   ),
-              ],
-            ),
-          ],
+                  const SizedBox(width: 15),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(driver != null ? driver['fullname'] : "بحث عن مندوب...", 
+                            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17.sp)),
+                        Text("Aksab Delivery - موثق", 
+                            style: TextStyle(color: Colors.grey[600], fontSize: 12.sp, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                  if (driver != null)
+                    Container(
+                      decoration: BoxDecoration(color: Colors.green[50], shape: BoxShape.circle),
+                      child: IconButton(
+                        onPressed: () => _makePhoneCall(driver['phone']),
+                        icon: const Icon(Icons.phone_in_talk, color: Colors.green, size: 38),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -212,16 +234,16 @@ class CustomerTrackingScreen extends StatelessWidget {
     return Column(
       children: [
         Container(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
             color: Colors.blue[900],
             shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 2),
-            boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 5)],
+            border: Border.all(color: Colors.white, width: 3),
+            boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 8)],
           ),
-          child: Icon(icon, color: Colors.white, size: 25),
+          child: Icon(icon, color: Colors.white, size: 30),
         ),
-        const Icon(Icons.arrow_drop_down, color: Colors.blue, size: 20),
+        const Icon(Icons.arrow_drop_down, color: Colors.blue, size: 25),
       ],
     );
   }

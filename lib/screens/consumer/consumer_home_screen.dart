@@ -1,4 +1,3 @@
-// lib/screens/consumer/consumer_home_screen.dart
 import 'package:flutter/material.dart';
 import 'package:my_test_app/screens/consumer/consumer_widgets.dart';
 import 'package:my_test_app/screens/consumer/consumer_data_models.dart';
@@ -7,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:my_test_app/screens/consumer/consumer_store_search_screen.dart';
+import 'package:my_test_app/screens/consumer/points_loyalty_screen.dart'; // استيراد صفحة النقاط
 import 'package:latlong2/latlong.dart';
 import 'package:sizer/sizer.dart';
 import 'package:geolocator/geolocator.dart';
@@ -77,18 +77,31 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        toolbarHeight: 75,
-        iconTheme: IconThemeData(color: softGreen),
+        toolbarHeight: 90, // زيادة الطول ليتناسب مع الخطوط الكبيرة
+        iconTheme: IconThemeData(color: softGreen, size: 28),
         centerTitle: true,
         title: Column(
           children: [
-            Text("مرحباً بك، ${user?.displayName ?? 'مستخدم'}", 
-              style: TextStyle(color: Colors.black54, fontSize: 10.sp)),
-            Text(user?.displayName?.split(' ').first.toUpperCase() ?? "GUEST", 
-              style: TextStyle(color: darkGreenText, fontWeight: FontWeight.bold, fontSize: 18.sp)),
+            Text("مرحباً بك،", 
+                style: TextStyle(color: Colors.black54, fontSize: 12.sp)),
+            Text(user?.displayName?.split(' ').first.toUpperCase() ?? "GUEST",
+                style: TextStyle(color: darkGreenText, fontWeight: FontWeight.w900, fontSize: 19.sp)),
           ],
         ),
-        actions: [_buildPointsBadge()],
+        actions: [
+          // StreamBuilder لجلب نقاط الولاء الحقيقية من الحقل loyaltyPoints
+          StreamBuilder<DocumentSnapshot>(
+            stream: FirebaseFirestore.instance.collection('users').doc(user?.uid).snapshots(),
+            builder: (context, snapshot) {
+              int points = 0;
+              if (snapshot.hasData && snapshot.data!.exists) {
+                var userData = snapshot.data!.data() as Map<String, dynamic>;
+                points = userData['loyaltyPoints'] ?? 0;
+              }
+              return _buildPointsBadge(points);
+            },
+          ),
+        ],
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -145,10 +158,10 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text("اكتشف المحلات القريبة", 
-                      style: TextStyle(color: Colors.white, fontSize: 15.sp, fontWeight: FontWeight.w900)),
-                    Text("تفعيل رادار البحث الذكي", 
-                      style: TextStyle(color: Colors.white70, fontSize: 10.sp, fontWeight: FontWeight.bold)),
+                    Text("اكتشف المحلات القريبة",
+                        style: TextStyle(color: Colors.white, fontSize: 15.sp, fontWeight: FontWeight.w900)),
+                    Text("تفعيل رادار البحث الذكي",
+                        style: TextStyle(color: Colors.white70, fontSize: 10.sp, fontWeight: FontWeight.bold)),
                   ],
                 ),
               ),
@@ -194,45 +207,54 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
   }
 
   Widget _buildBannerIcon() => Container(
-    padding: const EdgeInsets.all(10),
-    decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), shape: BoxShape.circle),
-    child: Icon(Icons.delivery_dining, color: Colors.white, size: 30.sp),
-  );
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), shape: BoxShape.circle),
+        child: Icon(Icons.delivery_dining, color: Colors.white, size: 30.sp),
+      );
 
   Widget _buildBannerText() => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text("ابعتلي حد", style: TextStyle(color: Colors.white, fontSize: 17.sp, fontWeight: FontWeight.w900)),
-      Text("مندوب حر لنقل أغراضك فوراً", 
-        style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 10.sp, fontWeight: FontWeight.bold)),
-    ],
-  );
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text("ابعتلي حد", style: TextStyle(color: Colors.white, fontSize: 17.sp, fontWeight: FontWeight.w900)),
+          Text("مندوب حر لنقل أغراضك فوراً",
+              style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 10.sp, fontWeight: FontWeight.bold)),
+        ],
+      );
 
-  Widget _buildPointsBadge() => Container(
-    margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
-    padding: const EdgeInsets.symmetric(horizontal: 10),
-    decoration: BoxDecoration(color: Colors.amber.withOpacity(0.1), borderRadius: BorderRadius.circular(15)),
-    child: Row(children: [
-      const Icon(Icons.stars, color: Colors.orange, size: 18),
-      const SizedBox(width: 4),
-      Text("0", style: TextStyle(color: darkGreenText, fontWeight: FontWeight.bold, fontSize: 11.sp)),
-    ]),
-  );
+  // تحديث أيقونة النقاط لتكون تفاعلية وبخط كبير
+  Widget _buildPointsBadge(int points) => InkWell(
+        onTap: () => Navigator.pushNamed(context, PointsLoyaltyScreen.routeName),
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.amber.withOpacity(0.15), 
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.orange.withOpacity(0.5))
+          ),
+          child: Row(children: [
+            const Icon(Icons.stars, color: Colors.orange, size: 22),
+            const SizedBox(width: 6),
+            Text(points.toString(), 
+                style: TextStyle(color: darkGreenText, fontWeight: FontWeight.w900, fontSize: 13.sp)),
+          ]),
+        ),
+      );
 
   Widget _buildCategoriesSection() => FutureBuilder<List<ConsumerCategory>>(
-    future: dataService.fetchMainCategories(),
-    builder: (context, snapshot) {
-      if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-      return ConsumerCategoriesBanner(categories: snapshot.data ?? []);
-    },
-  );
+        future: dataService.fetchMainCategories(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+          return ConsumerCategoriesBanner(categories: snapshot.data ?? []);
+        },
+      );
 
   Widget _buildBannersSection() => FutureBuilder<List<ConsumerBanner>>(
-    future: dataService.fetchPromoBanners(),
-    builder: (context, snapshot) {
-      if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-      return ConsumerPromoBanners(banners: snapshot.data ?? [], height: 220);
-    },
-  );
+        future: dataService.fetchPromoBanners(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+          return ConsumerPromoBanners(banners: snapshot.data ?? [], height: 220);
+        },
+      );
 }
 
