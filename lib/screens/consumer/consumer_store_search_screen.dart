@@ -9,6 +9,8 @@ import 'package:sizer/sizer.dart';
 import 'package:my_test_app/providers/buyer_data_provider.dart';
 import 'package:my_test_app/screens/consumer/MarketplaceHomeScreen.dart';
 import 'package:my_test_app/screens/special_requests/location_picker_screen.dart';
+// 🚀 استيراد صفحة ابعتلي حد
+import 'package:my_test_app/screens/special_requests/abaatly_had_pro_screen.dart';
 
 class ConsumerStoreSearchScreen extends StatefulWidget {
   static const routeName = '/consumerStoreSearch';
@@ -25,12 +27,11 @@ class _ConsumerStoreSearchScreenState extends State<ConsumerStoreSearchScreen> {
   String _loadingMessage = 'جاري المسح الجغرافي...';
   List<Map<String, dynamic>> _nearbySupermarkets = [];
   List<Marker> _mapMarkers = [];
-  
+
   final double _searchRadiusKm = 5.0;
   final Distance distance = const Distance();
 
-  // 🎨 الألوان والخطوط الكبيرة
-  final Color brandGreen = const Color(0xFF66BB6A); 
+  final Color brandGreen = const Color(0xFF66BB6A);
   final Color darkText = const Color(0xFF212121);
   final String mapboxToken = 'pk.eyJ1IjoiYW1yc2hpcGwiLCJhIjoiY21lajRweGdjMDB0eDJsczdiemdzdXV6biJ9.E--si9vOB93NGcAq7uVgGw';
 
@@ -40,7 +41,6 @@ class _ConsumerStoreSearchScreenState extends State<ConsumerStoreSearchScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _promptLocationSelection());
   }
 
-  // 🚀 الدالة التي تسببت في الخطأ تم التأكد من وجودها
   Future<void> _promptLocationSelection() async {
     final buyerDataProvider = Provider.of<BuyerDataProvider>(context, listen: false);
     final LatLng? registeredLocation = (buyerDataProvider.userLat != null && buyerDataProvider.userLng != null)
@@ -73,9 +73,7 @@ class _ConsumerStoreSearchScreenState extends State<ConsumerStoreSearchScreen> {
         permission = await Geolocator.requestPermission();
       }
       return await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
-    } catch (e) {
-      return null;
-    }
+    } catch (e) { return null; }
   }
 
   Future<void> _searchAndDisplayStores(LatLng location) async {
@@ -106,7 +104,6 @@ class _ConsumerStoreSearchScreenState extends State<ConsumerStoreSearchScreen> {
           }
         }
       }
-
       setState(() { _nearbySupermarkets = foundStores; _isLoading = false; });
     } catch (e) { setState(() { _isLoading = false; }); }
   }
@@ -125,9 +122,28 @@ class _ConsumerStoreSearchScreenState extends State<ConsumerStoreSearchScreen> {
             icon: Icon(Icons.arrow_back_ios, color: brandGreen, size: 28),
             onPressed: () => Navigator.pop(context),
           ),
-          title: const Text('رادار المحلات القريبة', 
-            style: TextStyle(fontWeight: FontWeight.w900, color: Colors.black, fontSize: 19)),
+          title: const Text('رادار المحلات القريبة',
+              style: TextStyle(fontWeight: FontWeight.w900, color: Colors.black, fontSize: 19)),
           centerTitle: true,
+        ),
+        // 🚀 إضافة زر "ابعتلي حد" بشكل عائم واحترافي
+        floatingActionButton: Padding(
+          padding: const EdgeInsets.only(bottom: 180), // لرفعه فوق كروت المحلات
+          child: FloatingActionButton.extended(
+            onPressed: () {
+              if (_currentSearchLocation != null) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AbaatlyHadProScreen(userCurrentLocation: _currentSearchLocation!),
+                  ),
+                );
+              }
+            },
+            backgroundColor: Colors.orange[800],
+            icon: const Icon(Icons.delivery_dining, color: Colors.white, size: 28),
+            label: const Text("ابعتلي حد", style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 17)),
+          ),
         ),
         body: Stack(
           children: [
@@ -154,6 +170,7 @@ class _ConsumerStoreSearchScreenState extends State<ConsumerStoreSearchScreen> {
     );
   }
 
+  // ... (بقية الـ Widgets التي في كودك تظل كما هي تماماً)
   Widget _buildRadarStatusCard() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
@@ -177,8 +194,7 @@ class _ConsumerStoreSearchScreenState extends State<ConsumerStoreSearchScreen> {
             ),
           ),
           IconButton(
-            // ✅ الإصلاح: استدعاء الدالة بشكل صحيح لتجنب خطأ الـ Build
-            onPressed: () => _promptLocationSelection(), 
+            onPressed: () => _promptLocationSelection(),
             icon: Icon(Icons.my_location, color: brandGreen, size: 28),
           )
         ],
@@ -223,10 +239,10 @@ class _ConsumerStoreSearchScreenState extends State<ConsumerStoreSearchScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(store['supermarketName'] ?? 'متجر', 
-                            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
-                          Text("يبعد ${store['distance']} كم", 
-                            style: TextStyle(color: brandGreen, fontWeight: FontWeight.bold, fontSize: 15)),
+                          Text(store['supermarketName'] ?? 'متجر',
+                              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+                          Text("يبعد ${store['distance']} كم",
+                              style: TextStyle(color: brandGreen, fontWeight: FontWeight.bold, fontSize: 15)),
                         ],
                       ),
                     ),
