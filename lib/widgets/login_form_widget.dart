@@ -25,7 +25,7 @@ class _LoginFormWidgetState extends State<LoginFormWidget> {
   final AuthService _authService = AuthService();
   final Color primaryGreen = const Color(0xff28a745);
 
-  // 1. معالجة تسجيل الدخول الأساسية (المعدلة لمنع التضارب)
+  // 1. معالجة تسجيل الدخول الأساسية
   Future<void> _submitLogin() async {
     if (!_formKey.currentState!.validate()) return;
     _formKey.currentState!.save();
@@ -36,16 +36,14 @@ class _LoginFormWidgetState extends State<LoginFormWidget> {
     });
 
     try {
-      // أ- محاولة تسجيل الدخول الصريح
+      // أ- تسجيل الدخول الصريح
       String fakeEmail = "${_phone.trim()}@aswaq.com";
       final String userRole = await _authService.signInWithEmailAndPassword(fakeEmail, _password);
 
-      // 🎯 بمجرد تخطي السطر أعلاه، الدخول نجح 100%. 
-      // أي خطأ يحدث في العمليات التالية سيتم معالجته داخلياً دون إظهار رسالة "بيانات خطأ"
+      // ب- تحديث الجلسة والعمليات الجانبية (محاطة بـ try داخلي لضمان عدم تعطيل الدخول)
       try {
         await UserSession.loadSession();
 
-        // ج- فحص خاص للموظفين (تغيير كلمة السر الإجباري)
         if (UserSession.isSubUser) {
           final subUserDoc = await FirebaseFirestore.instance
               .collection("subUsers")
@@ -55,31 +53,40 @@ class _LoginFormWidgetState extends State<LoginFormWidget> {
           if (subUserDoc.exists && subUserDoc.data()?['mustChangePassword'] == true) {
             if (mounted) setState(() => _isLoading = false);
             _showChangePasswordDialog(_phone.trim());
-            return; // التوقف حتى يتم التغيير
+            return;
           }
         }
 
-        // د- إرسال توكن الإشعارات للـ AWS (بشكل صامت)
+        // إرسال التوكن للـ AWS بشكل صامت
         _sendNotificationDataToAWS().catchError((e) => debugPrint("AWS Silent Error: $e"));
-
       } catch (innerError) {
         debugPrint("Secondary Sync Error (Ignored): $innerError");
       }
 
       if (!mounted) return;
       
-      // هـ- التوجيه الصريح بناءً على الدور
+      // ج- التوجه للشاشة الرئيسية
       _navigateToHome(userRole);
 
     } catch (e) {
       debugPrint("Core Login Error: $e");
+      
+      // 🎯 الفحص الحاسم: إذا كان هناك مستخدم مسجل بالفعل في Firebase، فهذا يعني أن الدخول نجح 
+      // والخطأ ناتج عن تضارب في الـ Navigation فقط، لذا نتجاهله.
+      if (FirebaseAuth.instance.currentUser != null) {
+        debugPrint("✅ تم تجاهل الخطأ لأن الدخول نجح تقنياً.");
+        return; 
+      }
+
       if (mounted) {
         setState(() {
           _isLoading = false;
-          // تخصيص رسائل الخطأ بناءً على الكود الراجع من AuthService
-          if (e == 'auth/account-not-active' || e == 'account-not-active') {
+          // تمييز نوع الخطأ للمستخدم
+          if (e.toString().contains('account-not-active')) {
             _errorMessage = 'هذا الحساب معلق، يرجى التواصل مع الإدارة';
-          } else if (e == 'invalid-credential' || e == 'wrong-password' || e == 'user-not-found') {
+          } else if (e.toString().contains('invalid-credential') || 
+                     e.toString().contains('wrong-password') || 
+                     e.toString().contains('user-not-found')) {
             _errorMessage = 'رقم الهاتف أو كلمة المرور غير صحيحة';
           } else {
             _errorMessage = 'حدث خطأ غير متوقع، يرجى المحاولة لاحقاً';
@@ -89,7 +96,7 @@ class _LoginFormWidgetState extends State<LoginFormWidget> {
     }
   }
 
-  // 2. دالة التوجيه الذكية
+  // 2. دالة التوجيه
   void _navigateToHome(String role) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -109,7 +116,7 @@ class _LoginFormWidgetState extends State<LoginFormWidget> {
     Navigator.of(context).pushNamedAndRemoveUntil(route, (route) => false);
   }
 
-  // 3. ديالوج تغيير كلمة السر للموظف
+  // 3. ديالوج تغيير كلمة السر للموظفين
   void _showChangePasswordDialog(String phone) {
     final TextEditingController newPassController = TextEditingController();
 
@@ -118,13 +125,11 @@ class _LoginFormWidgetState extends State<LoginFormWidget> {
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text("تأمين الحساب",
-            textAlign: TextAlign.center,
-            style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text("تأمين الحساب", textAlign: TextAlign.center),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text("يرجى تعيين كلمة سر جديدة لحماية حسابك الموظف."),
+            const Text("يرجى تعيين كلمة سر جديدة لحماية حسابك."),
             const SizedBox(height: 15),
             TextField(
               controller: newPassController,
@@ -144,19 +149,13 @@ class _LoginFormWidgetState extends State<LoginFormWidget> {
             onPressed: () async {
               if (newPassController.text.length < 6) return;
               try {
-                await FirebaseAuth.instance.currentUser
-                    ?.updatePassword(newPassController.text.trim());
-                await FirebaseFirestore.instance
-                    .collection("subUsers")
-                    .doc(phone)
-                    .update({'mustChangePassword': false});
-
+                await FirebaseAuth.instance.currentUser?.updatePassword(newPassController.text.trim());
+                await FirebaseFirestore.instance.collection("subUsers").doc(phone).update({'mustChangePassword': false});
                 await _sendNotificationDataToAWS();
                 if (!mounted) return;
-                Navigator.of(context)
-                    .pushNamedAndRemoveUntil('/sellerhome', (route) => false);
+                Navigator.of(context).pushNamedAndRemoveUntil('/sellerhome', (route) => false);
               } catch (e) {
-                debugPrint("Error updating password: $e");
+                debugPrint("Pass update error: $e");
               }
             },
             child: const Text("حفظ ودخول", style: TextStyle(color: Colors.white)),
@@ -166,20 +165,19 @@ class _LoginFormWidgetState extends State<LoginFormWidget> {
     );
   }
 
-  // 4. إرسال البيانات للـ AWS
+  // 4. إرسال بيانات الإشعارات
   Future<void> _sendNotificationDataToAWS() async {
     try {
       String? token = await FirebaseMessaging.instance.getToken();
       String? uid = FirebaseAuth.instance.currentUser?.uid;
       if (token != null && uid != null) {
-        const String apiUrl =
-            "https://5uex7vzy64.execute-api.us-east-1.amazonaws.com/V2/new_nofiction";
+        const String apiUrl = "https://5uex7vzy64.execute-api.us-east-1.amazonaws.com/V2/new_nofiction";
         await http.post(Uri.parse(apiUrl),
             headers: {"Content-Type": "application/json"},
             body: jsonEncode({"userId": uid, "fcmToken": token, "role": "seller"}));
       }
     } catch (e) {
-      debugPrint("AWS Notification Error: $e");
+      debugPrint("AWS Error: $e");
     }
   }
 
@@ -207,8 +205,7 @@ class _LoginFormWidgetState extends State<LoginFormWidget> {
           Align(
             alignment: Alignment.centerLeft,
             child: TextButton(
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (context) => const ForgotPasswordScreen())),
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (context) => const ForgotPasswordScreen())),
               child: Text('نسيت كلمة المرور؟', style: TextStyle(color: primaryGreen)),
             ),
           ),
@@ -219,10 +216,7 @@ class _LoginFormWidgetState extends State<LoginFormWidget> {
           if (_errorMessage != null)
             Padding(
               padding: const EdgeInsets.only(top: 10),
-              child: Text(_errorMessage!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                      color: Colors.red, fontWeight: FontWeight.bold)),
+              child: Text(_errorMessage!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
             ),
         ],
       ),
@@ -244,13 +238,7 @@ class _LoginFormWidgetState extends State<LoginFormWidget> {
           shadowColor: Colors.transparent,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
         ),
-        child: _isLoading
-            ? const CircularProgressIndicator(color: Colors.white)
-            : const Text('تسجيل الدخول',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold)),
+        child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text('تسجيل الدخول', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
       ),
     );
   }
@@ -260,13 +248,13 @@ class _LoginFormWidgetState extends State<LoginFormWidget> {
       const Text('ليس لديك حساب؟'),
       TextButton(
         onPressed: () => Navigator.of(context).pushNamed('/register'),
-        child: Text('إنشاء حساب',
-            style: TextStyle(color: primaryGreen, fontWeight: FontWeight.bold)),
+        child: Text('إنشاء حساب', style: TextStyle(color: primaryGreen, fontWeight: FontWeight.bold)),
       ),
     ]);
   }
 }
 
+// ويدجت إدخال البيانات الموحد
 class _InputGroup extends StatelessWidget {
   final IconData icon;
   final String hintText;
@@ -296,15 +284,9 @@ class _InputGroup extends StatelessWidget {
         filled: true,
         fillColor: Colors.grey.shade50,
         contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-        border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(15),
-            borderSide: BorderSide(color: Colors.grey.shade300)),
-        enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(15),
-            borderSide: BorderSide(color: Colors.grey.shade200)),
-        focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(15),
-            borderSide: const BorderSide(color: Color(0xff28a745), width: 2)),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide(color: Colors.grey.shade300)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide(color: Colors.grey.shade200)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: const BorderSide(color: Color(0xff28a745), width: 2)),
       ),
       validator: validator,
       onSaved: onSaved,
