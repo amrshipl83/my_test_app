@@ -1,3 +1,4 @@
+// lib/screens/consumer/consumer_home_screen.dart
 import 'package:flutter/material.dart';
 import 'package:my_test_app/screens/consumer/consumer_widgets.dart';
 import 'package:my_test_app/screens/consumer/consumer_data_models.dart';
@@ -6,10 +7,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:my_test_app/screens/consumer/consumer_store_search_screen.dart';
-import 'package:my_test_app/screens/consumer/points_loyalty_screen.dart'; // استيراد صفحة النقاط
+import 'package:my_test_app/screens/consumer/points_loyalty_screen.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:sizer/sizer.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ConsumerHomeScreen extends StatefulWidget {
   static const routeName = '/consumerHome';
@@ -19,21 +21,28 @@ class ConsumerHomeScreen extends StatefulWidget {
   State<ConsumerHomeScreen> createState() => _ConsumerHomeScreenState();
 }
 
-class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
+class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTickerProviderStateMixin {
   final ConsumerDataService dataService = ConsumerDataService();
   final Color softGreen = const Color(0xFF66BB6A);
   final Color darkGreenText = const Color(0xFF2E7D32);
+  bool _celebrationTriggered = false; // لمنع التكرار في نفس الجلسة
 
   @override
   void initState() {
     super.initState();
-    _setupNotifications();
+    _initSequence();
+  }
+
+  // تسلسل التشغيل: إشعارات ثم فحص النقاط
+  Future<void> _initSequence() async {
+    await _setupNotifications();
   }
 
   Future<void> _setupNotifications() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
     FirebaseMessaging messaging = FirebaseMessaging.instance;
+    // طلب الإذن أولاً
     await messaging.requestPermission(alert: true, badge: true, sound: true);
     String? token = await messaging.getToken();
     if (token != null) {
@@ -42,6 +51,24 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
         'lastTokenUpdate': FieldValue.serverTimestamp(),
       });
     }
+  }
+
+  // دالة إظهار الاحتفال المبتكر (Overlay)
+  void _showCelebrationOverlay(int points) {
+    if (_celebrationTriggered) return;
+    _celebrationTriggered = true;
+
+    OverlayState? overlayState = Overlay.of(context);
+    late OverlayEntry overlayEntry;
+
+    overlayEntry = OverlayEntry(
+      builder: (context) => _CelebrationWidget(
+        points: points,
+        onDismiss: () => overlayEntry.remove(),
+      ),
+    );
+
+    overlayState.insert(overlayEntry);
   }
 
   Future<void> _handleAbaatlyHad() async {
@@ -77,19 +104,17 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        toolbarHeight: 90, // زيادة الطول ليتناسب مع الخطوط الكبيرة
+        toolbarHeight: 90,
         iconTheme: IconThemeData(color: softGreen, size: 28),
         centerTitle: true,
         title: Column(
           children: [
-            Text("مرحباً بك،", 
-                style: TextStyle(color: Colors.black54, fontSize: 12.sp)),
+            Text("مرحباً بك،", style: TextStyle(color: Colors.black54, fontSize: 12.sp)),
             Text(user?.displayName?.split(' ').first.toUpperCase() ?? "GUEST",
                 style: TextStyle(color: darkGreenText, fontWeight: FontWeight.w900, fontSize: 19.sp)),
           ],
         ),
         actions: [
-          // StreamBuilder لجلب نقاط الولاء الحقيقية من الحقل loyaltyPoints
           StreamBuilder<DocumentSnapshot>(
             stream: FirebaseFirestore.instance.collection('users').doc(user?.uid).snapshots(),
             builder: (context, snapshot) {
@@ -97,6 +122,12 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
               if (snapshot.hasData && snapshot.data!.exists) {
                 var userData = snapshot.data!.data() as Map<String, dynamic>;
                 points = userData['loyaltyPoints'] ?? 0;
+                bool isProcessed = userData['welcomePointsProcessed'] ?? false;
+
+                // فحص الاحتفال داخل الـ Stream
+                if (isProcessed && points > 0) {
+                  _checkFirstTimeWelcome(points);
+                }
               }
               return _buildPointsBadge(points);
             },
@@ -125,6 +156,15 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
     );
   }
 
+  Future<void> _checkFirstTimeWelcome(int points) async {
+    final prefs = await SharedPreferences.getInstance();
+    bool shown = prefs.getBool('welcome_anim_shown') ?? false;
+    if (!shown) {
+      _showCelebrationOverlay(points);
+      await prefs.setBool('welcome_anim_shown', true);
+    }
+  }
+
   Widget _buildSmartRadarButton() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
@@ -134,15 +174,9 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
         child: Container(
           height: 90,
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [softGreen, const Color(0xFF43A047)],
-              begin: Alignment.centerRight,
-              end: Alignment.centerLeft,
-            ),
+            gradient: LinearGradient(colors: [softGreen, const Color(0xFF43A047)]),
             borderRadius: BorderRadius.circular(45),
-            boxShadow: [
-              BoxShadow(color: softGreen.withOpacity(0.3), blurRadius: 12, offset: const Offset(0, 6)),
-            ],
+            boxShadow: [BoxShadow(color: softGreen.withOpacity(0.3), blurRadius: 12, offset: const Offset(0, 6))],
           ),
           child: Row(
             children: [
@@ -158,10 +192,8 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text("اكتشف المحلات القريبة",
-                        style: TextStyle(color: Colors.white, fontSize: 15.sp, fontWeight: FontWeight.w900)),
-                    Text("تفعيل رادار البحث الذكي",
-                        style: TextStyle(color: Colors.white70, fontSize: 10.sp, fontWeight: FontWeight.bold)),
+                    Text("اكتشف المحلات القريبة", style: TextStyle(color: Colors.white, fontSize: 15.sp, fontWeight: FontWeight.w900)),
+                    Text("تفعيل رادار البحث الذكي", style: TextStyle(color: Colors.white70, fontSize: 10.sp, fontWeight: FontWeight.bold)),
                   ],
                 ),
               ),
@@ -216,27 +248,24 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text("ابعتلي حد", style: TextStyle(color: Colors.white, fontSize: 17.sp, fontWeight: FontWeight.w900)),
-          Text("مندوب حر لنقل أغراضك فوراً",
-              style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 10.sp, fontWeight: FontWeight.bold)),
+          Text("مندوب حر لنقل أغراضك فوراً", style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 10.sp, fontWeight: FontWeight.bold)),
         ],
       );
 
-  // تحديث أيقونة النقاط لتكون تفاعلية وبخط كبير
   Widget _buildPointsBadge(int points) => InkWell(
         onTap: () => Navigator.pushNamed(context, PointsLoyaltyScreen.routeName),
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: Colors.amber.withOpacity(0.15), 
+            color: Colors.amber.withOpacity(0.15),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.orange.withOpacity(0.5))
+            border: Border.all(color: Colors.orange.withOpacity(0.5)),
           ),
           child: Row(children: [
             const Icon(Icons.stars, color: Colors.orange, size: 22),
             const SizedBox(width: 6),
-            Text(points.toString(), 
-                style: TextStyle(color: darkGreenText, fontWeight: FontWeight.w900, fontSize: 13.sp)),
+            Text(points.toString(), style: TextStyle(color: darkGreenText, fontWeight: FontWeight.w900, fontSize: 13.sp)),
           ]),
         ),
       );
@@ -256,5 +285,82 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
           return ConsumerPromoBanners(banners: snapshot.data ?? [], height: 220);
         },
       );
+}
+
+// الويجيت الاحتفالي المنفصل للتحكم في الأنيميشن
+class _CelebrationWidget extends StatefulWidget {
+  final int points;
+  final VoidCallback onDismiss;
+  const _CelebrationWidget({required this.points, required this.onDismiss});
+
+  @override
+  State<_CelebrationWidget> createState() => _CelebrationWidgetState();
+}
+
+class _CelebrationWidgetState extends State<_CelebrationWidget> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
+    _scaleAnimation = CurvedAnimation(parent: _controller, curve: Curves.elasticOut);
+    _controller.forward();
+
+    // التلاشي التلقائي بعد 4 ثوانٍ
+    Future.delayed(const Duration(seconds: 4), () {
+      if (mounted) {
+        _controller.reverse().then((value) => widget.onDismiss());
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.black26,
+      child: Center(
+        child: ScaleTransition(
+          scale: _scaleAnimation,
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 30),
+            padding: const EdgeInsets.all(25),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(30),
+              boxShadow: [BoxShadow(color: Colors.orange.withOpacity(0.4), blurRadius: 20)],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text("🎉", style: TextStyle(fontSize: 50)),
+                const SizedBox(height: 10),
+                Text("هدية ترحيبية!", style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w900, color: Colors.orange)),
+                const SizedBox(height: 10),
+                RichText(
+                  textAlign: TextAlign.center,
+                  text: TextSpan(
+                    style: TextStyle(fontSize: 14.sp, color: Colors.black87, fontFamily: 'Cairo'),
+                    children: [
+                      const TextSpan(text: "أهلاً بك في أكسب، جالك "),
+                      TextSpan(text: "${widget.points} نقطة", style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF2E7D32))),
+                      const TextSpan(text: "\nجمع أكتر.. اكسب أكتر!"),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
