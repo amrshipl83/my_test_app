@@ -1,3 +1,4 @@
+// lib/screens/consumer/consumer_home_screen.dart
 import 'package:flutter/material.dart';
 import 'package:my_test_app/screens/consumer/consumer_widgets.dart';
 import 'package:my_test_app/screens/consumer/consumer_data_models.dart';
@@ -6,7 +7,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:my_test_app/widgets/chat_support_widget.dart';
-// استيراد صفحة البحث لاستخدام الـ routeName الخاص بها
 import 'package:my_test_app/screens/consumer/consumer_store_search_screen.dart';
 
 class ConsumerHomeScreen extends StatefulWidget {
@@ -19,9 +19,7 @@ class ConsumerHomeScreen extends StatefulWidget {
 
 class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
   final ConsumerDataService dataService = ConsumerDataService();
-
-  // 🎨 درجات الأخضر الفاتح المريحة للعين
-  final Color softGreen = const Color(0xFF66BB6A); 
+  final Color softGreen = const Color(0xFF66BB6A);
   final Color darkGreenText = const Color(0xFF2E7D32);
 
   @override
@@ -53,9 +51,8 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
     final user = FirebaseAuth.instance.currentUser;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFBFBFB), // خلفية بيضاء مريحة
+      backgroundColor: const Color(0xFFFBFBFB),
       drawer: const ConsumerSideMenu(),
-      // 🎯 الشريط العلوي باللون الأبيض لزيادة "الوسع" البصري
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -69,13 +66,12 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
               style: const TextStyle(color: Colors.black54, fontSize: 12),
             ),
             Text(
-              "AMR", 
+              "AMR",
               style: TextStyle(color: darkGreenText, fontWeight: FontWeight.bold, fontSize: 22),
             ),
           ],
         ),
         actions: [
-          // أيقونة النقاط بشكل مبسط
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
             padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -96,13 +92,15 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
       body: SafeArea(
         child: Stack(
           children: [
-            // 1. المحتوى القابل للتمرير
             SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SizedBox(height: 105), // مساحة لزر الرادار العائم
+                  const SizedBox(height: 105), // مساحة لزر الرادار
+                  
+                  // 🎯 إضافة بنر "ابعتلي حد" (خدمة التوصيل الحر)
+                  _buildFreeDeliveryBanner(),
 
                   const ConsumerSectionTitle(title: 'الأقسام المميزة'),
                   FutureBuilder<List<ConsumerCategory>>(
@@ -119,7 +117,6 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
                   ),
 
                   const SizedBox(height: 10),
-
                   const ConsumerSectionTitle(title: 'أحدث العروض الحصرية'),
                   FutureBuilder<List<ConsumerBanner>>(
                     future: dataService.fetchPromoBanners(),
@@ -133,13 +130,10 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
                       return ConsumerPromoBanners(banners: snapshot.data ?? [], height: 220);
                     },
                   ),
-                  
-                  const SizedBox(height: 120), // مساحة أمان سفلية
+                  const SizedBox(height: 120),
                 ],
               ),
             ),
-
-            // 🎯 2. زر الرادار الذكي (تم تصحيح الـ onTap والمسار)
             Positioned(
               top: 15,
               left: 15,
@@ -162,6 +156,87 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
         },
         backgroundColor: softGreen,
         child: const Icon(Icons.support_agent, color: Colors.white, size: 30),
+      ),
+    );
+  }
+
+  // 🚚 ويدجت بنر "ابعتلي حد" الجديد
+  Widget _buildFreeDeliveryBanner() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          // اللون البرتقالي المميز لخدمة المندوب الحر
+          gradient: const LinearGradient(
+            colors: [Color(0xFFFF9800), Color(0xFFF57C00)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.orange.withOpacity(0.3),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            // أيقونة تعبيرية لخدمة النقل
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.delivery_dining, color: Colors.white, size: 35),
+            ),
+            const SizedBox(width: 15),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "ابعتلي حد",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    "اطلب مندوب حر لنقل أغراضك فوراً",
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.9),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // زر الأكشن
+            ElevatedButton(
+              onPressed: () {
+                // فتح شاشة الطلب الحر مباشرة
+                Navigator.pushNamed(context, '/delivery-offers'); // المسار المسئول عن المندوب الحر
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.orange,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 15),
+              ),
+              child: const Text(
+                "اطلب الآن",
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -189,10 +264,8 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(40),
-          // 🚀 التصحيح: استخدام onTap بدلاً من onPressed وإضافة التوجيه الصحيح
           onTap: () {
             Navigator.pushNamed(context, ConsumerStoreSearchScreen.routeName);
-            debugPrint("📡 فتح صفحة رادار البحث...");
           },
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
