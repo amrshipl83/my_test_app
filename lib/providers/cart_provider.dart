@@ -6,7 +6,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:math';
 import 'package:my_test_app/services/marketplace_data_service.dart';
 
-// [Models - CartItem & SellerOrderData تبقى كما هي تماماً]
 class CartItem {
   final String offerId;
   final String productId;
@@ -85,7 +84,10 @@ class CartProvider with ChangeNotifier {
   double _totalProductsAmount = 0.0;
   double _totalDeliveryFees = 0.0;
   bool _hasCheckoutErrors = false;
-  bool _isProcessing = false; // لمنع الضغط المزدوج
+  bool _isProcessing = false;
+
+  // الإضافة المطلوبة لحل خطأ الـ Build
+  bool get hasPendingCheckout => _isProcessing; 
 
   // Getters
   Map<String, SellerOrderData> get sellersOrders => _sellersOrders;
@@ -98,7 +100,6 @@ class CartProvider with ChangeNotifier {
   bool get isCartEmpty => _cartItems.where((item) => !item.isGift).isEmpty;
   bool get isProcessing => _isProcessing;
 
-  // 1. جلب القواعد (بدون رسائل تتبع)
   Future<Map<String, dynamic>> _getSellerBusinessRules(String sellerId, String buyerRole) async {
     if (_sellerRulesCache.containsKey(sellerId)) return _sellerRulesCache[sellerId]!;
     double finalMinTotal = 0.0;
@@ -116,7 +117,6 @@ class CartProvider with ChangeNotifier {
           return rules;
         }
       }
-
       if (buyerRole == 'consumer' && finalMinTotal == 0.0 && finalDeliveryFee == 0.0) {
         final consumerDoc = await _db.collection('deliverySupermarkets').doc(sellerId).get();
         if (consumerDoc.exists) {
@@ -132,7 +132,6 @@ class CartProvider with ChangeNotifier {
     return rules;
   }
 
-  // 2. المحرك الرئيسي للحسابات
   Future<void> loadCartAndRecalculate(String userRole) async {
     final prefs = await SharedPreferences.getInstance();
     final cartJson = prefs.getString('cartItems');
@@ -175,7 +174,6 @@ class CartProvider with ChangeNotifier {
         final details = await _getProductOfferDetails(item.offerId, item.unitIndex);
         if (details['currentPrice'] > 0) item.price = details['currentPrice'];
         sellerData.total += (item.price * item.quantity);
-        
         final finalMax = min((details['stock'] as int), (details['maxQty'] as int));
         if (item.quantity > finalMax || item.quantity < (details['minQty'] as int)) {
           sellerData.hasProductErrors = true;
@@ -200,7 +198,6 @@ class CartProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // 3. إضافة منتج للسلة
   Future<void> addItemToCart({
     required String offerId, required String productId, required String sellerId,
     required String sellerName, required String name, required double price,
@@ -216,7 +213,6 @@ class CartProvider with ChangeNotifier {
         throw 'خطأ في التحقق من اسم المتجر: $e';
       }
     }
-
     final int finalMax = min(availableStock, maxOrderQuantity);
     final index = _cartItems.indexWhere((item) => item.offerId == offerId && item.unitIndex == unitIndex);
     int existingQty = (index != -1) ? _cartItems[index].quantity : 0;
@@ -236,21 +232,17 @@ class CartProvider with ChangeNotifier {
     await loadCartAndRecalculate(userRole);
   }
 
-  // 4. إتمام الطلب (Checkout) - مع منع الضغط المزدوج
   Future<void> proceedToCheckout(BuildContext context, String userRole) async {
-    if (_isProcessing) return; // منع الضغط المتكرر
-    
+    if (_isProcessing) return;
     _isProcessing = true;
     notifyListeners();
 
-    // إظهار رسالة جاري التنفيذ
     final scaffoldMessenger = ScaffoldMessenger.of(context);
     scaffoldMessenger.showSnackBar(
       const SnackBar(content: Text('جاري معالجة طلبك...'), duration: Duration(seconds: 1)),
     );
 
     await loadCartAndRecalculate(userRole);
-    
     if (_hasCheckoutErrors) {
       _isProcessing = false;
       notifyListeners();
@@ -260,7 +252,6 @@ class CartProvider with ChangeNotifier {
 
     final ordersToProceed = <CartItem>[];
     final itemsToKeep = <CartItem>[];
-
     for (final sellerData in _sellersOrders.values) {
       if (sellerData.minOrderTotal > 0 && !sellerData.isMinOrderMet) {
         itemsToKeep.addAll(sellerData.items);
@@ -282,7 +273,7 @@ class CartProvider with ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('cartItems', jsonEncode(itemsToKeep.map((e) => e.toJson()).toList()));
       await prefs.setString('checkoutOrders', jsonEncode(ordersToProceed.map((e) => e.toJson()).toList()));
-      
+
       _isProcessing = false;
       notifyListeners();
       Navigator.of(context).pushNamed('/checkout');
@@ -293,9 +284,6 @@ class CartProvider with ChangeNotifier {
     }
   }
 
-  // [بقية الدوال المساعدة: _calculateGifts, _getProductOfferDetails, _saveCartToLocal, changeQty, removeItem, clearCart, cancelPendingCheckout تبقى كما هي لكن بدون Print]
-  // ... (تم حذف الـ Prints منها داخلياً)
-  
   Future<Map<String, dynamic>> _getProductOfferDetails(String offerId, int unitIndex) async {
     int minQ = 1, maxQ = 9999, stock = 9999; double price = 0.0;
     try {
@@ -305,7 +293,8 @@ class CartProvider with ChangeNotifier {
         minQ = (data['minOrder'] as num?)?.toInt() ?? 1;
         maxQ = (data['maxOrder'] as num?)?.toInt() ?? 9999;
         if (unitIndex != -1) {
-          final unit = (data['units'] as List)[unitIndex];
+          final unitList = data['units'] as List;
+          final unit = unitList[unitIndex];
           stock = (unit['availableStock'] as num?)?.toInt() ?? 0;
           price = (unit['price'] as num?)?.toDouble() ?? 0.0;
         }
