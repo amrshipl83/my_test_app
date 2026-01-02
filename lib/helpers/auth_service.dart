@@ -1,4 +1,3 @@
-// lib/helpers/auth_service.dart
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -21,7 +20,6 @@ class AuthService {
 
   Future<String> signInWithEmailAndPassword(String email, String password) async {
     try {
-      // 1. محاولة تسجيل الدخول في Firebase Auth
       final userCredential = await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
@@ -30,25 +28,25 @@ class AuthService {
       final User? user = userCredential.user;
       if (user == null) throw Exception("user-null");
 
-      // 2. جلب بيانات المستخدم من Firestore
-      // تم وضعها في بلوك مستقل لضمان أن أي خطأ في القراءة لا يظهر كخطأ كلمة مرور
       Map<String, dynamic> userData;
       try {
         userData = await _getUserDataByEmail(email);
       } catch (e) {
-        debugPrint("⚠️ تحذير: فشل جلب البيانات الإضافية، سيتم استخدام دور افتراضي: $e");
+        debugPrint("⚠️ تحذير: فشل جلب البيانات الإضافية: $e");
         userData = {'role': 'buyer'};
       }
 
       final String userRole = userData['role'];
 
-      // التحقق من حالة الحساب المعلق
       if (userRole == 'pending') {
         await _auth.signOut();
         throw 'auth/account-not-active';
       }
 
-      // تجهيز البيانات للحفظ
+      // 🛑 تعديل: استخراج بيانات المندوب من الـ userData القادم من Firestore
+      final String? repCode = userData['repCode'];
+      final String? repName = userData['repName'];
+
       final String userAddress = userData['address'] ?? '';
       final String? userFullName = userData['fullname'] ?? userData['fullName'];
       final String? merchantName = userData['merchantName'];
@@ -59,7 +57,7 @@ class AuthService {
           ? userData['parentSellerId']
           : (userData['sellerId'] != null ? userData['sellerId'] : user.uid);
 
-      // 3. حفظ البيانات محلياً وتحديث الجلسة
+      // 3. حفظ البيانات مع إضافة حقول المندوب
       await _saveUserToLocalStorage(
         id: user.uid,
         ownerId: effectiveOwnerId,
@@ -70,33 +68,75 @@ class AuthService {
         phone: phoneToShow,
         location: userLocation,
         isSubUser: userData['isSubUser'] ?? false,
+        repCode: repCode, // 👈 ممرر هنا
+        repName: repName, // 👈 ممرر هنا
       );
 
       return userRole;
     } on FirebaseAuthException catch (e) {
-      // إرسال كود الخطأ الصريح من Firebase (مثل wrong-password)
       throw e.code;
     } catch (e) {
-      // معالجة الأخطاء الخاصة (مثل الحساب غير النشط) أو الأخطاء غير المتوقعة
       if (e == 'auth/account-not-active') rethrow;
       debugPrint("🚨 Error in AuthService: $e");
       throw 'auth/unknown-error';
     }
   }
 
+  Future<void> _saveUserToLocalStorage({
+    required String id,
+    required String ownerId,
+    required String role,
+    String? fullname,
+    String? address,
+    String? merchantName,
+    String? phone,
+    dynamic location,
+    bool isSubUser = false,
+    String? repCode, // 👈 تم الإضافة هنا
+    String? repName, // 👈 تم الإضافة هنا
+  }) async {
+    final data = {
+      'id': id,
+      'ownerId': ownerId,
+      'role': role,
+      'fullname': fullname,
+      'address': address,
+      'merchantName': merchantName,
+      'phone': phone,
+      'location': location,
+      'isSubUser': isSubUser,
+      'repCode': repCode, // 👈 سيتم حفظه في ذاكرة الهاتف
+      'repName': repName, // 👈 سيتم حفظه في ذاكرة الهاتف
+    };
+
+    final prefs = await SharedPreferences.getInstance();
+    // سيتم استخدامه في كود Checkout عبر مفتاح 'loggedUser'
+    await prefs.setString('loggedUser', json.encode(data));
+
+    UserSession.userId = id;
+    UserSession.ownerId = ownerId;
+    UserSession.role = role;
+    UserSession.isSubUser = isSubUser;
+    UserSession.merchantName = merchantName;
+    UserSession.phoneNumber = phone;
+
+    debugPrint("✅ تم تحديث الجلسة بحقول المندوب: $repCode");
+  }
+
+  // دالة الخروج وباقي الدوال تبقى كما هي...
   Future<void> signOut() async {
     try {
       await _auth.signOut();
       final prefs = await SharedPreferences.getInstance();
       await prefs.clear();
       UserSession.clear();
-      debugPrint("🧹 الذاكرة نظيفة تماماً");
     } catch (e) {
       debugPrint("🚨 فشل الخروج: $e");
     }
   }
 
   Future<Map<String, dynamic>> _getUserDataByEmail(String email) async {
+    // تبقى كما هي لجلب البيانات من Firestore
     final collections = ['sellers', 'consumers', 'users', 'pendingSellers', 'subUsers'];
     final phoneFromEmail = email.split('@')[0];
 
@@ -133,22 +173,11 @@ class AuthService {
               snapToUse.docs.first.data() as Map<String, dynamic>;
 
           String role = data['role'] ?? 'buyer';
-          bool isSubUser = false;
+          if (colName == 'sellers') role = 'seller';
+          else if (colName == 'consumers') role = 'consumer';
+          else if (colName == 'users') role = 'buyer';
 
-          // الحفاظ على منطق تحديد الأدوار الأصلي
-          if (colName == 'sellers') {
-            role = 'seller';
-          } else if (colName == 'subUsers') {
-            isSubUser = true;
-          } else if (colName == 'consumers') {
-            role = 'consumer';
-          } else if (colName == 'users') {
-            role = 'buyer';
-          } else if (colName == 'pendingSellers') {
-            role = 'pending';
-          }
-
-          return {...data, 'role': role, 'isSubUser': isSubUser};
+          return {...data, 'role': role, 'isSubUser': (colName == 'subUsers')};
         }
       } catch (e) {
         debugPrint("⚠️ خطأ في قراءة $colName: $e");
@@ -156,41 +185,4 @@ class AuthService {
     }
     return {'role': 'buyer'};
   }
-
-  Future<void> _saveUserToLocalStorage({
-    required String id,
-    required String ownerId,
-    required String role,
-    String? fullname,
-    String? address,
-    String? merchantName,
-    String? phone,
-    dynamic location,
-    bool isSubUser = false,
-  }) async {
-    final data = {
-      'id': id,
-      'ownerId': ownerId,
-      'role': role,
-      'fullname': fullname,
-      'address': address,
-      'merchantName': merchantName,
-      'phone': phone,
-      'location': location,
-      'isSubUser': isSubUser,
-    };
-
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('loggedUser', json.encode(data));
-
-    UserSession.userId = id;
-    UserSession.ownerId = ownerId;
-    UserSession.role = role;
-    UserSession.isSubUser = isSubUser;
-    UserSession.merchantName = merchantName;
-    UserSession.phoneNumber = phone;
-
-    debugPrint("✅ تم تحديث الجلسة بنجاح: $id برتبة: $role");
-  }
 }
-
