@@ -279,7 +279,8 @@ class CheckoutController {
                         'total': orderSubtotalWithDelivery,
                         'paymentMethod': paymentMethodString,
                         'status': 'new-order',
-                        'orderDate': FieldValue.serverTimestamp(),
+                        'orderDate': DateTime.now().toUtc().toIso8601String(),
+
 
 
                         'commissionRateSnapshot': commissionRatesCache[sellerId] ?? 0.0, 
