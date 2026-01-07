@@ -55,7 +55,7 @@ class CheckoutController {
     }
 
     // ----------------------------------------------------
-    // 🎯 دالة تنفيذ تأكيد الطلب (معدلة لحقن الأقسام)
+    // 🎯 دالة تنفيذ تأكيد الطلب (معدلة لتوحيد مفاتيح الأقسام)
     // ----------------------------------------------------
     static Future<bool> placeOrder({
         required BuildContext context,
@@ -104,7 +104,7 @@ class CheckoutController {
         final String usersCollectionName = isConsumer ? "consumers" : "users";
         final String cashbackFieldName = isConsumer ? "cashbackBalance" : "cashback";
 
-        // 🌟🌟 [معالجة الطلبات وحقن بيانات الأقسام] 🌟🌟
+        // 🌟🌟 [معالجة الطلبات وحقن بيانات الأقسام - ضمان التوافق] 🌟🌟
         final List<Map<String, dynamic>> processedCheckoutOrders = [];
         for (var order in checkoutOrders) {
             Map<String, dynamic> processedOrder = Map<String, dynamic>.from(order);
@@ -121,12 +121,13 @@ class CheckoutController {
                 // تصفية رسوم التوصيل للـ Buyer
                 if (!isConsumer && isDeliveryFee) continue;
 
-                // 💉 [الحقن الفعلي]: التأكد من انتقال بيانات الأقسام من السلة للطلب
-                // هذه الحقول تأتي من CartItem.toJson() الذي عدلناه سابقاً
+                // 💉 [التعديل الجوهري]: إرسال كل المفاتيح المحتملة لضمان عمل دالة اللامدا
                 processedItems.add({
                     ...processedItem,
-                    'mainCategoryId': processedItem['mainCategoryId'], 
-                    'subCategoryId': processedItem['subCategoryId'],
+                    'mainId': processedItem['mainId'],           // المسمى الموحد في السلة
+                    'subId': processedItem['subId'],             // المسمى الموحد في السلة
+                    'mainCategoryId': processedItem['mainId'],    // مسمى توافقي للامدا
+                    'subCategoryId': processedItem['subId'],      // مسمى توافقي للامدا
                 });
             }
             processedOrder['items'] = processedItems;
@@ -163,7 +164,7 @@ class CheckoutController {
 
             if (needsSecureProcessing) {
                 // ===================================================================================
-                // 🔥🔥 المسار الآمن: API Gateway (سيتلقى بيانات الأقسام تلقائياً الآن)
+                // 🔥🔥 المسار الآمن: API Gateway (لبحث الكاش باك وتنشئة الطلب)
                 // ===================================================================================
                 final List<Map<String, dynamic>> allOrdersData = [];
                 for (final sellerId in groupedItems.keys) {
@@ -175,7 +176,7 @@ class CheckoutController {
 
                     allOrdersData.add(removeNullValues({
                         'sellerId': sellerId,
-                        'items': safeItems, // محقونة ببيانات الأقسام
+                        'items': safeItems, 
                         'total': subtotalPrice,
                         'paymentMethod': paymentMethodString,
                         'status': 'new-order',
@@ -210,7 +211,7 @@ class CheckoutController {
                 }
             } else {
                 // ===================================================================================
-                // 💾 المسار المباشر: Direct Firestore Write
+                // 💾 المسار المباشر: Direct Firestore Write (للمستهلك أو الطلبات العادية)
                 // ===================================================================================
                 for (final sellerId in groupedItems.keys) {
                     final sellerOrder = groupedItems[sellerId]!;
@@ -221,13 +222,13 @@ class CheckoutController {
                     Map<String, dynamic> orderData = isConsumer ? {
                         'customerId': safeLoggedUser['id'], 'customerName': customerFullname,
                         'supermarketId': sellerId, 'supermarketName': sellerOrder['sellerName'],
-                        'items': allPaidItems, // محقونة
+                        'items': allPaidItems, 
                         'subtotalPrice': subtotalPrice, 'finalAmount': subtotalPrice - discountPortion,
                         'paymentMethod': paymentMethodString, 'status': 'new-order',
                         'orderDate': FieldValue.serverTimestamp(),
                     } : {
                         'buyer': { 'id': safeLoggedUser['id'], 'name': customerFullname, 'address': address },
-                        'sellerId': sellerId, 'items': allPaidItems, // محقونة
+                        'sellerId': sellerId, 'items': allPaidItems,
                         'total': subtotalPrice, 'paymentMethod': paymentMethodString,
                         'status': 'new-order', 'orderDate': FieldValue.serverTimestamp(),
                         'commissionRate': commissionRatesCache[sellerId] ?? 0.0,
