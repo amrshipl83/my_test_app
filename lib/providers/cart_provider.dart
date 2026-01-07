@@ -293,7 +293,19 @@ class CartProvider with ChangeNotifier {
         final details = await _getProductOfferDetails(item.offerId, item.unitIndex);
         item.price = details['currentPrice'] > 0 ? details['currentPrice'] : item.price;
         sellerData.total += (item.price * item.quantity);
-        if (item.quantity > min(details['stock'] as int, details['maxQty'] as int) || item.quantity < details['minQty'] as int) {
+        // استبدله بهذا الجزء لضمان نجاح الـ Build:
+final int stockLimit = (details['stock'] as num?)?.toInt() ?? 9999;
+final int maxLimit = (details['maxQty'] as num?)?.toInt() ?? 9999;
+final int minLimit = (details['minQty'] as num?)?.toInt() ?? 1;
+
+final int finalMax = min(stockLimit, maxLimit);
+
+if (item.quantity > finalMax || item.quantity < minLimit) {
+  sellerData.hasProductErrors = true;
+  _hasCheckoutErrors = true;
+  print('ERROR: Product ${item.name} quantity outside limits');
+}
+
           sellerData.hasProductErrors = true; _hasCheckoutErrors = true;
         }
       }
