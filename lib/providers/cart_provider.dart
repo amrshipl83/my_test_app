@@ -106,17 +106,27 @@ class CartProvider with ChangeNotifier {
   double _totalDeliveryFees = 0.0;
   bool _hasCheckoutErrors = false;
 
-  // Getters
+  // -----------------------------------------------------------------------
+  // 🎯 Getters (تم تعديل المسميات لتطابق الـ UI المنهار في الـ Build)
+  // -----------------------------------------------------------------------
   List<CartItem> get cartItems => _cartItems;
   Map<String, SellerOrderData> get sellersOrders => _sellersOrders;
   double get totalProductsAmount => _totalProductsAmount;
   double get totalDeliveryFees => _totalDeliveryFees;
   double get finalTotal => _totalProductsAmount + _totalDeliveryFees;
   bool get hasCheckoutErrors => _hasCheckoutErrors;
-  int get itemCount => _cartItems.where((item) => !item.isGift).length;
+  
+  // حل مشكلة Error: The getter 'isCartEmpty'
+  bool get isCartEmpty => _cartItems.where((item) => !item.isGift).isEmpty;
+  
+  // حل مشكلة Error: The getter 'cartTotalItems'
+  int get cartTotalItems => _cartItems.where((item) => !item.isGift).length;
+  
+  // حل مشكلة Error: The getter 'hasPendingCheckout'
+  bool get hasPendingCheckout => _hasCheckoutErrors;
 
   // -----------------------------------------------------------------------
-  // 🔄 النواة: حساب محتويات السلة والتحقق من القواعد
+  // 🔄 النواة: حساب محتويات السلة
   // -----------------------------------------------------------------------
   Future<void> loadCartAndRecalculate(String userRole) async {
     final prefs = await SharedPreferences.getInstance();
@@ -143,7 +153,6 @@ class CartProvider with ChangeNotifier {
     for (var sellerId in tempOrders.keys) {
       final data = tempOrders[sellerId]!;
       
-      // جلب قواعد البائع
       double minTotal = 0.0; double fee = 0.0;
       try {
         final doc = await _db.collection('sellers').doc(sellerId).get();
@@ -165,7 +174,6 @@ class CartProvider with ChangeNotifier {
       data.total = 0.0;
 
       for (var item in data.items) {
-        // التحقق من المخزون والحدود (الإصلاح البرمجي هنا لنجاح الـ Build)
         try {
           final off = await _db.collection('productOffers').doc(item.offerId).get();
           if (off.exists) {
@@ -177,9 +185,10 @@ class CartProvider with ChangeNotifier {
               stock = (d['units'][item.unitIndex]['availableStock'] as num?)?.toInt() ?? 0;
             }
             
-            final int finalMax = min(stock, maxQ);
-            if (item.quantity > finalMax || item.quantity < minQ) {
-              data.hasProductErrors = true; _hasCheckoutErrors = true;
+            int finalMaxLimit = min(stock, maxQ);
+            if (item.quantity > finalMaxLimit || item.quantity < minQ) {
+              data.hasProductErrors = true; 
+              _hasCheckoutErrors = true;
             }
           }
         } catch (e) {}
@@ -201,7 +210,7 @@ class CartProvider with ChangeNotifier {
   }
 
   // -----------------------------------------------------------------------
-  // ➕ إضافة منتج (معدلة لتشمل الأقسام)
+  // ➕ الإضافة (تم حل مشكلة المعاملات المفقودة مثل minOrderQuantity)
   // -----------------------------------------------------------------------
   Future<void> addItemToCart({
     required String offerId, required String productId, required String sellerId,
@@ -209,6 +218,7 @@ class CartProvider with ChangeNotifier {
     required String unit, required int unitIndex, int quantityToAdd = 1,
     required String imageUrl, required String userRole,
     String? mainCategoryId, String? subCategoryId,
+    int? minOrderQuantity, // تم إضافته كمعامل اختياري لحل خطأ الـ Build
   }) async {
     final idx = _cartItems.indexWhere((i) => i.offerId == offerId && i.unitIndex == unitIndex);
     if (idx != -1) {
@@ -217,14 +227,16 @@ class CartProvider with ChangeNotifier {
       _cartItems.add(CartItem(
         offerId: offerId, productId: productId, sellerId: sellerId, sellerName: sellerName,
         name: name, price: price, unit: unit, unitIndex: unitIndex, quantity: quantityToAdd,
-        imageUrl: imageUrl, mainCategoryId: mainCategoryId, subCategoryId: subCategoryId,
+        imageUrl: imageUrl, 
+        mainCategoryId: mainCategoryId,
+        subCategoryId: subCategoryId,
       ));
     }
     await loadCartAndRecalculate(userRole);
   }
 
   // -----------------------------------------------------------------------
-  // ➖ الحذف والتعديل (الدوال التي كانت ناقصة وتسببت في الخطأ)
+  // 🛠 الدوال الأساسية
   // -----------------------------------------------------------------------
   Future<void> changeQty(CartItem item, int delta, String userRole) async {
     final idx = _cartItems.indexOf(item);
@@ -245,14 +257,12 @@ class CartProvider with ChangeNotifier {
   }
 
   Future<void> clearCart() async {
-    _cartItems = [];
-    _sellersOrders = {};
+    _cartItems = []; _sellersOrders = {};
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('cartItems');
     notifyListeners();
   }
 
-  // دوال إضافية طلبها الـ UI في الأخطاء
   Future<void> cancelPendingCheckout() async {
     _hasCheckoutErrors = false;
     notifyListeners();
@@ -260,7 +270,6 @@ class CartProvider with ChangeNotifier {
 
   void proceedToCheckout(BuildContext context, String role) {
     if (_hasCheckoutErrors) return;
-    // منطق الانتقال لشاشة الدفع
     notifyListeners();
   }
 
