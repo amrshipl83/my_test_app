@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:sizer/sizer.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // تم إضافة الاستيراد للتأمين
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:my_test_app/data_sources/client_data_source.dart';
 import 'package:my_test_app/screens/auth/client_selection_step.dart';
 import 'package:my_test_app/screens/auth/client_details_step.dart';
@@ -22,6 +22,7 @@ class _NewClientScreenState extends State<NewClientScreen> {
   String _selectedCountry = 'egypt';
   String _selectedUserType = '';
 
+  // تم توحيد المفاتيح لتطابق الـ HTML تماماً
   final Map<String, TextEditingController> _controllers = {
     'fullname': TextEditingController(),
     'phone': TextEditingController(),
@@ -30,12 +31,14 @@ class _NewClientScreenState extends State<NewClientScreen> {
     'address': TextEditingController(),
     'merchantName': TextEditingController(),
     'additionalPhone': TextEditingController(),
+    'businessType': TextEditingController(), // أضفنا هذا لربطه بالـ Dropdown
   };
 
-  String? _businessType;
-  File? _logoFile;
-  File? _crFile;
-  File? _tcFile;
+  // سنخزن روابط Cloudinary هنا بعد الرفع
+  String? _logoUrl;
+  String? _crUrl;
+  String? _tcUrl;
+  
   Map<String, double>? _location;
   int _currentStep = 1;
   bool _isSaving = false;
@@ -91,7 +94,6 @@ class _NewClientScreenState extends State<NewClientScreen> {
     _goToStep(3);
   }
 
-  // 🎯 رسالة النجاح: مسار إجباري واحد لتسجيل الدخول
   void _showSuccessDialog() {
     bool isSeller = _selectedUserType == 'seller';
     showDialog(
@@ -122,7 +124,6 @@ class _NewClientScreenState extends State<NewClientScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 12),
               ),
               onPressed: () {
-                // تصفير الـ Stack بالكامل والعودة للبداية (Login)
                 Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
               },
               child: const Text('الذهاب لتسجيل الدخول',
@@ -134,43 +135,50 @@ class _NewClientScreenState extends State<NewClientScreen> {
     );
   }
 
-  // 🎯 معالجة التسجيل مع تأمين تسجيل الخروج
+  // 🎯 الدالة الجوهرية: تحويل الهاتف لميل ذكي وحفظ البيانات
   Future<void> _handleRegistration() async {
     final phone = _controllers['phone']!.text.trim();
     final pass = _controllers['password']!.text;
     final confirmPass = _controllers['confirmPassword']!.text;
 
-    if (phone.length < 8) {
+    if (phone.isEmpty || phone.length < 8) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('❌ يرجى إدخال رقم هاتف صحيح')));
       return;
     }
+    
+    // التوافق مع الـ HTML: تحويل الرقم لميل ذكي
+    // ملاحظة: الـ HTML استخدم @aksab.com أو @aswaq.com، سنثبتها حسب رغبتك
+    String smartEmail = "$phone@aksab.com";
+
     if (pass != confirmPass) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('❌ كلمة المرور غير متطابقة')));
       return;
     }
 
-    String fakeEmail = "$phone@aswaq.com";
     if (_location == null) {
       await _determinePosition();
     }
 
     setState(() => _isSaving = true);
     try {
+      // إرسال الروابط (URLs) القادمة من Cloudinary إلى الـ Data Source
       await _dataSource.registerClient(
         fullname: _controllers['fullname']!.text,
-        email: fakeEmail,
+        email: smartEmail,
         password: pass,
         address: _controllers['address']!.text,
         country: _selectedCountry,
         userType: _selectedUserType,
         location: _location,
-        logo: _logoFile,
+        // هذه الروابط تم جلبها من Cloudinary داخل الـ Details Step
+        logoUrl: _logoUrl, 
+        crUrl: _crUrl,
+        tcUrl: _tcUrl,
         merchantName: _controllers['merchantName']!.text,
-        businessType: _businessType,
+        businessType: _controllers['businessType']!.text, // تم السحب من الـ controller
         additionalPhone: _controllers['additionalPhone']!.text,
       );
 
-      // 🔐 تأمين: تسجيل الخروج فوراً لضمان عدم وجود جلسة معلقة
       await FirebaseAuth.instance.signOut();
 
       if (mounted) {
@@ -203,7 +211,7 @@ class _NewClientScreenState extends State<NewClientScreen> {
                   SizedBox(height: 4.h),
                   Container(
                     width: double.infinity,
-                    constraints: BoxConstraints(minHeight: 60.h, maxHeight: 80.h),
+                    constraints: BoxConstraints(minHeight: 60.h, maxHeight: 85.h),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(30),
@@ -222,7 +230,10 @@ class _NewClientScreenState extends State<NewClientScreen> {
                         children: [
                           ClientSelectionStep(
                             stepNumber: 1,
-                            onCountrySelected: (country) => _goToStep(2),
+                            onCountrySelected: (country) {
+                              setState(() => _selectedCountry = country);
+                              _goToStep(2);
+                            },
                             initialCountry: _selectedCountry,
                             initialUserType: _selectedUserType,
                           ),
@@ -238,12 +249,12 @@ class _NewClientScreenState extends State<NewClientScreen> {
                             controllers: _controllers,
                             selectedUserType: _selectedUserType,
                             isSaving: _isSaving,
-                            onBusinessTypeChanged: (v) => setState(() => _businessType = v),
-                            onFilePicked: ({required field, required file}) {
+                            // استلام الروابط من Cloudinary وتخزينها في الصفحة الحالية
+                            onUploadComplete: ({required field, required url}) {
                               setState(() {
-                                if (field == 'logo') _logoFile = file;
-                                if (field == 'cr') _crFile = file;
-                                if (field == 'tc') _tcFile = file;
+                                if (field == 'logo') _logoUrl = url;
+                                if (field == 'cr') _crUrl = url;
+                                if (field == 'tc') _tcUrl = url;
                               });
                             },
                             onLocationChanged: ({required lat, required lng}) {
@@ -267,6 +278,7 @@ class _NewClientScreenState extends State<NewClientScreen> {
     );
   }
 
+  // ... (نفس الـ Widgets الخاصة بـ _buildStepProgress و _LogoHeader و _Footer كما في الكود الأصلي)
   Widget _buildStepProgress() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -344,4 +356,3 @@ class _Footer extends StatelessWidget {
     );
   }
 }
-
