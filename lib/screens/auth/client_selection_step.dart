@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:sizer/sizer.dart';
 
+// المسميات هنا أصبحت متطابقة تماماً مع منطق الـ HTML وقاعدة البيانات
 typedef SelectionCompleted = void Function({required String country, required String userType});
 typedef CountrySelected = void Function(String country);
 
@@ -33,7 +34,7 @@ class ClientSelectionStep extends StatelessWidget {
           Text(
             stepNumber == 1 ? 'أين يقع نشاطك التجاري؟' : 'ما هو دورك في المنصة؟',
             style: TextStyle(
-              fontSize: 16.sp, // 🟢 تم تكبير عنوان الخطوة
+              fontSize: 16.sp,
               fontWeight: FontWeight.bold,
               color: const Color(0xFF1A1A1A),
             ),
@@ -42,7 +43,7 @@ class ClientSelectionStep extends StatelessWidget {
           SizedBox(height: 1.5.h),
           Text(
             stepNumber == 1 ? 'اختر الدولة لبدء تخصيص تجربتك' : 'اختر نوع الحساب المناسب لطبيعة عملك',
-            style: TextStyle(fontSize: 11.sp, color: Colors.grey.shade600), // 🟢 تكبير الوصف
+            style: TextStyle(fontSize: 11.sp, color: Colors.grey.shade600),
             textAlign: TextAlign.center,
           ),
           SizedBox(height: 4.h),
@@ -87,7 +88,13 @@ class ClientSelectionStep extends StatelessWidget {
           icon: Icons.flag_circle_rounded,
           flagColors: const [Color(0xFF006C35), Colors.white],
           isActive: initialCountry == 'saudi',
-          onTap: () => onCountrySelected('saudi'),
+          // الـ HTML جعل السعودية disabled حالياً
+          onTap: () {
+             // يمكنك إظهار رسالة "قريباً" هنا لتطابق الـ HTML
+             ScaffoldMessenger.of(context).showSnackBar(
+               const SnackBar(content: Text("قريباً في المملكة العربية السعودية"))
+             );
+          },
         ),
       ],
     );
@@ -102,7 +109,7 @@ class ClientSelectionStep extends StatelessWidget {
           subtitle: 'أطلب بضاعتك بأسعار الجملة',
           icon: Icons.storefront_rounded,
           iconColor: const Color(0xFF4A69BD),
-          isActive: initialUserType == 'buyer',
+          isActive: initialUserType == 'buyer', // متوافق مع HTML (buyer)
           onTap: () => onCompleted!(country: initialCountry, userType: 'buyer'),
         ),
         SizedBox(height: 2.5.h),
@@ -111,7 +118,7 @@ class ClientSelectionStep extends StatelessWidget {
           subtitle: 'اعرض منتجاتك وزود مبيعاتك',
           icon: Icons.local_shipping_rounded,
           iconColor: const Color(0xFFE67E22),
-          isActive: initialUserType == 'seller',
+          isActive: initialUserType == 'seller', // متوافق مع HTML (seller)
           onTap: () => onCompleted!(country: initialCountry, userType: 'seller'),
         ),
         SizedBox(height: 2.5.h),
@@ -120,7 +127,7 @@ class ClientSelectionStep extends StatelessWidget {
           subtitle: 'تسوق أفضل العروض من حولك',
           icon: Icons.person_pin_rounded,
           iconColor: const Color(0xFFE74C3C),
-          isActive: initialUserType == 'consumer',
+          isActive: initialUserType == 'consumer', // متوافق مع HTML (consumer)
           onTap: () => onCompleted!(country: initialCountry, userType: 'consumer'),
         ),
       ],
@@ -149,7 +156,7 @@ class _OptionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final primary = const Color(0xFF2D9E68);
+    const primary = Color(0xFF2D9E68);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
@@ -181,16 +188,16 @@ class _OptionCard extends StatelessWidget {
           title,
           style: TextStyle(
             fontWeight: FontWeight.bold, 
-            fontSize: 13.sp, // 🟢 تكبير اسم الدولة/الحساب
+            fontSize: 13.sp,
             color: isActive ? primary : Colors.black87
           ),
         ),
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 4),
-          child: Text(subtitle, style: TextStyle(fontSize: 10.sp, color: Colors.grey.shade600)), // 🟢 تكبير الوصف الفرعي
+          child: Text(subtitle, style: TextStyle(fontSize: 10.sp, color: Colors.grey.shade600)),
         ),
         trailing: isActive
-          ? Icon(Icons.check_circle_rounded, color: primary, size: 28)
+          ? const Icon(Icons.check_circle_rounded, color: primary, size: 28)
           : Icon(Icons.arrow_back_ios_new_rounded, size: 16, color: Colors.grey.shade400),
       ),
     );
@@ -212,4 +219,3 @@ class _OptionCard extends StatelessWidget {
     );
   }
 }
-
