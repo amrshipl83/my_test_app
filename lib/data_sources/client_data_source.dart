@@ -1,5 +1,4 @@
 // lib/data_sources/client_data_source.dart
-import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
@@ -11,7 +10,7 @@ class ClientDataSource {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseMessaging _fcm = FirebaseMessaging.instance;
 
-  // 🟢 الدالة المفقودة التي يطلبها الـ Build
+  // 🟢 تم التعديل لاستقبال الروابط (URLs) بدلاً من الملفات (Files)
   Future<User?> registerClient({
     required String fullname,
     required String email,
@@ -20,18 +19,22 @@ class ClientDataSource {
     required String country,
     required String userType,
     Map<String, double>? location,
-    File? logo,
+    String? logoUrl,       // تم التعديل هنا ليتوافق مع الـ Build
+    String? crUrl,         // إضافة للسجل التجاري
+    String? tcUrl,         // إضافة للبطاقة الضريبية
     String? merchantName,
     String? businessType,
     String? additionalPhone,
   }) async {
     try {
+      // 1. إنشاء الحساب في Firebase Auth
       final userCredential = await _auth.createUserWithEmailAndPassword(
         email: email, 
         password: password
       );
       final String userId = userCredential.user!.uid;
 
+      // 2. تجهيز بيانات المستخدم الأساسية
       final Map<String, dynamic> userData = {
         'fullname': fullname,
         'email': email,
@@ -42,25 +45,33 @@ class ClientDataSource {
         'createdAt': FieldValue.serverTimestamp(),
       };
 
+      // 3. إضافة البيانات الخاصة بالمورد (Seller)
       if (userType == 'seller') {
         userData['merchantName'] = merchantName;
         userData['businessType'] = businessType;
         userData['additionalPhone'] = additionalPhone;
+        userData['logoUrl'] = logoUrl; // حفظ رابط الشعار
+        userData['crUrl'] = crUrl;     // حفظ رابط السجل
+        userData['tcUrl'] = tcUrl;     // حفظ رابط البطاقة الضريبية
         userData['isVerified'] = false;
       } else {
         userData['isVerified'] = true;
       }
 
+      // 4. تحديد المجموعة المستهدفة بناءً على النوع
       String targetCollectionName;
       if (userType == "seller") {
         targetCollectionName = "pendingSellers";
       } else if (userType == "consumer") {
         targetCollectionName = "consumers";
       } else {
-        targetCollectionName = "users";
+        targetCollectionName = "users"; // لتاجر التجزئة (Buyer)
       }
 
+      // 5. حفظ البيانات في Firestore
       await _firestore.collection(targetCollectionName).doc(userId).set(userData);
+      
+      // 6. تسجيل التوكن الخاص بالإشعارات
       await _registerFCMTokenApi(userId, userType, address);
 
       return userCredential.user;
@@ -76,8 +87,15 @@ class ClientDataSource {
       await http.post(
         Uri.parse("https://5uex7vzy64.execute-api.us-east-1.amazonaws.com/V2/new_nofiction"),
         headers: {'Content-Type': 'application/json'},
-        body: json.encode({'userId': userId, 'fcmToken': fcmToken, 'role': role, 'address': address}),
+        body: json.encode({
+          'userId': userId, 
+          'fcmToken': fcmToken, 
+          'role': role, 
+          'address': address
+        }),
       );
-    } catch (e) {}
+    } catch (e) {
+      // تجاهل الخطأ في الإشعارات لضمان إتمام عملية التسجيل
+    }
   }
 }
