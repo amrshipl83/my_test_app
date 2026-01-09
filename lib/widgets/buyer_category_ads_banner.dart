@@ -1,65 +1,60 @@
-// المسار: lib/widgets/buyer_category_ads_banner.dart
-
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class BuyerCategoryAdsBanner extends StatelessWidget {
-  // ✅ تمت إزالة كلمة const من Constructor هنا
-  const BuyerCategoryAdsBanner({super.key});
+  // 🎯 استلام الـ ID لعمل الفلترة (العلامة)
+  final String? categoryId;
+
+  const BuyerCategoryAdsBanner({super.key, this.categoryId});
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      // 💡 إضافة Padding أفقي لضمان عدم التصاق البانر بأطراف الشاشة
-      padding: const EdgeInsets.symmetric(horizontal: 5.0),
-      child: Container(
-        height: 100,
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: Colors.white, // خلفية بيضاء ليتناسب مع الظل
-          // 💡 [تحسين 1]: زيادة الزوايا الدائرية لـ 15
-          borderRadius: BorderRadius.circular(15),
-          // ❌ إزالة Border.all
-          boxShadow: [
-            // 💡 [تحسين 2]: تطبيق ظل أنعم وأكثر بروزاً وعمقاً
-            BoxShadow(
-              color: Colors.black.withOpacity(0.15),
-              spreadRadius: 0.5,
-              blurRadius: 10,
-              offset: const Offset(0, 5),
+    // 💡 نستخدم StreamBuilder ليكون البانر حياً (يتحدث فور تغيير الصورة في Firebase)
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('retailerBanners') // سيسحب من نفس المجموعة لتوحيد الإدارة
+          .where('status', isEqualTo: 'active')
+          .where('targetId', isEqualTo: categoryId) // "العلامة" التي تربط البانر بالقسم
+          .where('linkType', isEqualTo: 'CATEGORY') // لضمان أنه بانر مخصص للأقسام
+          .snapshots(),
+      builder: (context, snapshot) {
+        // إذا لم توجد بيانات أو حدث خطأ، لا نعرض شيئاً (يختفي البانر تماماً ولا يترك فراغاً)
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        // نأخذ أول بانر مخصص لهذا القسم
+        var bannerData = snapshot.data!.docs.first.data() as Map<String, dynamic>;
+        String imageUrl = bannerData['imageUrl'] ?? '';
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 5.0),
+          child: Container(
+            height: 120, // زيادة الارتفاع قليلاً ليكون أوضح
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(15),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Stack(
-          children: [
-            // 💡 [تحسين 1]: تطبيق الزوايا الدائرية على الصورة المقصوصة
-            ClipRRect(
+            child: ClipRRect(
               borderRadius: BorderRadius.circular(15),
               child: Image.network(
-                'https://via.placeholder.com/800x100/4CAF50/FFFFFF?text=إعلان+مميز+في+صفحة+الأقسام',
+                imageUrl,
                 fit: BoxFit.cover,
                 width: double.infinity,
-                height: double.infinity,
-                errorBuilder: (context, error, stackTrace) => Container(
-                  color: Colors.grey[200],
-                  child: const Center(
-                    child: Text(
-                      'مساحة إعلانية',
-                      // 💡 استخدام نفس اللون الأخضر الأساسي
-                      style: TextStyle(color: Color(0xFF4CAF50), fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ),
+                errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
               ),
             ),
-            // أيقونة النجمة (لم يتم تغيير منطقها)
-            const Positioned(
-              bottom: 5,
-              right: 5,
-              child: Icon(Icons.star, color: Colors.amber, size: 18),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
