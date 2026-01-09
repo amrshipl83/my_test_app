@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async';
-// تأكد من استيراد الشاشة للوصول لـ routeName
 import 'package:my_test_app/screens/buyer/trader_offers_screen.dart'; 
 
 final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -29,13 +28,6 @@ class _HomeContentState extends State<HomeContent> {
     super.initState();
     _bannerController = PageController(initialPage: 0);
     _loadAllData();
-    _bannerController.addListener(() {
-      if (_bannerController.page != null) {
-        setState(() {
-          _currentBannerIndex = _bannerController.page!.round();
-        });
-      }
-    });
   }
 
   @override
@@ -48,113 +40,77 @@ class _HomeContentState extends State<HomeContent> {
   // --- جلب البيانات ---
   Future<void> _loadCategories() async {
     try {
-      final q = _db.collection('mainCategory')
+      final q = await _db.collection('mainCategory')
           .where('status', isEqualTo: 'active')
           .orderBy('order', descending: false)
           .get();
 
-      final querySnapshot = await q;
-      final List<Map<String, dynamic>> loadedCategories = [];
+      final List<Map<String, dynamic>> loadedCategories = q.docs.map((doc) => {
+        'id': doc.id,
+        'name': doc['name'] ?? '',
+        'imageUrl': doc['imageUrl'] ?? '',
+      }).toList();
 
-      for (var doc in querySnapshot.docs) {
-        if (doc.data().containsKey('name') && doc.data().containsKey('imageUrl')) {
-          loadedCategories.add({
-            'id': doc.id,
-            'name': doc['name'],
-            'imageUrl': doc['imageUrl'],
-          });
-        }
-      }
-
-      if (mounted) {
-        setState(() {
-          _categories = loadedCategories;
-        });
-      }
+      if (mounted) setState(() => _categories = loadedCategories);
     } catch (e) {
-      print('Firebase Error loading Categories: $e');
+      debugPrint('Error Categories: $e');
     }
   }
 
   Future<void> _loadRetailerBanners() async {
     try {
-      final q = _db.collection('retailerBanners')
+      final q = await _db.collection('retailerBanners')
           .where('status', isEqualTo: 'active')
           .orderBy('order', descending: false)
           .get();
 
-      final querySnapshot = await q;
-      final List<Map<String, dynamic>> loadedBanners = [];
-
-      for (var doc in querySnapshot.docs) {
+      final List<Map<String, dynamic>> loadedBanners = q.docs.map((doc) {
         final data = doc.data();
-        if (data.containsKey('name') && data.containsKey('imageUrl')) {
-          loadedBanners.add({
-            'id': doc.id,
-            'name': data['name'],
-            'imageUrl': data['imageUrl'],
-            'linkType': data['linkType'] as String? ?? 'NONE',
-            'targetId': data['targetId'] as String? ?? '',
-          });
-        }
-      }
+        return {
+          'id': doc.id,
+          'name': data['name'] ?? '',
+          'imageUrl': data['imageUrl'] ?? '',
+          'linkType': data['linkType'] as String? ?? 'NONE',
+          'targetId': data['targetId'] as String? ?? '',
+        };
+      }).toList();
 
-      if (mounted) {
-        setState(() {
-          _banners = loadedBanners;
-        });
-      }
+      if (mounted) setState(() => _banners = loadedBanners);
     } catch (e) {
-      print('Firebase Error loading Banners: $e');
+      debugPrint('Error Banners: $e');
     }
   }
 
   Future<void> _loadRecentlyAddedProducts() async {
     try {
-      final q = _db.collection('products')
+      final q = await _db.collection('products')
           .where('status', isEqualTo: 'active')
           .orderBy('createdAt', descending: true)
           .limit(10)
           .get();
 
-      final querySnapshot = await q;
-      final List<Map<String, dynamic>> loadedProducts = [];
-
-      for (var doc in querySnapshot.docs) {
+      final List<Map<String, dynamic>> loadedProducts = q.docs.map((doc) {
         final data = doc.data();
         final List<dynamic>? urls = data['imageUrls'] as List<dynamic>?;
-        final String firstImageUrl = (urls != null && urls.isNotEmpty)
-            ? urls.first as String : '';
-
-        loadedProducts.add({
+        return {
           'id': doc.id,
-          'name': data['name'] as String? ?? 'منتج',
-          'imageUrl': firstImageUrl,
-          'subId': data['subId'] as String? ?? '',
-        });
-      }
+          'name': data['name'] ?? 'منتج',
+          'imageUrl': (urls != null && urls.isNotEmpty) ? urls.first as String : '',
+          'subId': data['subId'] ?? '',
+          'mainId': data['mainId'] ?? '',
+        };
+      }).toList();
 
-      if (mounted) {
-        setState(() {
-          _recentProducts = loadedProducts;
-        });
-      }
+      if (mounted) setState(() => _recentProducts = loadedProducts);
     } catch (e) {
-      print('Firebase Error loading recent products: $e');
+      debugPrint('Error Products: $e');
     }
   }
 
   Future<void> _loadAllData() async {
-    await Future.wait([
-      _loadCategories(),
-      _loadRetailerBanners(),
-      _loadRecentlyAddedProducts(),
-    ]);
-
+    await Future.wait([_loadCategories(), _loadRetailerBanners(), _loadRecentlyAddedProducts()]);
     if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
+      setState(() => _isLoading = false);
       _startBannerAutoSlide();
     }
   }
@@ -163,95 +119,58 @@ class _HomeContentState extends State<HomeContent> {
     _bannerTimer?.cancel();
     if (_banners.length > 1) {
       _bannerTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
-        if (!mounted || _banners.isEmpty) {
-          timer.cancel();
-          return;
-        }
+        if (!mounted || _banners.isEmpty) return;
         int nextPage = (_currentBannerIndex + 1) % _banners.length;
-        _bannerController.animateToPage(
-          nextPage,
-          duration: const Duration(milliseconds: 700),
-          curve: Curves.easeOut,
-        );
+        _bannerController.animateToPage(nextPage, duration: const Duration(milliseconds: 700), curve: Curves.easeOut);
       });
     }
   }
 
-  // 🎯 الدالة المحدثة للضغط على البانر
+  // 🎯 إصلاح دالة الضغط لتطابق تعريفات main.dart تماماً
   void _handleBannerClick(String? linkType, String? targetId) {
-    if (targetId == null || targetId.isEmpty || linkType == null) {
-      return;
-    }
-
+    if (targetId == null || targetId.isEmpty || linkType == null) return;
     final type = linkType.toUpperCase();
 
     if (type == 'EXTERNAL' && targetId.startsWith('http')) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('يتم فتح الرابط الخارجي: $targetId', textDirection: TextDirection.rtl)),
-      );
+      // منطق الروابط الخارجية
     } 
     else if (type == 'PRODUCT') {
-      // ✅ تعديل: إرسال Map ليطابق settings.arguments as Map<String, dynamic>? في main.dart
-      Navigator.of(context).pushNamed(
-        '/productDetails',
-        arguments: {'productId': targetId},
-      );
+      Navigator.of(context).pushNamed('/productDetails', arguments: {'productId': targetId});
     } 
     else if (type == 'CATEGORY') {
-      // يفتح قائمة المنتجات المفلترة بالقسم
-      Navigator.of(context).pushNamed(
-        '/products',
-        arguments: {
-          'mainId': targetId,
-          'subId': '',
-        },
-      );
+      // يوجه لصفحة الأقسام الفرعية كما هو معرف في main.dart السطر 244
+      Navigator.of(context).pushNamed('/category', arguments: targetId);
     } 
+    else if (type == 'SUB_CATEGORY') {
+      // يوجه لصفحة المنتجات مباشرة كما هو معرف في main.dart السطر 247
+      Navigator.of(context).pushNamed('/products', arguments: {'subId': targetId, 'mainId': ''});
+    }
     else if (type == 'RETAILER') {
-      // ✅ تعديل: استخدام المسار الصحيح لشاشة التاجر المعرف في main.dart
-      Navigator.of(context).pushNamed(
-        TraderOffersScreen.routeName, 
-        arguments: targetId, // إرسال الـ ID كـ String مباشرة
-      );
-    } 
-    else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('نوع الرابط غير مدعوم: $linkType', textDirection: TextDirection.rtl)),
-      );
+      Navigator.of(context).pushNamed(TraderOffersScreen.routeName, arguments: targetId);
     }
   }
 
+  // 🎯 تعديل حجم الأيقونة وتأقلم الصورة
   Widget _buildCategoryCard(Map<String, dynamic> data) {
-    final name = data['name'] as String? ?? 'قسم';
-    final imageUrl = data['imageUrl'] as String? ?? '';
-    const double size = 70.0;
-    const double totalDiameter = size + 8.0;
-
+    const double size = 65.0; // حجم محسّن
     return InkWell(
-      onTap: () {
-        Navigator.of(context).pushNamed(
-          '/category',
-          arguments: data['id'],
-        );
-      },
+      onTap: () => Navigator.of(context).pushNamed('/category', arguments: data['id']),
       child: Column(
         children: [
           Container(
-            width: totalDiameter,
-            height: totalDiameter,
+            width: size, height: size,
             decoration: BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-              boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 4))],
+              color: Colors.white, shape: BoxShape.circle,
+              boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4, offset: const Offset(0, 2))],
             ),
             child: ClipOval(
-              child: imageUrl.isNotEmpty 
-                ? Image.network(imageUrl, fit: BoxFit.cover)
-                : const Icon(Icons.category, size: 35),
+              child: data['imageUrl'].isNotEmpty 
+                ? Image.network(data['imageUrl'], fit: BoxFit.cover) // BoxFit.cover يضمن التأقلم
+                : const Icon(Icons.category, size: 30),
             ),
           ),
           const SizedBox(height: 8),
-          Text(name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13), overflow: TextOverflow.ellipsis),
+          Text(data['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, fontFamily: 'Tajawal'), overflow: TextOverflow.ellipsis),
         ],
       ),
     );
@@ -262,128 +181,56 @@ class _HomeContentState extends State<HomeContent> {
     return Column(
       children: [
         SizedBox(
-          height: 140,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(15),
-            child: PageView.builder(
-              controller: _bannerController,
-              itemCount: _banners.length,
-              itemBuilder: (context, index) {
-                final banner = _banners[index];
-                return InkWell(
-                  onTap: () => _handleBannerClick(banner['linkType'], banner['targetId']),
-                  child: Image.network(banner['imageUrl'], fit: BoxFit.cover),
-                );
-              },
+          height: 150,
+          child: PageView.builder(
+            controller: _bannerController,
+            onPageChanged: (v) => setState(() => _currentBannerIndex = v),
+            itemCount: _banners.length,
+            itemBuilder: (context, index) => InkWell(
+              onTap: () => _handleBannerClick(_banners[index]['linkType'], _banners[index]['targetId']),
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 5),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(15),
+                  child: Image.network(_banners[index]['imageUrl'], fit: BoxFit.cover),
+                ),
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: 10),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: _banners.asMap().entries.map((entry) {
-            return Container(
-              width: 8.0, height: 8.0,
-              margin: const EdgeInsets.symmetric(horizontal: 4.0),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: _currentBannerIndex == entry.key ? const Color(0xFF4CAF50) : Colors.grey.shade400,
-              ),
-            );
-          }).toList(),
         ),
       ],
     );
   }
 
-  Widget _buildProductCard(Map<String, dynamic> productData) {
-    final name = productData['name'] as String? ?? 'منتج';
-    final imageUrl = productData['imageUrl'] as String? ?? '';
-    final subId = productData['subId'] as String? ?? '';
-
-    return InkWell(
-      onTap: () {
-        if (subId.isNotEmpty) {
-          Navigator.of(context).pushNamed('/products', arguments: {'subId': subId, 'mainId': ''});
-        }
-      },
-      child: Container(
-        width: 150,
-        margin: const EdgeInsets.symmetric(horizontal: 5),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(15),
-          boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 4))],
-        ),
-        child: Column(
-          children: [
-            SizedBox(
-              height: 120,
-              child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
-                child: imageUrl.isNotEmpty ? Image.network(imageUrl, fit: BoxFit.cover) : const Icon(Icons.shopping_bag),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Text(name, style: const TextStyle(fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) return const Center(child: CircularProgressIndicator(color: Color(0xFF4CAF50)));
-
+    if (_isLoading) return const Center(child: CircularProgressIndicator());
     return SingleChildScrollView(
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const SizedBox(height: 20),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 15.0),
-            child: _buildBannerSlider(),
-          ),
-          const SizedBox(height: 30),
-          const Center(child: Text('الأقسام الرئيسية', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold))),
           const SizedBox(height: 15),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 15.0),
-            child: GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _categories.length,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3, crossAxisSpacing: 10, mainAxisSpacing: 15, childAspectRatio: 0.85,
-              ),
-              itemBuilder: (context, index) => _buildCategoryCard(_categories[index]),
-            ),
+          _buildBannerSlider(),
+          const SizedBox(height: 25),
+          const Text('الأقسام الرئيسية', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, fontFamily: 'Tajawal')),
+          const SizedBox(height: 15),
+          GridView.builder(
+            shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            itemCount: _categories.length,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, childAspectRatio: 0.9),
+            itemBuilder: (context, index) => _buildCategoryCard(_categories[index]),
           ),
-          const SizedBox(height: 30),
-          // قسم أضيف حديثاً
-          if (_recentProducts.isNotEmpty)
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 15.0),
-                  child: Text('أضيف حديثاً', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                ),
-                SizedBox(
-                  height: 200,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    reverse: true,
-                    itemCount: _recentProducts.length,
-                    itemBuilder: (context, index) => _buildProductCard(_recentProducts[index]),
-                  ),
-                ),
-              ],
-            ),
-          const SizedBox(height: 30),
+          if (_recentProducts.isNotEmpty) ...[
+             const SizedBox(height: 20),
+             const Padding(padding: EdgeInsets.only(right: 15), child: Align(alignment: Alignment.centerRight, child: Text('أضيف حديثاً', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)))),
+             SizedBox(height: 180, child: ListView.builder(scrollDirection: Axis.horizontal, reverse: true, itemCount: _recentProducts.length, itemBuilder: (context, index) {
+               final p = _recentProducts[index];
+               return InkWell(
+                 onTap: () => Navigator.of(context).pushNamed('/products', arguments: {'subId': p['subId'], 'mainId': p['mainId']}),
+                 child: Container(width: 130, margin: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4)]), child: Column(children: [Expanded(child: ClipRRect(borderRadius: const BorderRadius.vertical(top: Radius.circular(10)), child: Image.network(p['imageUrl'], fit: BoxFit.cover))), Padding(padding: const EdgeInsets.all(4), child: Text(p['name'], maxLines: 1, overflow: TextOverflow.ellipsis))])),
+               );
+             })),
+          ]
         ],
       ),
     );
