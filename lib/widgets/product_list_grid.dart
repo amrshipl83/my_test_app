@@ -5,7 +5,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'package:my_test_app/widgets/buyer_product_card.dart';
 import 'package:my_test_app/providers/product_offers_provider.dart';
-// 🚀 [التعديل الضروري]: استيراد Sizer للتحجيم الديناميكي
 import 'package:sizer/sizer.dart';
 
 class ProductListGrid extends StatelessWidget {
@@ -28,6 +27,7 @@ class ProductListGrid extends StatelessWidget {
       .where('subId', isEqualTo: subCategoryId)
       .where('status', isEqualTo: 'active')
       .orderBy('order', descending: false);
+    
     if (manufacturerId != null) {
       productsQuery = productsQuery.where('manufacturerId', isEqualTo: manufacturerId);
     }
@@ -40,18 +40,14 @@ class ProductListGrid extends StatelessWidget {
       return const Center(child: Text('خطأ: لم يتم تحديد القسم الفرعي لعرض المنتجات.'));
     }
     
-    // 💡 [تحسين 1]: جلب مخطط الألوان واستخدام لون الثيم لمؤشر التحميل
     final colorScheme = Theme.of(context).colorScheme;
-
-    // 💡 [تحسين 2]: استخدام القيمة الثابتة المُحسَّنة لـ childAspectRatio
-    const double finalAspectRatio = 0.52; // القيمة الثابتة الأفضل لتجنب Overflow
+    const double finalAspectRatio = 0.52; 
 
     return StreamBuilder<QuerySnapshot>(
       stream: _getProductsStream(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Center(
-            // 🟢 استخدام لون الثيم الأساسي لمؤشر التحميل (M3)
             child: CircularProgressIndicator(color: colorScheme.primary) 
           );
         }
@@ -67,12 +63,14 @@ class ProductListGrid extends StatelessWidget {
                     ? 'لا توجد منتجات لهذه الشركة المصنعة في قسم "$pageTitle".'
                     : 'لا توجد منتجات متاحة حاليًا في قسم "$pageTitle".',
                 textAlign: TextAlign.center,
+                style: const TextStyle(fontFamily: 'Tajawal'),
               ),
             ),
           );
         }
 
         final products = snapshot.data!.docs;
+        
         return GridView.builder(
           padding: const EdgeInsets.all(12.0),
           itemCount: products.length,
@@ -85,13 +83,25 @@ class ProductListGrid extends StatelessWidget {
           itemBuilder: (context, index) {
             final productDoc = products[index];
             final productId = productDoc.id;
+            final productData = productDoc.data() as Map<String, dynamic>;
 
             return ChangeNotifierProvider<ProductOffersProvider>(
               create: (_) => ProductOffersProvider(productId: productId),
               child: BuyerProductCard(
                 productId: productId,
-                productData: productDoc.data() as Map<String, dynamic>,
+                productData: productData,
                 onTap: (selectedProductId, selectedOfferId) {
+                  // 🎯 [التعديل الجوهري]: تنفيذ الانتقال لصفحة التفاصيل فوراً
+                  // المسار '/productDetails' معرف في ملف main.dart ويستقبل Map كأرجومنت
+                  Navigator.of(context).pushNamed(
+                    '/productDetails',
+                    arguments: {
+                      'productId': selectedProductId,
+                      'offerId': selectedOfferId,
+                    },
+                  );
+
+                  // استدعاء الـ callback الخارجي إذا كان موجوداً (اختياري)
                   onProductTap?.call(selectedProductId, selectedOfferId);
                 },
               ),
