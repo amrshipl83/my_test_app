@@ -73,6 +73,7 @@ class WalletScreen extends StatelessWidget {
 
     return Column(
       children: [
+        // كارت الترحيب (بما أن الرصيد غير موجود في الـ Provider الحالي، نكتفي بالترحيب)
         Container(
           width: double.infinity,
           padding: EdgeInsets.all(15.sp),
@@ -87,17 +88,20 @@ class WalletScreen extends StatelessWidget {
             children: [
               Text(
                 'أهلاً، ${buyerData.loggedInUser?.fullname ?? 'زائر'}',
-                style: GoogleFonts.cairo(fontSize: 14.sp, color: Colors.white70),
+                style: GoogleFonts.cairo(fontSize: 16.sp, color: Colors.white, fontWeight: FontWeight.bold),
               ),
-              SizedBox(height: 10.sp),
-              _buildBalanceCard(cashbackProvider),
+              SizedBox(height: 5.sp),
+              Text(
+                'اكتشف عروض الكاش باك المتاحة لك',
+                style: GoogleFonts.cairo(fontSize: 12.sp, color: Colors.white70),
+              ),
             ],
           ),
         ),
         
         Expanded(
           child: RefreshIndicator(
-            onRefresh: () => Provider.of<CashbackProvider>(context, listen: false).fetchCashbackGoals(),
+            onRefresh: () => Provider.of<CashbackProvider>(context, listen: false).fetchAvailableOffers(),
             child: _buildCashbackGoalsList(),
           ),
         ),
@@ -105,45 +109,26 @@ class WalletScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildBalanceCard(CashbackProvider provider) {
-    return FutureBuilder<double>(
-      future: provider.fetchCashbackBalance(),
-      builder: (context, snapshot) {
-        double balance = snapshot.data ?? 0.0;
-        return Container(
-          padding: EdgeInsets.symmetric(horizontal: 15.sp, vertical: 12.sp),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.15),
-            borderRadius: BorderRadius.circular(15),
-            border: Border.all(color: Colors.white30),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('رصيد الكاش باك:', style: GoogleFonts.cairo(fontSize: 14.sp, color: Colors.white)),
-              Text(
-                '${balance.toStringAsFixed(2)} ج',
-                style: GoogleFonts.cairo(fontSize: 18.sp, fontWeight: FontWeight.w900, color: const Color(0xFFFFD700)),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
   Widget _buildCashbackGoalsList() {
     return Consumer<CashbackProvider>(
       builder: (context, provider, _) {
         return FutureBuilder<List<Map<String, dynamic>>>(
-          future: provider.fetchCashbackGoals(),
+          future: provider.fetchAvailableOffers(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
             }
             final goals = snapshot.data ?? [];
             if (goals.isEmpty) {
-              return Center(child: Text('لا توجد عروض نشطة حالياً', style: GoogleFonts.cairo(fontSize: 15.sp)));
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.local_offer_outlined, size: 50.sp, color: Colors.grey),
+                    Text('لا توجد عروض نشطة حالياً', style: GoogleFonts.cairo(fontSize: 15.sp, color: Colors.grey)),
+                  ],
+                ),
+              );
             }
             return ListView.builder(
               padding: EdgeInsets.all(12.sp),
@@ -156,62 +141,55 @@ class WalletScreen extends StatelessWidget {
     );
   }
 
-  // 🔥 التعديل الجوهري هنا للتفرقة بين أنواع الأهداف
   Widget _buildGoalCard(Map<String, dynamic> goal) {
-    // 1. تحديد نوع الهدف
+    // استخدام المفاتيح كما هي في fetchAvailableOffers بالضبط
     bool isCumulative = goal['goalBasis'] == 'cumulative_spending';
-    double progress = (goal['progressPercentage'] ?? 0.0).toDouble();
-    Color progressColor = progress >= 100 ? Colors.green : Colors.orange;
-
-    // 2. حساب الوقت المتبقي
-    final now = DateTime.now();
-    final endDate = goal['endDate'] as DateTime;
-    final daysLeft = endDate.difference(now).inDays;
+    double minAmount = (goal['minAmount'] ?? 0.0).toDouble();
+    double currentProgress = (goal['currentProgress'] ?? 0.0).toDouble();
+    
+    double progressPercent = minAmount > 0 ? (currentProgress / minAmount) : 0.0;
+    if (progressPercent > 1.0) progressPercent = 1.0;
+    
+    Color progressColor = progressPercent >= 1.0 ? Colors.green : Colors.orange;
 
     return Card(
-      elevation: 2,
+      elevation: 3,
       margin: EdgeInsets.only(bottom: 12.sp),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15),
-        side: isCumulative ? BorderSide.none : BorderSide(color: Colors.blue.shade100, width: 1),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       child: Padding(
         padding: EdgeInsets.all(12.sp),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // العنوان والتاجر
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Expanded(
-                  child: Text(goal['title'], 
-                    style: GoogleFonts.cairo(fontSize: 15.sp, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen)),
-                ),
-                if (!isCumulative)
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 8.sp, vertical: 2.sp),
-                    decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(5)),
-                    child: Text("طلب فردي", style: GoogleFonts.cairo(fontSize: 9.sp, color: Colors.blue.shade800)),
+                  child: Text(
+                    goal['description'] ?? 'عرض كاش باك',
+                    style: GoogleFonts.cairo(fontSize: 15.sp, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen),
                   ),
+                ),
+                Text(
+                  '${goal['value']} ${goal['type'] == 'percentage' ? '%' : 'ج'}',
+                  style: GoogleFonts.cairo(fontSize: 16.sp, fontWeight: FontWeight.w900, color: Colors.orange),
+                ),
               ],
             ),
             
             SizedBox(height: 5.sp),
             
-            // الوصف
             Text(
               isCumulative 
-                ? "مطلوب شراء بإجمالي ${goal['minAmount']} ج خلال فترة العرض"
-                : "كل طلب بقيمة ${goal['minAmount']} ج يمنحك كاش باك ${goal['value']} ج",
-              style: GoogleFonts.cairo(fontSize: 12.sp, color: Colors.black87),
+                ? "هدف تراكمي: اشترِ بمجموع ${goal['minAmount']} ج"
+                : "عرض فوري: لكل طلب بقيمة ${goal['minAmount']} ج",
+              style: GoogleFonts.cairo(fontSize: 12.sp, color: Colors.black54),
             ),
 
             if (isCumulative) ...[
-              SizedBox(height: 10.sp),
-              // شريط التقدم (للتراكمي فقط)
+              SizedBox(height: 12.sp),
               LinearProgressIndicator(
-                value: (progress / 100).clamp(0.0, 1.0),
+                value: progressPercent,
                 minHeight: 8,
                 backgroundColor: Colors.grey[200],
                 valueColor: AlwaysStoppedAnimation<Color>(progressColor),
@@ -220,9 +198,9 @@ class WalletScreen extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('حققت: ${goal['currentProgress']} ج من ${goal['minAmount']} ج', 
+                  Text('المحقَّق: ${currentProgress.toStringAsFixed(0)} ج', 
                     style: GoogleFonts.cairo(fontSize: 11.sp, color: Colors.grey[600])),
-                  Text('%${progress.toStringAsFixed(0)}', 
+                  Text('%${(progressPercent * 100).toStringAsFixed(0)}', 
                     style: GoogleFonts.cairo(fontSize: 12.sp, color: progressColor, fontWeight: FontWeight.bold)),
                 ],
               ),
@@ -230,14 +208,18 @@ class WalletScreen extends StatelessWidget {
 
             Divider(height: 20.sp, color: Colors.grey[100]),
 
-            // الوقت المتبقي
             Row(
               children: [
-                Icon(Icons.timer_outlined, size: 13.sp, color: Colors.redAccent),
+                Icon(Icons.access_time_filled, size: 14.sp, color: Colors.redAccent),
                 SizedBox(width: 5.sp),
                 Text(
-                  daysLeft > 0 ? "متبقي $daysLeft يوم على انتهاء العرض" : "العرض ينتهي اليوم!",
+                  "متبقي ${goal['daysRemaining']} يوم",
                   style: GoogleFonts.cairo(fontSize: 11.sp, color: Colors.redAccent, fontWeight: FontWeight.bold),
+                ),
+                const Spacer(),
+                Text(
+                  goal['sellerName'] ?? 'كل التجار',
+                  style: GoogleFonts.cairo(fontSize: 11.sp, color: Colors.blueGrey),
                 ),
               ],
             ),
