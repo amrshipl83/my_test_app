@@ -64,7 +64,6 @@ class SellerOrderData {
   bool isMinOrderMet = true;
   bool hasProductErrors = false;
 
-  // ✅ Getter المطلوب لشاشة السلة
   String get minOrderAlert => !isMinOrderMet ? "باقي ${(minOrderTotal - total).toStringAsFixed(2)} ج للوصول للحد الأدنى" : "";
 
   SellerOrderData({required this.sellerId, required this.sellerName, required this.items});
@@ -80,7 +79,6 @@ class CartProvider with ChangeNotifier {
   double _totalDeliveryFees = 0.0;
   bool _hasCheckoutErrors = false;
 
-  // ✅ التوافق مع الشاشات الجديدة
   Map<String, SellerOrderData> get sellersOrders => _sellersOrders;
   double get totalProductsAmount => _totalProductsAmount;
   double get totalDeliveryFees => _totalDeliveryFees;
@@ -90,7 +88,6 @@ class CartProvider with ChangeNotifier {
   int get cartTotalItems => itemCount;
   bool get isCartEmpty => _cartItems.isEmpty;
 
-  // ✅ حل مشكلة الـ await في شاشة السلة
   Future<bool> get hasPendingCheckout async {
     final prefs = await SharedPreferences.getInstance();
     final checkoutJson = prefs.getString('checkoutOrders');
@@ -223,8 +220,6 @@ class CartProvider with ChangeNotifier {
     return {'minQty': (d['minOrder'] ?? 1), 'maxQty': (d['maxOrder'] ?? 9999), 'stock': stk, 'currentPrice': prc};
   }
 
-  // ... (الجزء العلوي من الملف كما هو بدون تغيير حتى دالة _calculateGifts)
-
   List<CartItem> _calculateGifts(SellerOrderData seller, List<Map<String, dynamic>> promos) {
     final gifts = <CartItem>[];
     for (var promo in promos) {
@@ -237,10 +232,8 @@ class CartProvider with ChangeNotifier {
       } else if (trigger['type'] == "specific_item") {
         final match = seller.items.where((i) => i.offerId == trigger['offerId']);
         if (match.isNotEmpty) {
-          // ✅ التصحيح الأكيد هنا: تحويل القيم لضمان نجاح عملية القسمة
           int triggerBase = (trigger['triggerQuantityBase'] as num? ?? 1).toInt();
           int giftPerBase = (promo['giftQuantityPerBase'] as num? ?? 1).toInt();
-          
           qty = (match.first.quantity ~/ triggerBase) * giftPerBase;
         }
       }
@@ -263,9 +256,6 @@ class CartProvider with ChangeNotifier {
     }
     return gifts;
   }
-
-// ... (باقي الملف كما هو)
-
 
   Future<List<Map<String, dynamic>>> _getGiftPromosBySellerId(String id) async {
     final snap = await _db.collection('giftPromos').where('sellerId', isEqualTo: id).where('status', isEqualTo: 'active').get();
