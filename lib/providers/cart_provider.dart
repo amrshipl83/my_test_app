@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:math';
 import '../services/marketplace_data_service.dart';
 
+// 1. موديل المنتج في السلة مع معالجة مرنة للبيانات
 class CartItem {
   final String offerId;
   final String productId;
@@ -36,23 +37,25 @@ class CartItem {
 
   factory CartItem.fromJson(Map<String, dynamic> json) {
     return CartItem(
-      offerId: json['offerId']?.toString() ?? '',
-      productId: json['productId']?.toString() ?? json['offerId']?.toString() ?? '',
-      sellerId: json['sellerId']?.toString() ?? '',
-      sellerName: json['sellerName']?.toString() ?? '',
-      name: json['name']?.toString() ?? '',
+      // 🎯 قبول أي مسمى للحقل لضمان عدم حدوث خطأ عند الاستلام
+      offerId: (json['offerId'] ?? json['id'] ?? '').toString(),
+      productId: (json['productId'] ?? json['id'] ?? '').toString(),
+      sellerId: (json['sellerId'] ?? json['ownerId'] ?? '').toString(),
+      sellerName: (json['sellerName'] ?? json['merchantName'] ?? 'تاجر').toString(),
+      name: (json['name'] ?? json['productName'] ?? 'منتج').toString(),
       price: (json['price'] as num?)?.toDouble() ?? 0.0,
-      unit: json['unit']?.toString() ?? '',
+      unit: (json['unit'] ?? json['unitName'] ?? '').toString(),
       unitIndex: (json['unitIndex'] as num?)?.toInt() ?? -1,
       quantity: (json['quantity'] as num?)?.toInt() ?? 1,
       isGift: json['isGift'] as bool? ?? false,
-      imageUrl: json['imageUrl']?.toString() ?? '',
+      imageUrl: (json['imageUrl'] ?? json['image'] ?? '').toString(),
       mainId: json['mainId']?.toString(),
       subId: json['subId']?.toString(),
     );
   }
 }
 
+// 2. كلاس تنظيم طلبات التجار
 class SellerOrderData {
   final String sellerId;
   final String sellerName;
@@ -69,6 +72,7 @@ class SellerOrderData {
   SellerOrderData({required this.sellerId, required this.sellerName, required this.items});
 }
 
+// 3. البروفايدر الأساسي
 class CartProvider with ChangeNotifier {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final MarketplaceDataService _dataService = MarketplaceDataService();
@@ -79,6 +83,7 @@ class CartProvider with ChangeNotifier {
   double _totalDeliveryFees = 0.0;
   bool _hasCheckoutErrors = false;
 
+  // Getters
   Map<String, SellerOrderData> get sellersOrders => _sellersOrders;
   double get totalProductsAmount => _totalProductsAmount;
   double get totalDeliveryFees => _totalDeliveryFees;
@@ -88,66 +93,96 @@ class CartProvider with ChangeNotifier {
   int get cartTotalItems => itemCount;
   bool get isCartEmpty => _cartItems.isEmpty;
 
-  Future<bool> get hasPendingCheckout async {
-    final prefs = await SharedPreferences.getInstance();
-    final checkoutJson = prefs.getString('checkoutOrders');
-    return checkoutJson != null && checkoutJson.isNotEmpty;
-  }
-
+  // 🔥 وظيفة التحميل وإعادة الحساب المحدثة
   Future<void> loadCartAndRecalculate(String userRole) async {
     final prefs = await SharedPreferences.getInstance();
-    final cartJson = prefs.getString('cartItems');
+    final cartJson = prefs.getString('cartItems'); // الموحد
 
-    if (cartJson != null) {
+    if (cartJson != null && cartJson.isNotEmpty) {
       try {
         final List<dynamic> rawList = jsonDecode(cartJson);
         _cartItems = rawList.map((e) => CartItem.fromJson(e)).toList();
-      } catch (_) { _cartItems = []; }
-    } else {
-      _cartItems = [];
+      } catch (e) {
+        debugPrint("Cart Decode Error: $e");
+        _cartItems = [];
+      }
     }
 
-    if (_cartItems.isEmpty) { _resetTotals(); notifyListeners(); return; }
+    if (_cartItems.isEmpty) {
+      _resetTotals();
+      notifyListeners();
+      return;
+    }
 
+    // عرض البيانات المخزنة فوراً لسرعة التطبيق
+    _organizeBySeller();
+    notifyListeners();
+
+    // تحديث الأسعار والهدايا من الـ Firebase في الخلفية
+    await _refreshDataFromFirebase(userRole);
+  }
+
+  void _organizeBySeller() {
     final tempSellersOrders = <String, SellerOrderData>{};
+    _totalProductsAmount = 0.0;
+
     for (var item in _cartItems.where((item) => !item.isGift)) {
       tempSellersOrders.putIfAbsent(item.sellerId, () => SellerOrderData(
         sellerId: item.sellerId, sellerName: item.sellerName, items: [],
       )).items.add(item);
+      _totalProductsAmount += (item.price * item.quantity);
     }
-
-    _totalProductsAmount = 0.0; _totalDeliveryFees = 0.0; _hasCheckoutErrors = false;
-
-    for (var sellerId in tempSellersOrders.keys) {
-      final sellerData = tempSellersOrders[sellerId]!;
-      final rules = await _getSellerBusinessRules(sellerId, userRole);
-      sellerData.minOrderTotal = rules['minTotal'];
-      sellerData.deliveryFee = rules['deliveryFee'];
-      sellerData.total = 0.0;
-
-      for (var item in sellerData.items) {
-        final details = await _getProductOfferDetails(item.offerId, item.unitIndex);
-        if (details['currentPrice'] > 0) item.price = details['currentPrice'];
-        sellerData.total += (item.price * item.quantity);
-        if (item.quantity > details['maxQty'] || item.quantity < details['minQty'] || details['stock'] < item.quantity) {
-          sellerData.hasProductErrors = true; _hasCheckoutErrors = true;
-        }
-      }
-
-      sellerData.isMinOrderMet = sellerData.total >= sellerData.minOrderTotal;
-      if (sellerData.isMinOrderMet) {
-        _totalDeliveryFees += sellerData.deliveryFee;
-        final promos = await _getGiftPromosBySellerId(sellerId);
-        sellerData.giftedItems = _calculateGifts(sellerData, promos);
-      }
-      _totalProductsAmount += sellerData.total;
-    }
-
     _sellersOrders = tempSellersOrders;
+  }
+
+  Future<void> _refreshDataFromFirebase(String userRole) async {
+    _totalDeliveryFees = 0.0;
+    _hasCheckoutErrors = false;
+
+    for (var sellerId in _sellersOrders.keys) {
+      final sellerData = _sellersOrders[sellerId]!;
+      
+      try {
+        // جلب قواعد التاجر (الحد الأدنى والتوصيل)
+        final rules = await _getSellerBusinessRules(sellerId, userRole);
+        sellerData.minOrderTotal = rules['minTotal'];
+        sellerData.deliveryFee = rules['deliveryFee'];
+        
+        // إعادة حساب إجمالي التاجر وتدقيق الأخطاء
+        sellerData.total = 0.0;
+        for (var item in sellerData.items) {
+          final details = await _getProductOfferDetails(item.offerId, item.unitIndex);
+          if (details['currentPrice'] > 0) item.price = details['currentPrice'];
+          sellerData.total += (item.price * item.quantity);
+          
+          if (item.quantity > details['maxQty'] || item.quantity < details['minQty'] || details['stock'] < item.quantity) {
+            sellerData.hasProductErrors = true;
+            _hasCheckoutErrors = true;
+          }
+        }
+
+        sellerData.isMinOrderMet = sellerData.total >= sellerData.minOrderTotal;
+        if (sellerData.isMinOrderMet) {
+          _totalDeliveryFees += sellerData.deliveryFee;
+          final promos = await _getGiftPromosBySellerId(sellerId);
+          sellerData.giftedItems = _calculateGifts(sellerData, promos);
+        }
+      } catch (e) {
+        debugPrint("Error updating seller $sellerId: $e");
+      }
+    }
+    
+    _recalculateFinalTotal();
     await _saveCartToLocal();
     notifyListeners();
   }
 
+  void _recalculateFinalTotal() {
+    _totalProductsAmount = 0.0;
+    _sellersOrders.forEach((_, data) => _totalProductsAmount += data.total);
+  }
+
+  // 🔥 إضافة منتج للسلة
   Future<void> addItemToCart({
     required String offerId, required String productId, required String sellerId,
     required String sellerName, required String name, required double price,
@@ -155,42 +190,30 @@ class CartProvider with ChangeNotifier {
     required String imageUrl, required String userRole, String? mainId, String? subId,
     int minOrderQuantity = 1, int availableStock = 9999, int maxOrderQuantity = 9999,
   }) async {
-    String verifiedName = sellerName;
-    if (userRole == 'consumer') verifiedName = await _dataService.fetchSupermarketNameById(sellerId);
-
+    
     final int finalMax = min(availableStock, maxOrderQuantity);
     final index = _cartItems.indexWhere((item) => item.offerId == offerId && item.unitIndex == unitIndex);
     int totalNewQty = ((index != -1) ? _cartItems[index].quantity : 0) + quantityToAdd;
 
-    if (totalNewQty > finalMax) throw 'تجاوز الحد المتاح';
-    if (totalNewQty < minOrderQuantity) throw 'أقل من الحد الأدنى';
+    if (totalNewQty > finalMax) throw 'تجاوز الحد المتاح ($finalMax)';
+    if (totalNewQty < minOrderQuantity) throw 'أقل من الحد الأدنى ($minOrderQuantity)';
 
-    _cartItems.removeWhere((item) => item.isGift);
     if (index != -1) {
       _cartItems[index].quantity = totalNewQty;
     } else {
       _cartItems.add(CartItem(
         offerId: offerId, productId: productId, sellerId: sellerId,
-        sellerName: verifiedName, name: name, price: price,
+        sellerName: sellerName, name: name, price: price,
         unit: unit, unitIndex: unitIndex, quantity: quantityToAdd,
         imageUrl: imageUrl, mainId: mainId, subId: subId,
       ));
     }
+    
+    await _saveCartToLocal();
     await loadCartAndRecalculate(userRole);
   }
 
-  Future<void> changeQty(CartItem item, int delta, String role) async {
-    final index = _cartItems.indexWhere((i) => i.offerId == item.offerId && i.unitIndex == item.unitIndex);
-    if (index == -1) return;
-    final newQty = _cartItems[index].quantity + delta;
-    if (newQty <= 0) {
-      await removeItem(item, role);
-    } else {
-      _cartItems[index].quantity = newQty;
-      await loadCartAndRecalculate(role);
-    }
-  }
-
+  // قواعد العمل (الحد الأدنى والتوصيل)
   Future<Map<String, dynamic>> _getSellerBusinessRules(String id, String role) async {
     final col = (role == 'buyer') ? 'sellers' : 'deliverySupermarkets';
     final doc = await _db.collection(col).doc(id).get();
@@ -204,12 +227,14 @@ class CartProvider with ChangeNotifier {
     return {'minTotal': 0.0, 'deliveryFee': 0.0};
   }
 
+  // تفاصيل العرض (السعر والكميات)
   Future<Map<String, dynamic>> _getProductOfferDetails(String id, int idx) async {
     final doc = await _db.collection('productOffers').doc(id).get();
     if (!doc.exists) return {'minQty': 1, 'maxQty': 9999, 'stock': 9999, 'currentPrice': 0.0};
     final d = doc.data()!;
     double prc = 0.0; int stk = 0;
-    if (idx != -1 && d['units'] != null) {
+    
+    if (idx != -1 && d['units'] != null && (d['units'] as List).length > idx) {
       final u = d['units'][idx];
       prc = (u['price'] as num).toDouble();
       stk = (u['availableStock'] as num).toInt();
@@ -220,6 +245,7 @@ class CartProvider with ChangeNotifier {
     return {'minQty': (d['minOrder'] ?? 1), 'maxQty': (d['maxOrder'] ?? 9999), 'stock': stk, 'currentPrice': prc};
   }
 
+  // 🎁 منطق الهدايا
   List<CartItem> _calculateGifts(SellerOrderData seller, List<Map<String, dynamic>> promos) {
     final gifts = <CartItem>[];
     for (var promo in promos) {
@@ -245,11 +271,8 @@ class CartProvider with ChangeNotifier {
           sellerId: seller.sellerId,
           sellerName: seller.sellerName,
           name: promo['giftProductName']?.toString() ?? 'هدية',
-          price: 0.0,
-          unit: promo['giftUnitName']?.toString() ?? 'وحدة',
-          unitIndex: -1,
-          quantity: qty,
-          isGift: true,
+          price: 0.0, unit: promo['giftUnitName']?.toString() ?? 'وحدة',
+          unitIndex: -1, quantity: qty, isGift: true,
           imageUrl: promo['giftProductImage']?.toString() ?? '',
         ));
       }
@@ -271,22 +294,12 @@ class CartProvider with ChangeNotifier {
 
   Future<void> removeItem(CartItem item, String role) async {
     _cartItems.removeWhere((i) => i.offerId == item.offerId && i.unitIndex == item.unitIndex);
+    await _saveCartToLocal();
     await loadCartAndRecalculate(role);
   }
 
   Future<void> clearCart() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('cartItems'); _cartItems = []; _resetTotals(); notifyListeners();
-  }
-
-  Future<void> proceedToCheckout(BuildContext context, String role) async {
-    if (_hasCheckoutErrors) return;
-    Navigator.of(context).pushNamed('/checkout');
-  }
-
-  Future<void> cancelPendingCheckout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('checkoutOrders');
-    notifyListeners();
   }
 }
