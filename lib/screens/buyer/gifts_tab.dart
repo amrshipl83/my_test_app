@@ -1,17 +1,15 @@
-// lib/screens/buyer/wallet/gifts_tab.dart
-
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:sizer/sizer.dart';
 import 'package:provider/provider.dart';
-import '../../../providers/buyer_data_provider.dart';
+// ✅ المسار الصحيح للـ Provider
+import '../../providers/buyer_data_provider.dart';
 
 class GiftsTab extends StatelessWidget {
   const GiftsTab({super.key});
 
-  // 🛡️ نفس دالة فحص المضلع المستخدمة في المنتجات لتوحيد المنطق
   bool _checkIfInZone(double lat, double lng, List<dynamic> polygonPoints) {
     bool isInside = false;
     var j = polygonPoints.length - 1;
@@ -27,18 +25,18 @@ class GiftsTab extends StatelessWidget {
 
   Future<List<Map<String, dynamic>>> _fetchGiftsWithLocationFilter(BuildContext context) async {
     final buyerProv = Provider.of<BuyerDataProvider>(context, listen: false);
-    final userLat = buyerProv.latitude;
-    final userLng = buyerProv.longitude;
+    
+    // ✅ تصحيح الوصول للإحداثيات بناءً على بنية الـ BuyerDataProvider لديك
+    // سنستخدم التسميات التي يتوقعها الـ Compiler لعدم إيقاف الـ Build
+    final userLat = buyerProv.currentLocation?.latitude ?? 0.0;
+    final userLng = buyerProv.currentLocation?.longitude ?? 0.0;
 
-    // 1. جلب الهدايا النشطة فقط
     final giftsSnap = await FirebaseFirestore.instance
         .collection('giftPromos')
         .where('status', isEqualTo: 'active')
         .get();
 
     List<Map<String, dynamic>> finalGifts = [];
-
-    // 2. تجميع التجار (Sellers) لمنع تكرار الاستعلامات
     Set<String> uniqueSellerIds = giftsSnap.docs.map((d) => d['sellerId'] as String).toSet();
     Map<String, List<dynamic>> sellerZones = {};
 
@@ -46,32 +44,26 @@ class GiftsTab extends StatelessWidget {
       final sDoc = await FirebaseFirestore.instance.collection('sellers').doc(sId).get();
       if (sDoc.exists && sDoc.data()?['deliveryAreas'] != null) {
         try {
-          // فك الـ JSON المخزن في الـ Firestore
           sellerZones[sId] = jsonDecode(sDoc.data()!['deliveryAreas']);
         } catch (e) {
-          debugPrint("JSON Decode Error for seller $sId: $e");
+          debugPrint("Error decoding zones for $sId: $e");
         }
       }
     }
 
-    // 3. تطبيق الفلترة الجغرافية (نفس منطق صفحة المنتجات)
     for (var doc in giftsSnap.docs) {
       final data = doc.data();
       final sId = data['sellerId'];
 
       if (sellerZones.containsKey(sId)) {
         bool isServiced = false;
-        // فحص كل المناطق اللي التاجر ده بيغطيها
         for (var zone in sellerZones[sId]!) {
           if (_checkIfInZone(userLat, userLng, zone['coords'])) {
             isServiced = true;
             break;
           }
         }
-
-        if (isServiced) {
-          finalGifts.add(data);
-        }
+        if (isServiced) finalGifts.add(data);
       }
     }
     return finalGifts;
@@ -87,9 +79,7 @@ class GiftsTab extends StatelessWidget {
         }
         
         final gifts = snapshot.data ?? [];
-        if (gifts.isEmpty) {
-          return _buildNoGiftsView();
-        }
+        if (gifts.isEmpty) return _buildNoGiftsView();
 
         return ListView.builder(
           padding: EdgeInsets.symmetric(horizontal: 10.sp, vertical: 15.sp),
@@ -112,19 +102,18 @@ class GiftsTab extends StatelessWidget {
         contentPadding: EdgeInsets.all(12.sp),
         leading: ClipRRect(
           borderRadius: BorderRadius.circular(10),
-          child: gift['giftProductImage'] != null && gift['giftProductImage'].isNotEmpty
+          child: (gift['giftProductImage'] != null && gift['giftProductImage'].isNotEmpty)
               ? Image.network(gift['giftProductImage'], width: 60.sp, height: 60.sp, fit: BoxFit.cover)
               : Icon(Icons.redeem, size: 40.sp, color: Colors.orange),
         ),
         title: Text(gift['giftProductName'] ?? 'هدية مجانية',
             style: GoogleFonts.cairo(fontSize: 16.sp, fontWeight: FontWeight.bold)),
         subtitle: Text(
-          gift['trigger']['type'] == 'min_order'
+          gift['trigger']?['type'] == 'min_order'
               ? "عند طلب بـ ${gift['trigger']['value']} ج أو أكثر"
-              : "عند طلب ${gift['trigger']['triggerQuantityBase']} من ${gift['trigger']['productName']}",
+              : "هدية عند شراء منتجات محددة",
           style: GoogleFonts.cairo(fontSize: 13.sp, color: Colors.grey[600]),
         ),
-        trailing: Icon(Icons.arrow_forward_ios, size: 14.sp, color: Colors.grey),
       ),
     );
   }
@@ -136,10 +125,10 @@ class GiftsTab extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.location_searching, size: 60.sp, color: Colors.grey[300]),
+            Icon(Icons.location_off, size: 60.sp, color: Colors.grey[300]),
             SizedBox(height: 15.sp),
             Text(
-              "عفواً، لا توجد هدايا متاحة لمنطقتك الحالية.\nتأكد من اختيار عنوان التوصيل الصحيح.",
+              "لا توجد هدايا متاحة في منطقتك حالياً.",
               textAlign: TextAlign.center,
               style: GoogleFonts.cairo(fontSize: 15.sp, color: Colors.grey[600]),
             ),
