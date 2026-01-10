@@ -2,13 +2,13 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart' as intl;
-import 'package:sizer/sizer.dart'; // للتحكم الاحترافي في المقاسات
+import 'package:sizer/sizer.dart'; 
 import 'package:google_fonts/google_fonts.dart';
 import '../../providers/cashback_provider.dart';
 import '../../providers/buyer_data_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/buyer_mobile_nav_widget.dart';
+import 'gifts_tab.dart'; // تأكد أن الملف موجود في نفس المجلد
 
 class WalletScreen extends StatelessWidget {
   static const String routeName = '/wallet';
@@ -16,73 +16,97 @@ class WalletScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop) return;
-        Navigator.pushReplacementNamed(context, '/buyerHome');
-      },
-      child: Directionality(
-        textDirection: TextDirection.rtl,
-        child: Scaffold(
-          backgroundColor: const Color(0xFFF8F9FA), // لون مريح للعين
-          body: SafeArea( // 🛡️ حماية المحتوى من الحواف
-            child: Column(
-              children: [
-                _buildTopHeader(context),
-                Expanded(
-                  child: RefreshIndicator(
-                    onRefresh: () => Provider.of<CashbackProvider>(context, listen: false).fetchCashbackGoals(),
-                    child: _buildCashbackGoalsList(),
-                  ),
-                ),
-              ],
+    return DefaultTabController(
+      length: 2, // تبويبين: كاش باك وهدايا
+      child: PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) {
+          if (didPop) return;
+          Navigator.pushReplacementNamed(context, '/buyerHome');
+        },
+        child: Directionality(
+          textDirection: TextDirection.rtl,
+          child: Scaffold(
+            backgroundColor: const Color(0xFFF8F9FA),
+            appBar: AppBar(
+              backgroundColor: AppTheme.primaryGreen,
+              elevation: 0,
+              title: Text(
+                'المحفظة والعروض',
+                style: GoogleFonts.cairo(fontSize: 20.sp, fontWeight: FontWeight.bold, color: Colors.white),
+              ),
+              centerTitle: true,
+              bottom: TabBar(
+                indicatorColor: Colors.orangeAccent,
+                indicatorWeight: 4,
+                labelStyle: GoogleFonts.cairo(fontSize: 16.sp, fontWeight: FontWeight.bold),
+                tabs: const [
+                  Tab(text: "أهداف الكاش باك"),
+                  Tab(text: "هدايا المنطقة"),
+                ],
+              ),
             ),
-          ),
-          bottomNavigationBar: BuyerMobileNavWidget(
-            selectedIndex: 3, // المحفظة هي رقم 3
-            onItemSelected: (index) {
-              if (index == 3) return;
-              if (index == 0) Navigator.pushReplacementNamed(context, '/traders');
-              if (index == 1) Navigator.pushReplacementNamed(context, '/buyerHome');
-              if (index == 2) Navigator.pushReplacementNamed(context, '/myOrders');
-            },
+            body: SafeArea(
+              child: TabBarView(
+                children: [
+                  _buildCashbackTab(context), // محتوى الكاش باك الحالي
+                  const GiftsTab(),           // محتوى الهدايا من الملف الخارجي
+                ],
+              ),
+            ),
+            bottomNavigationBar: BuyerMobileNavWidget(
+              selectedIndex: 3,
+              onItemSelected: (index) {
+                if (index == 3) return;
+                if (index == 0) Navigator.pushReplacementNamed(context, '/traders');
+                if (index == 1) Navigator.pushReplacementNamed(context, '/buyerHome');
+                if (index == 2) Navigator.pushReplacementNamed(context, '/myOrders');
+              },
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildTopHeader(BuildContext context) {
+  // --- تبويب الكاش باك (تم تحويله لدالة ليبقى الملف منظماً) ---
+  Widget _buildCashbackTab(BuildContext context) {
     final buyerData = Provider.of<BuyerDataProvider>(context);
     final cashbackProvider = Provider.of<CashbackProvider>(context);
 
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(20.sp),
-      decoration: BoxDecoration(
-        color: AppTheme.primaryGreen,
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(30),
-          bottomRight: Radius.circular(30),
+    return Column(
+      children: [
+        // كارت الرصيد العلوي
+        Container(
+          width: double.infinity,
+          padding: EdgeInsets.all(18.sp),
+          decoration: BoxDecoration(
+            color: AppTheme.primaryGreen,
+            borderRadius: const BorderRadius.only(
+              bottomLeft: Radius.circular(25),
+              bottomRight: Radius.circular(25),
+            ),
+          ),
+          child: Column(
+            children: [
+              Text(
+                'أهلاً، ${buyerData.loggedInUser?.fullname ?? 'زائر'}',
+                style: GoogleFonts.cairo(fontSize: 16.sp, color: Colors.white70),
+              ),
+              SizedBox(height: 12.sp),
+              _buildBalanceCard(cashbackProvider),
+            ],
+          ),
         ),
-        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, 5))],
-      ),
-      child: Column(
-        children: [
-          Text(
-            'أهدافي للكاش باك',
-            style: GoogleFonts.cairo(fontSize: 22.sp, fontWeight: FontWeight.bold, color: Colors.white),
+        
+        // قائمة الأهداف
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: () => Provider.of<CashbackProvider>(context, listen: false).fetchCashbackGoals(),
+            child: _buildCashbackGoalsList(),
           ),
-          SizedBox(height: 10.sp),
-          Text(
-            'أهلاً بك، ${buyerData.loggedInUser?.fullname ?? 'زائر'}!',
-            style: GoogleFonts.cairo(fontSize: 16.sp, color: Colors.white70),
-          ),
-          SizedBox(height: 20.sp),
-          _buildBalanceCard(cashbackProvider),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -101,7 +125,7 @@ class WalletScreen extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('رصيد المحفظة:', style: GoogleFonts.cairo(fontSize: 18.sp, color: Colors.white)),
+              Text('رصيد متاح:', style: GoogleFonts.cairo(fontSize: 17.sp, color: Colors.white)),
               Text(
                 '${balance.toStringAsFixed(2)} ج',
                 style: GoogleFonts.cairo(fontSize: 22.sp, fontWeight: FontWeight.w900, color: const Color(0xFFFFD700)),
@@ -127,9 +151,9 @@ class WalletScreen extends StatelessWidget {
               return Center(child: Text('لا توجد أهداف حالياً', style: GoogleFonts.cairo(fontSize: 18.sp)));
             }
             return ListView.builder(
-              padding: EdgeInsets.all(15.sp),
+              padding: EdgeInsets.all(12.sp),
               itemCount: goals.length,
-              itemBuilder: (context, index) => _buildGoalCard(context, goals[index]),
+              itemBuilder: (context, index) => _buildGoalCard(goals[index]),
             );
           },
         );
@@ -137,60 +161,35 @@ class WalletScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildGoalCard(BuildContext context, Map<String, dynamic> goal) {
-    bool isSingleOrder = goal['goalBasis'] == 'single_order';
-    double progress = goal['progressPercentage'];
+  Widget _buildGoalCard(Map<String, dynamic> goal) {
+    double progress = goal['progressPercentage'] ?? 0.0;
     Color progressColor = progress >= 100 ? Colors.green : Colors.orange;
 
     return Card(
-      elevation: 4,
+      elevation: 3,
       margin: EdgeInsets.only(bottom: 15.sp),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: EdgeInsets.all(15.sp),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Icon(Icons.stars, color: progressColor, size: 24.sp),
-                SizedBox(width: 10.sp),
-                Expanded(
-                  child: Text(
-                    goal['title'],
-                    style: GoogleFonts.cairo(fontSize: 18.sp, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
-            ),
-            const Divider(),
-            Text(
-              isSingleOrder ? '🎯 المطلوب: طلب واحد بقيمة ${goal['minAmount']} ج' : '📈 المطلوب: مجموع مشتريات ${goal['minAmount']} ج',
-              style: GoogleFonts.cairo(fontSize: 16.sp, color: Colors.black87),
-            ),
-            SizedBox(height: 10.sp),
+            Text(goal['title'], style: GoogleFonts.cairo(fontSize: 18.sp, fontWeight: FontWeight.bold)),
+            SizedBox(height: 8.sp),
             LinearProgressIndicator(
               value: progress / 100,
-              minHeight: 12,
-              backgroundColor: Colors.grey[200],
+              minHeight: 10,
+              backgroundColor: Colors.grey[100],
               valueColor: AlwaysStoppedAnimation<Color>(progressColor),
             ),
             SizedBox(height: 8.sp),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'الحالي: ${goal['currentProgress'].toStringAsFixed(1)} ج',
-                  style: GoogleFonts.cairo(fontSize: 15.sp, fontWeight: FontWeight.bold),
-                ),
-                Text('%${progress.toStringAsFixed(0)}', style: GoogleFonts.cairo(fontSize: 15.sp, color: progressColor)),
+                Text('التقدم: ${goal['currentProgress']} ج', style: GoogleFonts.cairo(fontSize: 14.sp)),
+                Text('%${progress.toStringAsFixed(0)}', style: GoogleFonts.cairo(color: progressColor, fontWeight: FontWeight.bold)),
               ],
             ),
-            if (isSingleOrder && progress < 100)
-              Padding(
-                padding: const EdgeInsets.only(top: 8.0),
-                child: Text('* يجب تحقيق القيمة في عملية شراء واحدة', style: GoogleFonts.cairo(fontSize: 13.sp, color: Colors.red)),
-              ),
           ],
         ),
       ),
