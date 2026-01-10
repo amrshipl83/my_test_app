@@ -4,7 +4,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:sizer/sizer.dart';
 import 'package:provider/provider.dart';
-// ✅ المسار الصحيح للـ Provider
 import '../../providers/buyer_data_provider.dart';
 
 class GiftsTab extends StatelessWidget {
@@ -26,10 +25,9 @@ class GiftsTab extends StatelessWidget {
   Future<List<Map<String, dynamic>>> _fetchGiftsWithLocationFilter(BuildContext context) async {
     final buyerProv = Provider.of<BuyerDataProvider>(context, listen: false);
     
-    // ✅ تصحيح الوصول للإحداثيات بناءً على بنية الـ BuyerDataProvider لديك
-    // سنستخدم التسميات التي يتوقعها الـ Compiler لعدم إيقاف الـ Build
-    final userLat = buyerProv.currentLocation?.latitude ?? 0.0;
-    final userLng = buyerProv.currentLocation?.longitude ?? 0.0;
+    // ✅ العودة للمسميات الأصلية التي يستخدمها الـ BuyerDataProvider الخاص بك
+    final userLat = buyerProv.latitude ?? 0.0;
+    final userLng = buyerProv.longitude ?? 0.0;
 
     final giftsSnap = await FirebaseFirestore.instance
         .collection('giftPromos')
@@ -46,7 +44,7 @@ class GiftsTab extends StatelessWidget {
         try {
           sellerZones[sId] = jsonDecode(sDoc.data()!['deliveryAreas']);
         } catch (e) {
-          debugPrint("Error decoding zones for $sId: $e");
+          debugPrint("Error decoding: $e");
         }
       }
     }
@@ -54,7 +52,6 @@ class GiftsTab extends StatelessWidget {
     for (var doc in giftsSnap.docs) {
       final data = doc.data();
       final sId = data['sellerId'];
-
       if (sellerZones.containsKey(sId)) {
         bool isServiced = false;
         for (var zone in sellerZones[sId]!) {
@@ -77,12 +74,11 @@ class GiftsTab extends StatelessWidget {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
-        
         final gifts = snapshot.data ?? [];
         if (gifts.isEmpty) return _buildNoGiftsView();
 
         return ListView.builder(
-          padding: EdgeInsets.symmetric(horizontal: 10.sp, vertical: 15.sp),
+          padding: EdgeInsets.all(10.sp),
           itemCount: gifts.length,
           itemBuilder: (context, index) => _buildGiftTile(gifts[index]),
         );
@@ -91,50 +87,17 @@ class GiftsTab extends StatelessWidget {
   }
 
   Widget _buildGiftTile(Map<String, dynamic> gift) {
-    return Container(
-      margin: EdgeInsets.only(bottom: 12.sp),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0, 4))],
-      ),
+    return Card(
+      margin: EdgeInsets.only(bottom: 10.sp),
       child: ListTile(
-        contentPadding: EdgeInsets.all(12.sp),
-        leading: ClipRRect(
-          borderRadius: BorderRadius.circular(10),
-          child: (gift['giftProductImage'] != null && gift['giftProductImage'].isNotEmpty)
-              ? Image.network(gift['giftProductImage'], width: 60.sp, height: 60.sp, fit: BoxFit.cover)
-              : Icon(Icons.redeem, size: 40.sp, color: Colors.orange),
-        ),
-        title: Text(gift['giftProductName'] ?? 'هدية مجانية',
-            style: GoogleFonts.cairo(fontSize: 16.sp, fontWeight: FontWeight.bold)),
-        subtitle: Text(
-          gift['trigger']?['type'] == 'min_order'
-              ? "عند طلب بـ ${gift['trigger']['value']} ج أو أكثر"
-              : "هدية عند شراء منتجات محددة",
-          style: GoogleFonts.cairo(fontSize: 13.sp, color: Colors.grey[600]),
-        ),
+        leading: Icon(Icons.redeem, color: Colors.orange, size: 30.sp),
+        title: Text(gift['giftProductName'] ?? 'هدية', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
+        subtitle: Text("عرض من: ${gift['sellerName'] ?? 'المتجر'}", style: GoogleFonts.cairo()),
       ),
     );
   }
 
   Widget _buildNoGiftsView() {
-    return Center(
-      child: Padding(
-        padding: EdgeInsets.all(30.sp),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.location_off, size: 60.sp, color: Colors.grey[300]),
-            SizedBox(height: 15.sp),
-            Text(
-              "لا توجد هدايا متاحة في منطقتك حالياً.",
-              textAlign: TextAlign.center,
-              style: GoogleFonts.cairo(fontSize: 15.sp, color: Colors.grey[600]),
-            ),
-          ],
-        ),
-      ),
-    );
+    return Center(child: Text("لا توجد هدايا متاحة حالياً", style: GoogleFonts.cairo()));
   }
 }
