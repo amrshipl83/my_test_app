@@ -74,7 +74,9 @@ class _BuyerProductListScreenState extends State<BuyerProductListScreen> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // 🎯 التعديل المضاف: تمرير subCategoryId لفلترة الشركات حسب القسم
           ManufacturersBanner(
+            subCategoryId: widget.subCategoryId, 
             onManufacturerSelected: (id) {
               if (id == 'ALL') {
                 if (Navigator.of(context).canPop()) Navigator.of(context).pop();
@@ -105,11 +107,10 @@ class _BuyerProductListScreenState extends State<BuyerProductListScreen> {
         ],
       ),
 
-      // 🎯 التعديل الجديد: إضافة أيقونة السلة العائمة مع العداد
+      // 🎯 أيقونة السلة العائمة مع العداد
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       floatingActionButton: Consumer<CartProvider>(
         builder: (context, cartProvider, child) {
-          // استخدام نفس الدالة التي كانت في الهيدر
           final cartCount = cartProvider.cartTotalItems; 
 
           return Stack(
@@ -117,11 +118,10 @@ class _BuyerProductListScreenState extends State<BuyerProductListScreen> {
             children: [
               FloatingActionButton(
                 onPressed: () => Navigator.of(context).pushNamed('/cart'),
-                backgroundColor: const Color(0xFF4CAF50), // لون أخضر متناسق
+                backgroundColor: const Color(0xFF4CAF50), 
                 elevation: 6,
                 child: const Icon(Icons.shopping_cart, color: Colors.white, size: 28),
               ),
-              // العداد الأحمر (Badge)
               if (cartCount > 0)
                 Positioned(
                   right: 0,
