@@ -1,28 +1,25 @@
-// المسار: lib/providers/manufacturers_provider.dart
+// lib/providers/manufacturers_provider.dart
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:my_test_app/models/manufacturer_model.dart'; 
-import 'package:flutter/foundation.dart'; // نحتاجها في حال أردنا استخدام Debug Print
+import 'package:flutter/foundation.dart';
 
 class ManufacturersProvider with ChangeNotifier {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  // 💡 قائمة لتخزين الشركات
   List<ManufacturerModel> _manufacturers = [];
   List<ManufacturerModel> get manufacturers => _manufacturers;
 
-  // 💡 حالة التحميل
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
-  // 💡 رسالة الخطأ
   String? _errorMessage;
   String? get errorMessage => _errorMessage;
 
-  // 💡 دالة جلب الشركات المصنعة من Firestore
-  Future<void> fetchManufacturers() async {
-    // 💡 منع الجلب المتعدد إذا كنا نقوم بالتحميل بالفعل
+  // 🎯 التعديل: الدالة الآن تستقبل subCategoryId اختيارياً
+  Future<void> fetchManufacturers({String? subCategoryId}) async {
+    // منع الجلب المتعدد
     if (_isLoading) return;
 
     _isLoading = true;
@@ -30,18 +27,23 @@ class ManufacturersProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      // 💡 جلب البيانات من مجموعة 'manufacturers' وتصفية النشط منها
-      final querySnapshot = await _db
-          .collection('manufacturers')
-          .where('isActive', isEqualTo: true) // تصفية النشط
-          .get();
+      // 1. بناء الاستعلام الأساسي من مجموعة 'manufacturers'
+      Query query = _db.collection('manufacturers').where('isActive', isEqualTo: true);
+
+      // 2. 🎯 [الفلترة الجديدة]: إذا تم تمرير معرف قسم فرعي، ابحث عنه داخل مصفوفة subCategoryIds
+      // ملاحظة: نفترض أن في قاعدة البيانات حقل مصفوفة اسمه 'subCategoryIds' لكل شركة
+      if (subCategoryId != null && subCategoryId != 'ALL') {
+        query = query.where('subCategoryIds', arrayContains: subCategoryId);
+      }
+
+      final querySnapshot = await query.get();
 
       _manufacturers = ManufacturerModel.fromQuerySnapshot(querySnapshot);
       
-      // 💡 [التعديل هنا]: إضافة خيار "عرض الكل" كأول عنصر دائماً
+      // 3. إضافة خيار "عرض الكل" كأول عنصر دائماً
       _manufacturers.insert(0, ManufacturerModel(
-          id: 'ALL', // ID مميز لتمثيل "عرض الكل"
-          name: 'عرض الكل', // النص الذي سيظهر في البانر
+          id: 'ALL',
+          name: 'عرض الكل',
           description: '',
           isActive: true,
       ));
