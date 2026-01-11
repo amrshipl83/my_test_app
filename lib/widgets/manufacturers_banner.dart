@@ -5,12 +5,18 @@ import 'package:my_test_app/providers/manufacturers_provider.dart';
 import 'package:my_test_app/models/manufacturer_model.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:sizer/sizer.dart';
+
 class ManufacturersBanner extends StatefulWidget {
-  final Function(String? id) onManufacturerSelected;      
+  final Function(String? id) onManufacturerSelected;
+  // 🎯 [تم الإضافة]: استقبال معرف القسم الفرعي
+  final String? subCategoryId;
+
   const ManufacturersBanner({
     super.key,
-    required this.onManufacturerSelected,               
-  });                                                   
+    required this.onManufacturerSelected,
+    this.subCategoryId, // تمريره هنا
+  });
+
   @override
   State<ManufacturersBanner> createState() => _ManufacturersBannerState();
 }
@@ -21,10 +27,13 @@ class _ManufacturersBannerState extends State<ManufacturersBanner> {
   void initState() {
     super.initState();                                      
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<ManufacturersProvider>(context, listen: false).fetchManufacturers();                          
+      // 🎯 [تم التعديل]: تمرير المعرف للـ Provider لفلترة الشركات
+      Provider.of<ManufacturersProvider>(context, listen: false)
+          .fetchManufacturers(subCategoryId: widget.subCategoryId);                          
     });
-  }                                                                                                             
+  }
 
+  // دالة بناء الكارت (بقيت كما هي تماماً مع تحسين بسيط في حجم الخط لسهولة القراءة)
   Widget _buildManufacturerCard(ManufacturerModel manufacturer) {
     final bool isAllOption = manufacturer.id == 'ALL';  
     final Color primaryColor = Theme.of(context).primaryColor;
@@ -50,17 +59,15 @@ class _ManufacturersBannerState extends State<ManufacturersBanner> {
               ),
             )
           : Icon(Icons.business, size: iconSize, color: primaryColor);
-    }                                                   
+    }
+
     return InkWell(                                           
-      onTap: () {
-        widget.onManufacturerSelected(manufacturer.id);
-      },                                                      
+      onTap: () => widget.onManufacturerSelected(manufacturer.id),                                                      
       child: Container(
         width: 25.w,                                            
         margin: const EdgeInsets.symmetric(horizontal: 4.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Container(
               decoration: BoxDecoration(
@@ -80,16 +87,14 @@ class _ManufacturersBannerState extends State<ManufacturersBanner> {
                 child: iconContent,
               ),                                                    
             ),
-            // 🚀 [تصحيح 3]: تقليل المسافة العمودية من 3 إلى 2 لزيادة الاحتياطي
-            const SizedBox(height: 2), // تم التعديل
-                                                                    
+            const SizedBox(height: 2),
             Text(                                                                                                             
               manufacturer.name,
               textAlign: TextAlign.center,              
               maxLines: 2,                                                                                                    
               overflow: TextOverflow.ellipsis,
               style: GoogleFonts.cairo(
-                fontSize: 9.sp, 
+                fontSize: 10.sp, // زيادة طفيفة جداً للوضوح كما طلبنا سابقاً
                 fontWeight: FontWeight.w600,
                 color: Colors.black87,
               ),
@@ -98,15 +103,14 @@ class _ManufacturersBannerState extends State<ManufacturersBanner> {
         ),                                                    
       ),                                                    
     );
-  }                                                                                                               
+  }
+
   @override
   Widget build(BuildContext context) {                      
-    // 🚀 [تصحيح 5]: تقليل ارتفاع البانر الكلي للمرة الأخيرة من 12.h إلى 11.h
-    final double bannerHeight = 11.h; // <--- التعديل النهائي 🚀
+    final double bannerHeight = 11.h;
                                                           
     return Container(
       color: Colors.white,                                    
-      // زيادة الـ Padding السفلي لزيادة المسافة عن المنتجات 
       padding: const EdgeInsets.only(top: 10.0, bottom: 10.0),                                                                                                                
       child: Consumer<ManufacturersProvider>(
         builder: (context, provider, child) {
@@ -130,14 +134,13 @@ class _ManufacturersBannerState extends State<ManufacturersBanner> {
           }
                                                                   
           return SizedBox(                                          
-            height: bannerHeight, // استخدام الارتفاع الديناميكي المُعدل
+            height: bannerHeight,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,                                                                               
               padding: const EdgeInsets.symmetric(horizontal: 8.0),                                                                                                                   
               itemCount: provider.manufacturers.length,
               itemBuilder: (context, index) {           
-                final manufacturer = provider.manufacturers[index];                                             
-                return _buildManufacturerCard(manufacturer);
+                return _buildManufacturerCard(provider.manufacturers[index]);
               },                                        
             ),
           );                                            
