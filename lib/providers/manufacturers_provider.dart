@@ -31,7 +31,6 @@ class ManufacturersProvider with ChangeNotifier {
       Query query = _db.collection('manufacturers').where('isActive', isEqualTo: true);
 
       // 2. 🎯 [الفلترة الجديدة]: إذا تم تمرير معرف قسم فرعي، ابحث عنه داخل مصفوفة subCategoryIds
-      // ملاحظة: نفترض أن في قاعدة البيانات حقل مصفوفة اسمه 'subCategoryIds' لكل شركة
       if (subCategoryId != null && subCategoryId != 'ALL') {
         query = query.where('subCategoryIds', arrayContains: subCategoryId);
       }
@@ -41,10 +40,12 @@ class ManufacturersProvider with ChangeNotifier {
       _manufacturers = ManufacturerModel.fromQuerySnapshot(querySnapshot);
       
       // 3. إضافة خيار "عرض الكل" كأول عنصر دائماً
+      // 🛠️ تم إضافة imageUrl: '' هنا لحل خطأ الـ Build
       _manufacturers.insert(0, ManufacturerModel(
           id: 'ALL',
           name: 'عرض الكل',
           description: '',
+          imageUrl: '', 
           isActive: true,
       ));
 
