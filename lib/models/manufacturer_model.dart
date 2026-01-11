@@ -6,33 +6,38 @@ class ManufacturerModel {
   final String id;
   final String name;
   final String description;
+  final String imageUrl; // 🎯 تم الإضافة
   final bool isActive;
-  // يمكن إضافة حقول أخرى مثل imageUrl, order, إلخ، لاحقاً
+  final List<String> subCategoryIds; // 🎯 تم الإضافة لدعم الفلترة الذكية
 
   ManufacturerModel({
     required this.id,
     required this.name,
     required this.description,
+    required this.imageUrl, // 🎯 تم الإضافة
     required this.isActive,
+    this.subCategoryIds = const [], // افتراضياً مصفوفة فارغة
   });
 
-  // 💡 دالة لإنشاء نموذج من DocumentSnapshot (جلب وثيقة واحدة)
+  // 💡 دالة لإنشاء نموذج من DocumentSnapshot
   factory ManufacturerModel.fromDocumentSnapshot(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>?;
     if (data == null) {
       throw StateError('Manufacturer document data is null for ID: ${doc.id}');
     }
     
-    // 💡 استخدام البيانات المحفوظة في لوحة التحكم
     return ManufacturerModel(
       id: doc.id,
       name: data['name'] ?? '',
       description: data['description'] ?? '',
-      isActive: data['isActive'] ?? true, // افتراضياً نشط
+      imageUrl: data['imageUrl'] ?? '', // 🎯 قراءة الرابط اللي بيحفظه الآدمن
+      isActive: data['isActive'] ?? true,
+      // تحويل البيانات القادمة من Firestore إلى قائمة نصوص (List of Strings)
+      subCategoryIds: List<String>.from(data['subCategoryIds'] ?? []),
     );
   }
 
-  // 💡 دالة لإنشاء قائمة من QuerySnapshot (جلب قائمة وثائق)
+  // 💡 دالة لإنشاء قائمة من QuerySnapshot
   static List<ManufacturerModel> fromQuerySnapshot(QuerySnapshot query) {
     return query.docs.map((doc) => ManufacturerModel.fromDocumentSnapshot(doc)).toList();
   }
