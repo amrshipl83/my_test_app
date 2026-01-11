@@ -12,6 +12,9 @@ import 'package:my_test_app/widgets/buyer_header_widget.dart';
 import 'package:my_test_app/widgets/buyer_mobile_nav_widget.dart';
 import 'package:my_test_app/widgets/chat_support_widget.dart'; 
 
+// 🎯 استيراد الصفحة مباشرة لضمان عمل التوجيه المستقل
+import 'package:my_test_app/screens/buyer/my_orders_screen.dart';
+
 final FirebaseAuth _auth = FirebaseAuth.instance;
 final FirebaseFirestore _db = FirebaseFirestore.instance;
 
@@ -49,7 +52,6 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
     if (userAuth == null) return;
     _currentUserId = userAuth.uid;
 
-    // تشغيل الإشعارات (تظهر مرة واحدة فقط)
     _setupNotifications();
 
     final prefs = await SharedPreferences.getInstance();
@@ -69,7 +71,7 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
     await _updateNewDealerOrdersCount();
   }
 
-  // --- منطق الإشعارات (تفعيل مرة واحدة) ---
+  // --- منطق الإشعارات ---
   Future<void> _setupNotifications() async {
     if (_currentUserId == null) return;
 
@@ -117,7 +119,6 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
     }
   }
 
-  // --- تحديث عدد المنتجات في السلة ---
   void _updateCartCount(SharedPreferences prefs) {
     String? cartData = prefs.getString('cart_items');
     if (cartData != null) {
@@ -128,7 +129,6 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
     }
   }
 
-  // --- التحقق من حالة الدليفري لإظهار الأيقونات في القائمة الجانبية ---
   Future<void> _checkDeliveryStatusAndDisplayIcons() async {
     if (_currentUserId == null) return;
     try {
@@ -151,7 +151,6 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
     }
   }
 
-  // --- تحديث عدد الطلبات الجديدة (لو المستخدم تاجر دليفري أيضاً) ---
   Future<void> _updateNewDealerOrdersCount() async {
     if (_currentUserId == null) return;
     final q = await _db.collection('consumerorders')
@@ -160,22 +159,26 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
     if (mounted) setState(() => _newOrdersCount = q.size);
   }
 
-  // 🎯 منطق التنقل المستقل: يفتح كل صفحة كشاشة جديدة
+  // 🎯 التعديل المطلوب: التوجيه لـ /my_orders بشكل مستقل مع الحفاظ على Stack التنقل
   void _onItemTapped(int index) {
     if (index == _selectedIndex) return;
 
     switch (index) {
       case 0:
-        Navigator.pushReplacementNamed(context, '/traders'); // صفحة التجار
+        Navigator.pushReplacementNamed(context, '/traders'); 
         break;
       case 1:
         // نحن بالفعل هنا
         break;
       case 2:
-        Navigator.pushReplacementNamed(context, '/myOrders'); // صفحة طلباتي
+        // 🚀 التعديل: فتح صفحة مستقلة باستخدام Navigator.push لتمكين زر الرجوع
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const MyOrdersScreen()),
+        );
         break;
       case 3:
-        Navigator.pushReplacementNamed(context, '/wallet'); // صفحة المحفظة
+        Navigator.pushReplacementNamed(context, '/wallet'); 
         break;
     }
   }
@@ -198,7 +201,6 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
       child: Scaffold(
         key: _scaffoldKey,
         backgroundColor: const Color(0xFFf5f7fa),
-        // القائمة الجانبية
         endDrawer: BuyerHeaderWidget.buildSidebar(
           context: context,
           onLogout: _handleLogout,
@@ -209,27 +211,23 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
         ),
         body: Column(
           children: <Widget>[
-            // الهيدر العلوي الموحد (أهلاً بك..)
             BuyerHeaderWidget(
               onMenuToggle: () => _scaffoldKey.currentState?.openEndDrawer(),
               menuNotificationDotActive: _newOrdersCount > 0,
               userName: _userName,
               onLogout: _handleLogout,
             ),
-            // 🎯 هنا يتم عرض محتوى الصفحة الرئيسية فقط
             const Expanded(
               child: HomeContent(), 
             ),
           ],
         ),
-        // الشريط السفلي (Index 1 للرئيسية)
         bottomNavigationBar: BuyerMobileNavWidget(
           selectedIndex: _selectedIndex,
           onItemSelected: _onItemTapped,
           cartCount: _cartCount,
           ordersChanged: false,
         ),
-        // المساعد الذكي
         floatingActionButton: FloatingActionButton(
           heroTag: "buyer_home_chat_btn",
           onPressed: () {
