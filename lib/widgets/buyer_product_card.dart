@@ -41,12 +41,9 @@ class _BuyerProductCardState extends State<BuyerProductCard> {
         .updateQuantity(newQty);
   }
 
-  void _addToCart() async {
-    final offersProvider = Provider.of<ProductOffersProvider>(context, listen: false);
-    final selectedOffer = offersProvider.selectedOffer;
-    final currentQuantity = offersProvider.currentQuantity;
-
-    if (selectedOffer == null || currentQuantity == 0) return;
+  // الدالة الأصلية كما هي لضمان عدم حدوث خطأ بناء
+  void _addToCart(OfferModel offer, int qty) async {
+    if (offer == null || qty == 0) return;
 
     final String imageUrl = widget.productData['imageUrls']?.isNotEmpty == true
         ? widget.productData['imageUrls'][0]
@@ -57,19 +54,18 @@ class _BuyerProductCardState extends State<BuyerProductCard> {
       await cartProvider.addItemToCart(
         productId: widget.productId,
         name: widget.productData['name'] ?? 'منتج غير معروف',
-        offerId: selectedOffer.offerId!,
-        sellerId: selectedOffer.sellerId!,
-        sellerName: selectedOffer.sellerName!,
-        price: selectedOffer.price.toDouble(), 
-        unit: selectedOffer.unitName,
-        unitIndex: selectedOffer.unitIndex ?? 0,
-        quantityToAdd: currentQuantity,
+        offerId: offer.offerId!,
+        sellerId: offer.sellerId!,
+        sellerName: offer.sellerName!,
+        price: offer.price.toDouble(), 
+        unit: offer.unitName,
+        unitIndex: offer.unitIndex ?? 0,
+        quantityToAdd: qty,
         imageUrl: imageUrl,
         userRole: currentUserRole,
-        minOrderQuantity: selectedOffer.minQty ?? 1,
-        availableStock: selectedOffer.stock ?? 0,
-        maxOrderQuantity: selectedOffer.maxQty ?? 9999,
-        // 💉 [تم الإضافة]: تمرير بيانات الأقسام لضمان حساب الكاش باك
+        minOrderQuantity: offer.minQty ?? 1,
+        availableStock: offer.stock ?? 0,
+        maxOrderQuantity: offer.maxQty ?? 9999,
         mainId: widget.productData['mainId'],
         subId: widget.productData['subId'],
       );
@@ -77,19 +73,17 @@ class _BuyerProductCardState extends State<BuyerProductCard> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '✅ تم إضافة $currentQuantity من ${widget.productData['name']} إلى السلة.',
-            style: GoogleFonts.cairo(fontSize: 12.sp, fontWeight: FontWeight.bold),
+            '✅ تم إضافة $qty من ${widget.productData['name']} إلى السلة.',
+            style: GoogleFonts.cairo(fontSize: 14.sp, fontWeight: FontWeight.bold),
           ),
           duration: const Duration(seconds: 2),
           backgroundColor: Colors.green,
         ),
       );
-      offersProvider.updateQuantity(selectedOffer.minQty ?? 1);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('❌ حدث خطأ أثناء إضافة المنتج: $e'),
-          duration: const Duration(seconds: 3),
+          content: Text('❌ خطأ: $e'),
           backgroundColor: Colors.red,
         ),
       );
@@ -100,149 +94,53 @@ class _BuyerProductCardState extends State<BuyerProductCard> {
   Widget build(BuildContext context) {
     final offersProvider = context.watch<ProductOffersProvider>();
     final selectedOffer = offersProvider.selectedOffer;
-    final currentQuantity = offersProvider.currentQuantity;
     final isLoadingOffers = offersProvider.isLoading;
     final availableOffers = offersProvider.availableOffers;
+    final currentQuantity = offersProvider.currentQuantity;
 
-    final colorScheme = Theme.of(context).colorScheme;
-    final primaryColor = colorScheme.primary;
-
+    final primaryColor = Theme.of(context).primaryColor;
     final displayImageUrl = widget.productData['imageUrls']?.isNotEmpty == true
         ? widget.productData['imageUrls'][0]
-        : 'https://via.placeholder.com/300/0f3460/f0f0f0?text=لا توجد صورة';
-
-    final String? bestOfferIdForDetails = selectedOffer?.offerId;
-    final bool isAddToCartDisabled = selectedOffer == null || currentQuantity < (selectedOffer.minQty ?? 1);
+        : 'https://via.placeholder.com/300';
 
     return Card(
       elevation: 4,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15),
-        side: BorderSide(color: Colors.grey.shade100, width: 1),
-      ),
-      margin: EdgeInsets.zero,
-      color: Colors.white,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(15),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.08),
-              spreadRadius: 0.5,
-              blurRadius: 8,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      child: Padding(
         padding: const EdgeInsets.all(8.0),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
+            // صورة المنتج واسمه
             InkWell(
-              onTap: () {
-                if (widget.onTap != null) {
-                  widget.onTap!(widget.productId, bestOfferIdForDetails);
-                }
-              },
-              child: Container(
-                width: double.infinity,
-                height: 14.h, // زيادة بسيطة في الطول
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Image.network(
-                    displayImageUrl,
-                    fit: BoxFit.contain,
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      return const Center(child: CircularProgressIndicator());
-                    },
-                    errorBuilder: (context, error, stackTrace) => Center(
-                      child: Icon(Icons.shopping_bag, size: 40, color: Colors.grey.shade400),
-                    ),
+              onTap: () => widget.onTap?.call(widget.productId, selectedOffer?.offerId),
+              child: Column(
+                children: [
+                  Image.network(displayImageUrl, height: 12.h, fit: BoxFit.contain),
+                  const SizedBox(height: 8),
+                  Text(
+                    widget.productData['name'] ?? 'منتج غير معروف',
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 15.sp),
                   ),
-                ),
+                ],
               ),
             ),
-            const SizedBox(height: 5),
-            Text(
-              widget.productData['name'] ?? 'منتج غير معروف',
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.cairo(
-                fontWeight: FontWeight.w800, // تغميق الخط
-                fontSize: 15.sp, // تكبير اسم المنتج
-                color: Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 4),
-            isLoadingOffers
-                ? const LinearProgressIndicator()
-                : InkWell(
-                    onTap: () {
-                      _showOfferSelectionModal(context, availableOffers, selectedOffer, offersProvider);
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: primaryColor.withOpacity(0.5), width: 1.5),
-                        borderRadius: BorderRadius.circular(10),
-                        color: primaryColor.withOpacity(0.05),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              selectedOffer == null
-                                  ? 'لا عروض متاحة'
-                                  : '${selectedOffer.price} ج | ${selectedOffer.unitName}',
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.cairo(
-                                color: selectedOffer == null ? Colors.red.shade700 : Colors.black,
-                                fontWeight: FontWeight.w900, // خط أوضح للسعر
-                                fontSize: 13.sp, // تكبير السعر
-                              ),
-                            ),
-                          ),
-                          Icon(Icons.arrow_drop_down, color: Colors.black87, size: 22),
-                        ],
-                      ),
-                    ),
-                  ),
             const SizedBox(height: 10),
-            QuantityControl(
-              initialQuantity: currentQuantity,
-              minQuantity: selectedOffer?.minQty ?? 1,
-              maxStock: selectedOffer?.stock ?? 0,
-              onQuantityChanged: _onQuantityChanged,
-              isDisabled: selectedOffer == null || selectedOffer.stock == 0,
-            ),
-            const SizedBox(height: 10),
+            
+            // زر "رؤية العروض" الجديد
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: isAddToCartDisabled ? null : _addToCart,
-                icon: Icon(Icons.add_shopping_cart, size: 18.sp),
-                label: Text(
-                  'أضف إلى السلة',
-                  style: GoogleFonts.cairo(
-                    fontSize: 14.sp, // تكبير نص الزرار
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+              child: ElevatedButton(
+                onPressed: isLoadingOffers ? null : () => _showOfferSelectionModal(context, availableOffers, selectedOffer, offersProvider),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: isAddToCartDisabled ? Colors.grey.shade400 : primaryColor,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  elevation: 2,
+                  backgroundColor: Colors.orange.shade800,
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                child: Text(
+                  isLoadingOffers ? 'جاري التحميل...' : '🛒 عرض الأسعار والطلب',
+                  style: GoogleFonts.cairo(fontSize: 14.sp, fontWeight: FontWeight.bold, color: Colors.white),
                 ),
               ),
             ),
@@ -253,106 +151,76 @@ class _BuyerProductCardState extends State<BuyerProductCard> {
   }
 
   void _showOfferSelectionModal(BuildContext context, List<OfferModel> availableOffers, OfferModel? selectedOffer, ProductOffersProvider provider) {
-    if (availableOffers.isEmpty) return;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
-      ),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
       builder: (modalContext) {
-        return SingleChildScrollView(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(modalContext).viewInsets.bottom,
-            top: 10,
-            left: 5,
-            right: 5,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 15.0, vertical: 15),
-                child: Text(
-                  'اختيار عرض المنتج',
-                  style: GoogleFonts.cairo(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-              const Divider(thickness: 1.5, endIndent: 15, indent: 15),
-              ...availableOffers.map((offer) {
-                final isSelected = offer.offerId == selectedOffer?.offerId && offer.unitIndex == selectedOffer?.unitIndex;
-                final bool isDisabled = offer.disabled;
-                return Card(
-                  elevation: isSelected ? 6 : 2,
-                  color: isSelected ? Theme.of(context).primaryColor.withOpacity(0.1) : Colors.white,
-                  margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: isSelected ? BorderSide(color: Theme.of(context).primaryColor, width: 2) : BorderSide.none,
-                  ),
-                  child: InkWell(
-                    onTap: isDisabled
-                        ? null
-                        : () {
-                            provider.selectOffer(offer);
-                            Navigator.pop(modalContext);
-                          },
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  '${offer.unitName} - ${offer.sellerName}',
-                                  style: GoogleFonts.cairo(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 18,
-                                    color: isDisabled ? Colors.grey : Colors.black,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              if (isSelected)
-                                Icon(Icons.check_circle, color: Theme.of(context).primaryColor, size: 28),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Text.rich(
-                            TextSpan(
+        return StatefulBuilder( // لاستخدام التحكم في الكمية داخل المودال
+          builder: (context, setModalState) {
+            return Container(
+              padding: EdgeInsets.fromLTRB(10, 20, 10, 20.sp),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('العروض المتوفرة', style: GoogleFonts.cairo(fontSize: 18.sp, fontWeight: FontWeight.bold)),
+                  const Divider(),
+                  ...availableOffers.map((offer) {
+                    return Card(
+                      margin: const EdgeInsets.symmetric(vertical: 8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                const TextSpan(text: 'السعر: ', style: TextStyle(fontWeight: FontWeight.normal, color: Colors.grey, fontSize: 16)),
-                                TextSpan(text: '${offer.price} ج', style: GoogleFonts.cairo(fontWeight: FontWeight.bold, color: Colors.red.shade700, fontSize: 20)),
-                                const TextSpan(text: ' | ', style: TextStyle(color: Colors.grey)),
-                                const TextSpan(text: 'متوفر: ', style: TextStyle(fontWeight: FontWeight.normal, color: Colors.grey, fontSize: 16)),
-                                TextSpan(
-                                  text: '${offer.stock}',
-                                  style: TextStyle(
-                                    fontSize: 17,
-                                    fontWeight: FontWeight.bold,
-                                    color: offer.stock > 0 ? Colors.green.shade600 : Colors.red.shade600,
-                                  ),
+                                Expanded(
+                                  child: Text('${offer.sellerName} (${offer.unitName})', 
+                                    style: GoogleFonts.cairo(fontSize: 16.sp, fontWeight: FontWeight.bold)),
                                 ),
-                                const TextSpan(text: ' | بحد أدنى: ', style: TextStyle(color: Colors.grey, fontSize: 16)),
-                                TextSpan(text: '${offer.minQty}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+                                Text('${offer.price} ج', 
+                                  style: GoogleFonts.cairo(fontSize: 18.sp, fontWeight: FontWeight.w900, color: Colors.green)),
                               ],
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                // التحكم في الكمية لكل عرض بشكل مستقل
+                                Expanded(
+                                  flex: 2,
+                                  child: QuantityControl(
+                                    initialQuantity: provider.currentQuantity,
+                                    minQuantity: offer.minQty ?? 1,
+                                    maxStock: offer.stock ?? 0,
+                                    onQuantityChanged: (qty) => provider.updateQuantity(qty),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                // زر الإضافة لكل عرض
+                                Expanded(
+                                  flex: 1,
+                                  child: ElevatedButton(
+                                    onPressed: offer.stock == 0 ? null : () {
+                                      _addToCart(offer, provider.currentQuantity);
+                                      Navigator.pop(modalContext);
+                                    },
+                                    style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).primaryColor),
+                                    child: Text('أضف', style: GoogleFonts.cairo(fontWeight: FontWeight.bold, color: Colors.white)),
+                                  ),
+                                ),
+                              ],
+                            )
+                          ],
+                        ),
                       ),
-                    ),
-                  ),
-                );
-              }).toList(),
-              const SizedBox(height: 30),
-            ],
-          ),
+                    );
+                  }).toList(),
+                ],
+              ),
+            );
+          }
         );
       },
     );
