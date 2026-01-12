@@ -138,7 +138,7 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTick
         title: Column(
           children: [
             Text("مرحباً بك،", style: TextStyle(color: Colors.black54, fontSize: 12.sp)),
-            Text(user?.displayName?.split(' ').first.toUpperCase() ?? "GUEST",
+            Text(user?.fullName?.split(' ').first.toUpperCase() ?? "GUEST",
                 style: TextStyle(color: darkGreenText, fontWeight: FontWeight.w900, fontSize: 19.sp)),
           ],
         ),
