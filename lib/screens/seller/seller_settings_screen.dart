@@ -7,12 +7,12 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:sizer/sizer.dart';
 
-// 🎯 الألوان والثوابت - مطابقة للمرجع
-const Color primaryColor = Color(0xff28a745); 
+// 🎯 الألوان والثوابت المعتمدة
+const Color primaryColor = Color(0xff28a745);
 
-// 🎯 تعديل بيانات كلوديناري لتطابق الـ HTML تماماً
+// 🎯 معرفات كلوديناري النهائية (تم التثبيت بناءً على طلبك)
 const String CLOUDINARY_URL = "https://api.cloudinary.com/v1_1/dgmmx6jbu/image/upload";
-const String UPLOAD_PRESET = "preset_name"; 
+const String UPLOAD_PRESET = "commerce"; 
 
 class SellerSettingsScreen extends StatefulWidget {
   final String currentSellerId;
@@ -71,7 +71,9 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
           .collection("subUsers")
           .where("parentSellerId", isEqualTo: widget.currentSellerId)
           .get();
-      subUsersList = snapshot.docs.map((doc) => doc.data()).toList();
+      setState(() {
+        subUsersList = snapshot.docs.map((doc) => doc.data()).toList();
+      });
     } catch (e) {
       debugPrint("Error loading sub-users: $e");
     }
@@ -96,14 +98,13 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
   Future<void> _uploadLogo() async {
     final picker = ImagePicker();
     final image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 50);
-    
-    if (image == null) return;
 
+    if (image == null) return;
     setState(() => _isUploading = true);
     try {
       var request = http.MultipartRequest('POST', Uri.parse(CLOUDINARY_URL));
       request.fields['upload_preset'] = UPLOAD_PRESET;
-      request.fields['folder'] = 'merchant_logos'; // كما هو في الـ HTML
+      request.fields['folder'] = 'merchant_logos'; 
       request.files.add(await http.MultipartFile.fromPath('file', image.path));
 
       var res = await request.send();
@@ -112,18 +113,18 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
         var jsonRes = json.decode(responseData);
         String newUrl = jsonRes['secure_url'];
 
-        // تحديث الحقل المتوافق مع الـ HTML
+        // 🎯 الحقل الموحد الآن هو logoUrl كما في Firestore الخاص بك
         await _firestore.collection("sellers").doc(widget.currentSellerId).update({
-          'merchantLogoUrl': newUrl
+          'logoUrl': newUrl
         });
-        
+
         await _refreshData();
         _showFloatingAlert("✅ تم تحديث الشعار بنجاح");
       } else {
-        _showFloatingAlert("❌ فشل رفع الصورة للسيرفر", isError: true);
+        _showFloatingAlert("❌ فشل رفع الصورة (كود الخطأ: ${res.statusCode})", isError: true);
       }
     } catch (e) {
-      _showFloatingAlert("❌ حدث خطأ أثناء الرفع", isError: true);
+      _showFloatingAlert("❌ حدث خطأ أثناء الرفع: $e", isError: true);
     } finally {
       setState(() => _isUploading = false);
     }
@@ -138,13 +139,15 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
 
     setState(() => _isLoading = true);
     try {
-      String fakeEmail = "$phone@aswaq.com";
+      // 🎯 توحيد الدومين ليكون @aksab.com دائماً
+      String fakeEmail = "$phone@aksab.com";
       try {
         await _auth.createUserWithEmailAndPassword(email: fakeEmail, password: "123456");
       } catch (_) {}
 
       final subData = {
         'phone': phone,
+        'email': fakeEmail,
         'role': _selectedSubUserRole,
         'parentSellerId': widget.currentSellerId,
         'mustChangePassword': true,
@@ -173,6 +176,9 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 🎯 استخدام logoUrl من الكاش المحدث
+    final String? logoUrl = sellerDataCache['logoUrl'];
+
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
@@ -190,7 +196,7 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
                 padding: EdgeInsets.symmetric(horizontal: 5.w, vertical: 2.h),
                 child: Column(
                   children: [
-                    _buildLogoHeader(),
+                    _buildLogoHeader(logoUrl),
                     SizedBox(height: 4.h),
                     _buildSectionTitle("بيانات العمل"),
                     _buildModernField("اسم النشاط", _merchantNameController, Icons.storefront),
@@ -222,6 +228,36 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
     );
   }
 
+  Widget _buildLogoHeader(String? logoUrl) {
+    return Stack(
+      alignment: Alignment.bottomRight,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: primaryColor.withOpacity(0.2), width: 4),
+          ),
+          child: CircleAvatar(
+            radius: 65,
+            backgroundColor: const Color(0xfff8f9fa),
+            backgroundImage: (logoUrl != null && logoUrl.isNotEmpty) ? NetworkImage(logoUrl) : null,
+            child: (logoUrl == null || logoUrl.isEmpty) ? Icon(Icons.store, size: 50, color: Colors.grey[400]) : null,
+          ),
+        ),
+        CircleAvatar(
+          backgroundColor: primaryColor,
+          radius: 20,
+          child: _isUploading
+              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+              : IconButton(
+                  icon: const Icon(Icons.camera_alt, size: 20, color: Colors.white),
+                  onPressed: _uploadLogo,
+                ),
+        )
+      ],
+    );
+  }
+
   Widget _buildRoleDropdown() {
     return Container(
       margin: EdgeInsets.only(bottom: 2.h),
@@ -243,40 +279,6 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
           onChanged: (v) => setState(() => _selectedSubUserRole = v!),
         ),
       ),
-    );
-  }
-
-  Widget _buildLogoHeader() {
-    return Stack(
-      alignment: Alignment.bottomRight,
-      children: [
-        Container(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: primaryColor.withOpacity(0.2), width: 4),
-          ),
-          child: CircleAvatar(
-            radius: 65,
-            backgroundColor: const Color(0xfff8f9fa),
-            backgroundImage: sellerDataCache['merchantLogoUrl'] != null 
-                ? NetworkImage(sellerDataCache['merchantLogoUrl']) 
-                : null,
-            child: sellerDataCache['merchantLogoUrl'] == null 
-                ? Icon(Icons.store, size: 50, color: Colors.grey[400]) 
-                : null,
-          ),
-        ),
-        CircleAvatar(
-          backgroundColor: primaryColor,
-          radius: 20,
-          child: _isUploading 
-            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-            : IconButton(
-                icon: const Icon(Icons.camera_alt, size: 20, color: Colors.white),
-                onPressed: _uploadLogo,
-              ),
-        )
-      ],
     );
   }
 
@@ -382,10 +384,9 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
                 child: ElevatedButton(
                   onPressed: () => Navigator.pop(context),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: isError ? Colors.red : primaryColor,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    padding: EdgeInsets.symmetric(vertical: 1.5.h)
-                  ),
+                      backgroundColor: isError ? Colors.red : primaryColor,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: EdgeInsets.symmetric(vertical: 1.5.h)),
                   child: const Text("استمرار", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                 ),
               )
