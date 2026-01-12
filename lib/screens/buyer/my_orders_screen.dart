@@ -28,7 +28,13 @@ class MyOrderModel {
   final double total;
   final List<OrderItemModel> items;
 
-  MyOrderModel({required this.id, required this.status, required this.orderDate, required this.total, required this.items});
+  MyOrderModel({
+    required this.id,
+    required this.status,
+    required this.orderDate,
+    required this.total,
+    required this.items,
+  });
 
   String get statusText {
     switch (status) {
@@ -54,7 +60,7 @@ class MyOrdersScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7F6),
       appBar: AppBar(
-        title: const Text('طلبات الجملة الخاصة بي'),
+        title: const Text('طلباتي'),
         centerTitle: true,
         flexibleSpace: Container(
           decoration: const BoxDecoration(
@@ -70,10 +76,10 @@ class MyOrdersScreen extends StatelessWidget {
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(child: CircularProgressIndicator(color: Colors.green));
           }
           if (snapshot.hasError) {
-            return Center(child: Text("حدث خطأ: ${snapshot.error}"));
+            return Center(child: Text("حدث خطأ في جلب البيانات"));
           }
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
             return const Center(child: Text("لا توجد طلبات سابقة"));
@@ -81,15 +87,13 @@ class MyOrdersScreen extends StatelessWidget {
 
           final orders = snapshot.data!.docs.map((doc) {
             final data = doc.data() as Map<String, dynamic>;
-            
-            // 🟢 [حل مشكلة التاريخ هنا]
             final dynamic rawDate = data['orderDate'];
             DateTime parsedDate;
             
             if (rawDate is Timestamp) {
               parsedDate = rawDate.toDate();
             } else if (rawDate is String) {
-              parsedDate = DateTime.parse(rawDate); // يحول النص "2025-12-15..." إلى DateTime
+              parsedDate = DateTime.parse(rawDate);
             } else {
               parsedDate = DateTime.now();
             }
@@ -120,34 +124,168 @@ class _OrderCard extends StatelessWidget {
   final MyOrderModel order;
   const _OrderCard({required this.order});
 
+  // 🎯 شريط تتبع الحالة (يظهر داخل التفاصيل)
+  Widget _buildStatusTracker(String status) {
+    final List<Map<String, dynamic>> stages = [
+      {'key': 'new-order', 'label': 'جديد'},
+      {'key': 'processing', 'label': 'تجهيز'},
+      {'key': 'shipped', 'label': 'شحن'},
+      {'key': 'delivered', 'label': 'استلام'},
+    ];
+
+    int currentStep = stages.indexWhere((s) => s['key'] == status);
+    
+    // إذا كانت الحالة ملغي لا نعرض الشريط
+    if (status == 'cancelled') return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 10),
+      child: Column(
+        children: [
+          Row(
+            children: List.generate(stages.length, (index) {
+              bool isDone = index <= currentStep;
+              bool isCurrent = index == currentStep;
+              return Expanded(
+                child: Row(
+                  children: [
+                    // الدائرة
+                    Container(
+                      width: 26,
+                      height: 26,
+                      decoration: BoxDecoration(
+                        color: isDone ? Colors.green : Colors.grey.shade300,
+                        shape: BoxShape.circle,
+                        border: isCurrent ? Border.all(color: Colors.orange, width: 2) : null,
+                        boxShadow: isCurrent ? [BoxShadow(color: Colors.green.withOpacity(0.3), blurRadius: 5)] : null,
+                      ),
+                      child: Icon(
+                        isDone ? Icons.check : Icons.circle,
+                        size: 14,
+                        color: isDone ? Colors.white : Colors.grey.shade500,
+                      ),
+                    ),
+                    // الخط الواصل
+                    if (index != stages.length - 1)
+                      Expanded(
+                        child: Container(
+                          height: 3,
+                          color: index < currentStep ? Colors.green : Colors.grey.shade300,
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            }),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: stages.map((s) => Text(
+              s['label'],
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: order.status == s['key'] ? FontWeight.bold : FontWeight.normal,
+                color: order.status == s['key'] ? Colors.green : Colors.grey,
+              ),
+            )).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    // تحديد ما إذا كان الطلب نشطاً (لم يتم تسليمه أو إلغاؤه)
+    bool isActive = ['new-order', 'processing', 'shipped'].contains(order.status);
+    bool isCancelled = order.status == 'cancelled';
+
     return Card(
-      elevation: 2,
+      elevation: isActive ? 4 : 1,
       margin: const EdgeInsets.only(bottom: 15),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(15),
+        side: isActive 
+            ? const BorderSide(color: Color(0xFF4CAF50), width: 1.5) 
+            : BorderSide(color: Colors.grey.shade300, width: 0.5),
+      ),
       child: ExpansionTile(
-        leading: const Icon(FontAwesomeIcons.fileInvoice, color: Colors.green),
-        title: Text("طلب #${order.id.substring(0, 8)}", 
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-        subtitle: Text("التاريخ: ${DateFormat('yyyy-MM-dd HH:mm').format(order.orderDate)}"),
+        tilePadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
+        leading: Icon(
+          isCancelled ? Icons.cancel : FontAwesomeIcons.fileInvoice,
+          color: isCancelled ? Colors.red : (isActive ? Colors.green : Colors.grey),
+          size: 28,
+        ),
+        title: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              "طلب #${order.id.substring(0, 8)}",
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            ),
+            // عرض الحالة الحالية بجانب رقم الطلب
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: isCancelled ? Colors.red.withOpacity(0.1) : (isActive ? Colors.green.withOpacity(0.1) : Colors.grey.withOpacity(0.1)),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                order.statusText,
+                style: TextStyle(
+                  color: isCancelled ? Colors.red : (isActive ? Colors.green : Colors.grey.shade700),
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+        subtitle: Text(
+          "بتاريخ: ${DateFormat('yyyy-MM-dd HH:mm').format(order.orderDate)}",
+          style: const TextStyle(fontSize: 12),
+        ),
         children: [
-          const Divider(),
-          ...order.items.map((item) => ListTile(
+          const Divider(height: 1),
+          
+          // 🎯 عرض شريط التتبع للطلبات غير المنتهية فقط
+          if (isActive) _buildStatusTracker(order.status),
+          
+          if (isActive) const Divider(height: 1),
+
+          // قائمة المنتجات
+          Padding(
+            padding: const EdgeInsets.all(10),
+            child: Column(
+              children: order.items.map((item) => ListTile(
                 dense: true,
+                contentPadding: EdgeInsets.zero,
                 title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.w600)),
                 subtitle: Text("الكمية: ${item.quantity}"),
-                trailing: Text("${item.price} ج", style: const TextStyle(color: Colors.blueGrey)),
-              )),
-          const Divider(),
+                trailing: Text("${(item.price * item.quantity).toStringAsFixed(2)} ج", 
+                  style: const TextStyle(color: Colors.blueGrey, fontWeight: FontWeight.bold)),
+              )).toList(),
+            ),
+          ),
+          
+          const Divider(height: 1),
+          
+          // إجمالي الفاتورة
           Padding(
             padding: const EdgeInsets.all(15),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text("إجمالي الفاتورة:", style: TextStyle(fontWeight: FontWeight.bold)),
-                Text("${order.total.toStringAsFixed(2)} جنيه", 
-                  style: const TextStyle(color: Colors.green, fontSize: 16, fontWeight: FontWeight.bold)),
+                Text(
+                  "${order.total.toStringAsFixed(2)} جنيه",
+                  style: const TextStyle(
+                    color: Color(0xFF2E7D32),
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ],
             ),
           )
@@ -156,3 +294,4 @@ class _OrderCard extends StatelessWidget {
     );
   }
 }
+
