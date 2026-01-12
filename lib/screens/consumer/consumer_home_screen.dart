@@ -14,7 +14,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ConsumerHomeScreen extends StatefulWidget {
-  static const routeName = '/consumerHome';
+  static const routeName = '/consumerhome';
   const ConsumerHomeScreen({super.key});
 
   @override
