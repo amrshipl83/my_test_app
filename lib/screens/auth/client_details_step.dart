@@ -36,15 +36,13 @@ class ClientDetailsStep extends StatefulWidget {
 }
 
 class _ClientDetailsStepState extends State<ClientDetailsStep> {
-  final _formKey = GlobalKey<FormState>();
+  final _formKey = GlobalKey<FormState>(); // 🎯 المفتاح الأساسي للتحقق
   late MapController _mapController;
-  LatLng _selectedPosition = const LatLng(30.0444, 31.2357); 
-  
-  final String mapboxToken = "pk.eyJ1IjoiYW1yc2hpcGwiLCJhIjoiY21lajRweGdjMDB0eDJsczdiemdzdXV6biJ9.E--si9vOB93NGcAq7uVgGw";
+  LatLng _selectedPosition = const LatLng(30.0444, 31.2357);
 
+  final String mapboxToken = "pk.eyJ1IjoiYW1yc2hpcGwiLCJhIjoiY21lajRweGdjMDB0eDJsczdiemdzdXV6biJ9.E--si9vOB93NGcAq7uVgGw";
   File? _logoPreview, _crPreview, _tcPreview;
   bool _termsAgreed = false;
-  bool _isMapActive = false;
   bool _obscurePassword = true;
   bool _isUploading = false;
 
@@ -65,11 +63,11 @@ class _ClientDetailsStepState extends State<ClientDetailsStep> {
     widget.onLocationChanged(lat: _selectedPosition.latitude, lng: _selectedPosition.longitude);
   }
 
+  // --- دالة رفع الصور لـ Cloudinary ---
   Future<void> _uploadFileToCloudinary(File file, String field) async {
     setState(() => _isUploading = true);
     const String cloudName = "dgmmx6jbu";
     const String uploadPreset = "commerce";
-
     try {
       var request = http.MultipartRequest(
         'POST',
@@ -77,7 +75,6 @@ class _ClientDetailsStepState extends State<ClientDetailsStep> {
       );
       request.fields['upload_preset'] = uploadPreset;
       request.files.add(await http.MultipartFile.fromPath('file', file.path));
-
       var response = await request.send();
       if (response.statusCode == 200) {
         var responseData = await response.stream.toBytes();
@@ -113,23 +110,23 @@ class _ClientDetailsStepState extends State<ClientDetailsStep> {
       child: Padding(
         padding: EdgeInsets.symmetric(horizontal: 4.w, vertical: 2.h),
         child: Form(
-          key: _formKey,
+          key: _formKey, // 🎯 ربط الفورم بالمفتاح
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('إكمال بيانات الحساب', 
-                style: TextStyle(fontSize: 20.sp, fontWeight: FontWeight.w900, color: const Color(0xFF2D9E68)), 
-                textAlign: TextAlign.center),
+              Text('إكمال بيانات الحساب',
+                  style: TextStyle(fontSize: 20.sp, fontWeight: FontWeight.w900, color: const Color(0xFF2D9E68)),
+                  textAlign: TextAlign.center),
               SizedBox(height: 3.h),
-              
+
               _buildSectionHeader('المعلومات الأساسية', Icons.badge_rounded),
               _buildInputField('fullname', 'الاسم الكامل', Icons.person_rounded),
               _buildInputField('phone', 'رقم الهاتف', Icons.phone_android_rounded, keyboardType: TextInputType.phone),
-              
+
               _buildSectionHeader('العنوان والموقع التجاري', Icons.map_rounded),
               _buildInputField('address', 'العنوان بالتفصيل', Icons.location_on_rounded),
               _buildMapContainer(),
-              
+
               _buildSectionHeader('الأمان', Icons.security_rounded),
               _buildInputField('password', 'كلمة المرور', Icons.lock_open_rounded, isPassword: true),
               _buildInputField('confirmPassword', 'تأكيد كلمة المرور', Icons.lock_rounded, isPassword: true),
@@ -138,12 +135,12 @@ class _ClientDetailsStepState extends State<ClientDetailsStep> {
                 SizedBox(height: 2.h),
                 _buildSellerSpecificFields(),
               ],
-              
+
               SizedBox(height: 2.h),
               _buildTermsCheckbox(),
               SizedBox(height: 2.h),
               _buildSubmitButton(),
-              
+
               TextButton(
                 onPressed: widget.onGoBack,
                 child: Text('العودة لتعديل نوع الحساب', style: TextStyle(color: Colors.grey.shade400, fontSize: 11.sp)),
@@ -156,66 +153,113 @@ class _ClientDetailsStepState extends State<ClientDetailsStep> {
     );
   }
 
-  Widget _buildMapContainer() {
-    return Column(
-      children: [
-        Container(
-          height: 30.h,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.grey.shade200),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(20),
-            child: Stack(
-              children: [
-                FlutterMap(
-                  mapController: _mapController,
-                  options: MapOptions(
-                    initialCenter: _selectedPosition,
-                    initialZoom: 13.0,
-                    onTap: (tapPos, point) => _handleLocationChange(point),
-                  ),
-                  children: [
-                    TileLayer(
-                      urlTemplate: "https://api.mapbox.com/styles/v1/mapbox/outdoors-v12/tiles/{z}/{x}/{y}?access_token=$mapboxToken",
-                    ),
-                    MarkerLayer(
-                      markers: [
-                        Marker(
-                          point: _selectedPosition,
-                          width: 50,
-                          height: 50,
-                          child: const Icon(Icons.location_pin, size: 40, color: Colors.red),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                Positioned(
-                  bottom: 10,
-                  right: 10,
-                  child: FloatingActionButton(
-                    mini: true,
-                    backgroundColor: const Color(0xFF2D9E68),
-                    onPressed: _goToCurrentLocation,
-                    child: const Icon(Icons.my_location, color: Colors.white),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        Text("اضغط على الخريطة لتغيير مكان الدبوس", style: TextStyle(fontSize: 8.sp, color: Colors.grey)),
-      ],
+  // --- منسدلة نوع النشاط (إجبارية) ---
+  Widget _buildBusinessTypeDropdown() {
+    return Container(
+      margin: EdgeInsets.only(bottom: 2.h),
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15)),
+      child: DropdownButtonFormField<String>(
+        value: _selectedBusinessType,
+        // 🎯 التحقق من الاختيار
+        validator: (value) => value == null ? "يرجى اختيار نوع النشاط" : null,
+        decoration: const InputDecoration(border: InputBorder.none, hintText: "نوع النشاط"),
+        items: _businessTypes.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+        onChanged: (val) {
+          setState(() => _selectedBusinessType = val);
+          widget.controllers['businessType']?.text = val ?? "";
+        },
+      ),
     );
   }
 
+  // --- حقل الإدخال مع الـ Validator ---
+  Widget _buildInputField(String key, String label, IconData icon, {bool isPassword = false, TextInputType keyboardType = TextInputType.text}) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: 1.5.h),
+      child: TextFormField(
+        controller: widget.controllers[key],
+        obscureText: isPassword && _obscurePassword,
+        keyboardType: keyboardType,
+        // 🎯 منطق التحقق لكل حقل
+        validator: (value) {
+          if (value == null || value.trim().isEmpty) return 'هذا الحقل مطلوب';
+          if (key == 'phone' && value.trim().length < 11) return 'رقم هاتف غير صحيح';
+          if (key == 'confirmPassword' && value != widget.controllers['password']?.text) return 'كلمات المرور غير متطابقة';
+          return null;
+        },
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: Icon(icon, color: const Color(0xFF2D9E68)),
+          suffixIcon: isPassword
+              ? IconButton(
+                  icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+                  onPressed: () => setState(() => _obscurePassword = !_obscurePassword))
+              : null,
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide(color: Colors.grey.shade200)),
+        ),
+      ),
+    );
+  }
+
+  // --- زر إتمام التسجيل (يفحص الصلاحية) ---
+  Widget _buildSubmitButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: (widget.isSaving || !_termsAgreed || _isUploading)
+            ? null
+            : () {
+                // 🎯 التأكد من أن جميع الحقول الإجبارية صحيحة قبل الاستمرار
+                if (_formKey.currentState!.validate()) {
+                  widget.onRegister();
+                }
+              },
+        style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF2D9E68), padding: const EdgeInsets.symmetric(vertical: 15)),
+        child: (widget.isSaving || _isUploading)
+            ? const CircularProgressIndicator(color: Colors.white)
+            : const Text('إتمام التسجيل', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      ),
+    );
+  }
+
+  // --- باقي الودجت المساعدة (الخريطة، رفع الملفات) ---
+  Widget _buildMapContainer() {
+    return Column(children: [
+      Container(
+        height: 30.h,
+        margin: EdgeInsets.symmetric(vertical: 1.h),
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.grey.shade200)),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Stack(children: [
+            FlutterMap(
+              mapController: _mapController,
+              options: MapOptions(
+                initialCenter: _selectedPosition,
+                initialZoom: 13.0,
+                onTap: (tapPos, point) => _handleLocationChange(point),
+              ),
+              children: [
+                TileLayer(urlTemplate: "https://api.mapbox.com/styles/v1/mapbox/outdoors-v12/tiles/{z}/{x}/{y}?access_token=$mapboxToken"),
+                MarkerLayer(markers: [
+                  Marker(point: _selectedPosition, width: 50, height: 50, child: const Icon(Icons.location_pin, size: 40, color: Colors.red)),
+                ]),
+              ],
+            ),
+            Positioned(bottom: 10, right: 10, child: FloatingActionButton(mini: true, backgroundColor: const Color(0xFF2D9E68), onPressed: _goToCurrentLocation, child: const Icon(Icons.my_location, color: Colors.white))),
+          ]),
+        ),
+      ),
+    ]);
+  }
+
   void _handleLocationChange(LatLng point) {
-    setState(() {
-      _selectedPosition = point;
-      _isMapActive = true;
-    });
+    setState(() => _selectedPosition = point);
     _updateAddressText(point);
     widget.onLocationChanged(lat: point.latitude, lng: point.longitude);
   }
@@ -244,55 +288,14 @@ class _ClientDetailsStepState extends State<ClientDetailsStep> {
   Widget _buildSellerSpecificFields() {
     return Container(
       padding: EdgeInsets.all(4.w),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF0F7F3),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        children: [
-          _buildInputField('merchantName', 'اسم النشاط', Icons.storefront_rounded),
-          _buildBusinessTypeDropdown(),
-          _buildUploadItem('شعار النشاط', 'logo', _logoPreview),
-          _buildUploadItem('السجل التجاري', 'cr', _crPreview),
-          _buildUploadItem('البطاقة الضريبية', 'tc', _tcPreview),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBusinessTypeDropdown() {
-    return Container(
-      margin: EdgeInsets.only(bottom: 2.h),
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15)),
-      child: DropdownButtonFormField<String>(
-        value: _selectedBusinessType,
-        decoration: const InputDecoration(border: InputBorder.none, hintText: "نوع النشاط"),
-        items: _businessTypes.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-        onChanged: (val) {
-          setState(() => _selectedBusinessType = val);
-          widget.controllers['businessType']?.text = val ?? "";
-        },
-      ),
-    );
-  }
-
-  Widget _buildInputField(String key, String label, IconData icon, {bool isPassword = false, TextInputType keyboardType = TextInputType.text}) {
-    return Padding(
-      padding: EdgeInsets.only(bottom: 1.5.h),
-      child: TextFormField(
-        controller: widget.controllers[key],
-        obscureText: isPassword && _obscurePassword,
-        keyboardType: keyboardType,
-        decoration: InputDecoration(
-          labelText: label,
-          prefixIcon: Icon(icon, color: const Color(0xFF2D9E68)),
-          suffixIcon: isPassword ? IconButton(icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility), onPressed: () => setState(() => _obscurePassword = !_obscurePassword)) : null,
-          filled: true,
-          fillColor: Colors.white,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
-        ),
-      ),
+      decoration: BoxDecoration(color: const Color(0xFFF0F7F3), borderRadius: BorderRadius.circular(20)),
+      child: Column(children: [
+        _buildInputField('merchantName', 'اسم النشاط التجاري', Icons.storefront_rounded),
+        _buildBusinessTypeDropdown(),
+        _buildUploadItem('شعار النشاط (اختياري)', 'logo', _logoPreview),
+        _buildUploadItem('السجل التجاري (اختياري)', 'cr', _crPreview),
+        _buildUploadItem('البطاقة الضريبية (اختياري)', 'tc', _tcPreview),
+      ]),
     );
   }
 
@@ -313,34 +316,11 @@ class _ClientDetailsStepState extends State<ClientDetailsStep> {
   }
 
   Widget _buildSectionHeader(String title, IconData icon) {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: 1.5.h),
-      child: Row(children: [
-        Icon(icon, size: 20, color: const Color(0xFF2D9E68)),
-        const SizedBox(width: 8),
-        Text(title, style: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.bold)),
-      ]),
-    );
+    return Padding(padding: EdgeInsets.symmetric(vertical: 1.5.h), child: Row(children: [Icon(icon, size: 20, color: const Color(0xFF2D9E68)), const SizedBox(width: 8), Text(title, style: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.bold))]));
   }
 
   Widget _buildTermsCheckbox() {
-    return CheckboxListTile(
-      value: _termsAgreed,
-      onChanged: (v) => setState(() => _termsAgreed = v!),
-      activeColor: const Color(0xFF2D9E68),
-      title: Text("أوافق على الشروط", style: TextStyle(fontSize: 9.sp)),
-      controlAffinity: ListTileControlAffinity.leading,
-    );
-  }
-
-  Widget _buildSubmitButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton(
-        onPressed: (widget.isSaving || !_termsAgreed || _isUploading) ? null : widget.onRegister,
-        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2D9E68), padding: const EdgeInsets.symmetric(vertical: 15)),
-        child: (widget.isSaving || _isUploading) ? const CircularProgressIndicator(color: Colors.white) : const Text('إتمام التسجيل', style: TextStyle(color: Colors.white)),
-      ),
-    );
+    return CheckboxListTile(value: _termsAgreed, onChanged: (v) => setState(() => _termsAgreed = v!), activeColor: const Color(0xFF2D9E68), title: Text("أوافق على الشروط والأحكام", style: TextStyle(fontSize: 9.sp)), controlAffinity: ListTileControlAffinity.leading);
   }
 }
+
