@@ -1,46 +1,73 @@
-name: Build Flutter APK
+name: Build Flutter APK & AAB (Release)
 
 on:
   push:
     branches:
       - main
       - master
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
+      # 1️⃣ Checkout الكود
       - name: 🧩 Checkout Code
         uses: actions/checkout@v4
 
+      # 2️⃣ Setup Java
       - name: ☕️ Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
 
+      # 3️⃣ Setup Flutter
       - name: 🔧 Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
 
+      # 4️⃣ Install dependencies
       - name: 📦 Install Dependencies
         run: flutter pub get
 
-      - name: 🔑 Get SHA Fingerprints
+      # 5️⃣ Decode release keystore
+      - name: 🔑 Decode release.keystore from base64
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+        run: |
+          echo "$RELEASE_KEYSTORE_BASE64" | base64 --decode > android/release.keystore
+
+      # 6️⃣ Build Release APK
+      - name: 🏗️ Build Release APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ALIAS_NAME }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD_ALIAS }}
+        run: flutter build apk --release
+
+      # 7️⃣ Build Release AAB
+      - name: 📦 Build Release AAB
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ALIAS_NAME }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD_ALIAS }}
+        run: flutter build appbundle --release
+
+      # 8️⃣ Upload artifacts
+      - name: 📤 Upload Release Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: |
+            build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/bundle/release/app-release.aab
+
+      # 9️⃣ Print SHA fingerprints
+      - name: 🔍 Get SHA Fingerprints
         run: |
           cd android
           chmod +x gradlew
           ./gradlew signingReport
-
-      - name: 🏗️ Build Release APK
-        # تحويل البناء إلى وضع الـ Release النهائي
-        run: flutter build apk --release
-
-      - name: 📤 Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: Aksabeg-Release
-          path: build/app/outputs/flutter-apk/app-release.apk
-
