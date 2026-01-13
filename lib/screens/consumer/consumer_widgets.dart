@@ -1,14 +1,11 @@
-// lib/screens/consumer/consumer_widgets.dart
 import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'consumer_data_models.dart';
-import 'package:my_test_app/screens/consumer/consumer_store_search_screen.dart';
 
-// 1. الشريط الجانبي - تم ضبطه ليسحب من consumers ويظهر الخصوصية والخروج
+// 1. الشريط الجانبي (Side Menu)
 class ConsumerSideMenu extends StatelessWidget {
   const ConsumerSideMenu({super.key});
 
@@ -63,7 +60,7 @@ class ConsumerSideMenu extends StatelessWidget {
   }
 }
 
-// 2. شريط التنقل السفلي - متوافق مع Home (PageIndex: 0)
+// 2. شريط التنقل السفلي (Footer Nav)
 class ConsumerFooterNav extends StatelessWidget {
   final int cartCount;
   final int activeIndex;
@@ -89,7 +86,7 @@ class ConsumerFooterNav extends StatelessWidget {
   }
 }
 
-// 3. العناوين - لكي لا يحدث خطأ Build
+// 3. العناوين (Section Titles)
 class ConsumerSectionTitle extends StatelessWidget {
   final String title;
   const ConsumerSectionTitle({super.key, required this.title});
@@ -105,7 +102,7 @@ class ConsumerSectionTitle extends StatelessWidget {
   }
 }
 
-// 4. بانر الأقسام
+// 4. بانر الأقسام (Main Categories)
 class ConsumerCategoriesBanner extends StatelessWidget {
   final List<ConsumerCategory> categories;
   const ConsumerCategoriesBanner({super.key, required this.categories});
@@ -120,7 +117,10 @@ class ConsumerCategoriesBanner extends StatelessWidget {
           padding: const EdgeInsets.all(8.0),
           child: Column(
             children: [
-              CircleAvatar(radius: 30, backgroundImage: NetworkImage(categories[index].imageUrl)),
+              CircleAvatar(
+                radius: 30, 
+                backgroundImage: NetworkImage(categories[index].imageUrl)
+              ),
               const SizedBox(height: 5),
               Text(categories[index].name, style: const TextStyle(fontSize: 12)),
             ],
@@ -131,25 +131,5 @@ class ConsumerCategoriesBanner extends StatelessWidget {
   }
 }
 
-// 5. بانر العروض
-class ConsumerPromoBanners extends StatelessWidget {
-  final List<ConsumerBanner> banners;
-  final double height;
-  const ConsumerPromoBanners({super.key, required this.banners, this.height = 200});
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: height,
-      child: PageView.builder(
-        itemCount: banners.length,
-        itemBuilder: (context, index) => Padding(
-          padding: const EdgeInsets.all(10),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(15),
-            child: Image.network(banners[index].imageUrl, fit: BoxFit.cover),
-          ),
-        ),
-      ),
-    );
-  }
-}
+// 🎯 تم حذف الكلاس رقم 5 (ConsumerPromoBanners) من هنا 
+// وسيتم استبداله في الهوم بـ PromoSliderWidget من ملفه الجديد.
