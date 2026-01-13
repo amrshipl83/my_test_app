@@ -7,7 +7,8 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:my_test_app/screens/consumer/consumer_store_search_screen.dart';
 import 'package:my_test_app/screens/consumer/points_loyalty_screen.dart';
-// 🎯 استيراد الويدجت الجديدة المستقلة
+// 🎯 تم إضافة استيراد صفحة الأقسام الجديدة للمستهلك
+import 'package:my_test_app/screens/consumer/consumer_category_screen.dart'; 
 import 'package:my_test_app/widgets/promo_slider_widget.dart'; 
 import 'package:latlong2/latlong.dart';
 import 'package:sizer/sizer.dart';
@@ -31,9 +32,26 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTick
   @override
   void initState() {
     super.initState();
+    // التحقق من النقاط والترحيب عند بدء التشغيل
+    _checkInitialPoints();
   }
 
-  // إعداد الإشعارات بعد انتهاء الترحيب
+  // ميثود مساعدة للتأكد من حالة النقاط والترحيب
+  void _checkInitialPoints() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final doc = await FirebaseFirestore.instance.collection('consumers').doc(user.uid).get();
+      if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>;
+        int points = data['loyaltyPoints'] ?? 0;
+        bool isProcessed = data['welcomePointsProcessed'] ?? false;
+        if (isProcessed && points > 0) {
+          _checkFirstTimeWelcome(points);
+        }
+      }
+    }
+  }
+
   Future<void> _setupNotificationsAfterCelebration() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -46,10 +64,10 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTick
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
       String? token = await messaging.getToken();
       if (token != null) {
-        await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
           'fcmToken': token,
           'lastTokenUpdate': FieldValue.serverTimestamp(),
-        });
+        }, SetOptions(merge: true));
       }
     }
   }
@@ -116,63 +134,72 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTick
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFFBFBFB),
-      drawer: const ConsumerSideMenu(), 
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        toolbarHeight: 90,
-        iconTheme: IconThemeData(color: softGreen, size: 28),
-        centerTitle: true,
-        title: StreamBuilder<DocumentSnapshot>(
-          stream: FirebaseFirestore.instance.collection('consumers').doc(user?.uid).snapshots(),
-          builder: (context, snapshot) {
-            String firstName = "GUEST";
-            if (snapshot.hasData && snapshot.data!.exists) {
-              final data = snapshot.data!.data() as Map<String, dynamic>;
-              final fullStr = data['fullname']?.toString() ?? "";
-              if (fullStr.isNotEmpty) {
-                firstName = fullStr.split(' ').first.toUpperCase();
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFFBFBFB),
+        drawer: const ConsumerSideMenu(), 
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          toolbarHeight: 90,
+          iconTheme: IconThemeData(color: softGreen, size: 28),
+          centerTitle: true,
+          title: StreamBuilder<DocumentSnapshot>(
+            stream: FirebaseFirestore.instance.collection('consumers').doc(user?.uid).snapshots(),
+            builder: (context, snapshot) {
+              String firstName = "زائر";
+              if (snapshot.hasData && snapshot.data!.exists) {
+                final data = snapshot.data!.data() as Map<String, dynamic>;
+                final fullStr = data['fullname']?.toString() ?? "";
+                if (fullStr.isNotEmpty) {
+                  firstName = fullStr.split(' ').first;
+                }
               }
+              return Column(
+                children: [
+                  Text("مرحباً بك،", style: TextStyle(color: Colors.black54, fontSize: 10.sp)),
+                  Text(firstName,
+                      style: TextStyle(color: darkGreenText, fontWeight: FontWeight.w900, fontSize: 17.sp)),
+                ],
+              );
             }
-            return Column(
-              children: [
-                Text("مرحباً بك،", style: TextStyle(color: Colors.black54, fontSize: 12.sp)),
-                Text(firstName,
-                    style: TextStyle(color: darkGreenText, fontWeight: FontWeight.w900, fontSize: 19.sp)),
-              ],
-            );
-          }
+          ),
+          actions: [
+            _buildNotificationIcon(user?.uid),
+            _buildPointsStream(user?.uid),
+            const SizedBox(width: 5),
+          ],
         ),
-        actions: [
-          _buildNotificationIcon(user?.uid),
-          _buildPointsStream(user?.uid),
-          const SizedBox(width: 5),
-        ],
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          child: Column(
-            children: [
-              const SizedBox(height: 20),
-              _buildSmartRadarButton(),
-              _buildFreeDeliveryBanner(),
-              const ConsumerSectionTitle(title: 'الأقسام المميزة'),
-              _buildCategoriesSection(),
-              const SizedBox(height: 10),
-              const ConsumerSectionTitle(title: 'أحدث العروض الحصرية'),
-              // 🎯 استدعاء البانر الجديد بارتفاع أقل
-              _buildBannersSection(),
-              const SizedBox(height: 30),
-            ],
+        body: SafeArea(
+          child: RefreshIndicator(
+            onRefresh: () async => setState(() {}),
+            color: softGreen,
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: Column(
+                children: [
+                  const SizedBox(height: 20),
+                  _buildSmartRadarButton(),
+                  _buildFreeDeliveryBanner(),
+                  const ConsumerSectionTitle(title: 'الأقسام المميزة'),
+                  _buildCategoriesSection(),
+                  const SizedBox(height: 10),
+                  const ConsumerSectionTitle(title: 'أحدث العروض الحصرية'),
+                  _buildBannersSection(),
+                  const SizedBox(height: 30),
+                ],
+              ),
+            ),
           ),
         ),
+        // 🎯 الـ Index 0 للرئيسية
+        bottomNavigationBar: const ConsumerFooterNav(cartCount: 0, activeIndex: 0),
       ),
-      bottomNavigationBar: const ConsumerFooterNav(cartCount: 0, activeIndex: 0),
     );
   }
+
+  // --- Widgets ---
 
   Widget _buildNotificationIcon(String? uid) {
     return StreamBuilder<QuerySnapshot>(
@@ -189,7 +216,7 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTick
           children: [
             IconButton(
               icon: Icon(Icons.notifications_active_outlined, color: softGreen, size: 26),
-              onPressed: () {}, 
+              onPressed: () => Navigator.pushNamed(context, '/notifications'), 
             ),
             if (notificationCount > 0)
               Positioned(
@@ -219,10 +246,6 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTick
         if (snapshot.hasData && snapshot.data!.exists) {
           var userData = snapshot.data!.data() as Map<String, dynamic>;
           points = userData['loyaltyPoints'] ?? 0;
-          bool isProcessed = userData['welcomePointsProcessed'] ?? false;
-          if (isProcessed && points > 0) {
-            _checkFirstTimeWelcome(points);
-          }
         }
         return _buildPointsBadge(points);
       },
@@ -256,8 +279,8 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTick
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text("اكتشف المحلات القريبة", style: TextStyle(color: Colors.white, fontSize: 15.sp, fontWeight: FontWeight.w900)),
-                    Text("تفعيل رادار البحث الذكي", style: TextStyle(color: Colors.white70, fontSize: 10.sp, fontWeight: FontWeight.bold)),
+                    Text("اكتشف المحلات القريبة", style: TextStyle(color: Colors.white, fontSize: 13.sp, fontWeight: FontWeight.w900)),
+                    Text("تفعيل رادار البحث الذكي", style: TextStyle(color: Colors.white70, fontSize: 9.sp, fontWeight: FontWeight.bold)),
                   ],
                 ),
               ),
@@ -285,15 +308,15 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTick
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), shape: BoxShape.circle),
-              child: Icon(Icons.delivery_dining, color: Colors.white, size: 30.sp),
+              child: Icon(Icons.delivery_dining, color: Colors.white, size: 28.sp),
             ),
             const SizedBox(width: 15),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text("ابعتلي حد", style: TextStyle(color: Colors.white, fontSize: 17.sp, fontWeight: FontWeight.w900)),
-                  Text("مندوب حر لنقل أغراضك فوراً", style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 10.sp, fontWeight: FontWeight.bold)),
+                  Text("ابعتلي حد", style: TextStyle(color: Colors.white, fontSize: 15.sp, fontWeight: FontWeight.w900)),
+                  Text("مندوب حر لنقل أغراضك", style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 9.sp, fontWeight: FontWeight.bold)),
                 ],
               ),
             ),
@@ -303,10 +326,9 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTick
                 backgroundColor: Colors.white,
                 foregroundColor: Colors.orange[900],
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
-                elevation: 5,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               ),
-              child: Text("اطلب الآن", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12.sp)),
+              child: Text("اطلب الآن", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11.sp)),
             ),
           ],
         ),
@@ -327,7 +349,7 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTick
           child: Row(children: [
             const Icon(Icons.stars, color: Colors.orange, size: 22),
             const SizedBox(width: 6),
-            Text(points.toString(), style: TextStyle(color: darkGreenText, fontWeight: FontWeight.w900, fontSize: 13.sp)),
+            Text(points.toString(), style: TextStyle(color: darkGreenText, fontWeight: FontWeight.w900, fontSize: 12.sp)),
           ]),
         ),
       );
@@ -336,11 +358,11 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTick
         future: dataService.fetchMainCategories(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+          // 🎯 تم تمرير قائمة الأقسام ليكون التوجيه من داخل الويدجت
           return ConsumerCategoriesBanner(categories: snapshot.data ?? []);
         },
       );
 
-  // 🎯 التعديل الجوهري: نداء الـ PromoSliderWidget المستقلة
   Widget _buildBannersSection() => FutureBuilder<List<ConsumerBanner>>(
         future: dataService.fetchPromoBanners(),
         builder: (context, snapshot) {
@@ -349,13 +371,13 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTick
           
           return PromoSliderWidget(
             banners: snapshot.data!, 
-            height: 160.0 // 🎯 الارتفاع الجديد الاحترافي
+            height: 160.0 
           );
         },
       );
 }
 
-// كلاس الاحتفالية (يبقى كما هو)
+// كلاس الاحتفالية
 class _CelebrationWidget extends StatefulWidget {
   final int points;
   final VoidCallback onDismiss;
@@ -405,17 +427,17 @@ class _CelebrationWidgetState extends State<_CelebrationWidget> with SingleTicke
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text("🎉", style: TextStyle(fontSize: 60.sp)),
+                Text("🎉", style: TextStyle(fontSize: 50.sp)),
                 const SizedBox(height: 15),
-                Text("هدية ترحيبية!", style: TextStyle(fontSize: 22.sp, fontWeight: FontWeight.w900, color: Colors.orange)),
+                Text("هدية ترحيبية!", style: TextStyle(fontSize: 20.sp, fontWeight: FontWeight.w900, color: Colors.orange)),
                 const SizedBox(height: 20),
                 RichText(
                   textAlign: TextAlign.center,
                   text: TextSpan(
-                    style: TextStyle(fontSize: 16.sp, color: Colors.black87, fontFamily: 'Cairo'),
+                    style: TextStyle(fontSize: 14.sp, color: Colors.black87, fontFamily: 'Cairo'),
                     children: [
                       const TextSpan(text: "أهلاً بك في أكسب، جالك\n"),
-                      TextSpan(text: "${widget.points} نقطة", style: TextStyle(fontSize: 24.sp, fontWeight: FontWeight.w900, color: const Color(0xFF2E7D32))),
+                      TextSpan(text: "${widget.points} نقطة", style: TextStyle(fontSize: 22.sp, fontWeight: FontWeight.w900, color: const Color(0xFF2E7D32))),
                       const TextSpan(text: "\n\nجمع أكتر.. اكسب أكتر!"),
                     ],
                   ),
