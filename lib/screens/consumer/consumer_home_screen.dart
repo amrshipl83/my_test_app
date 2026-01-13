@@ -133,7 +133,7 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTick
         centerTitle: true,
         // 🎯 تم استخدام StreamBuilder لجلب fullname من Firestore لتجنب أخطاء الـ Build
         title: StreamBuilder<DocumentSnapshot>(
-          stream: FirebaseFirestore.instance.collection('users').doc(user?.uid).snapshots(),
+          stream: FirebaseFirestore.instance.collection('consumers').doc(user?.uid).snapshots(),
           builder: (context, snapshot) {
             String firstName = "GUEST";
             if (snapshot.hasData && snapshot.data!.exists) {
@@ -154,7 +154,7 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTick
         ),
         actions: [
           StreamBuilder<DocumentSnapshot>(
-            stream: FirebaseFirestore.instance.collection('users').doc(user?.uid).snapshots(),
+            stream: FirebaseFirestore.instance.collection('consumers').doc(user?.uid).snapshots(),
             builder: (context, snapshot) {
               int points = 0;
               if (snapshot.hasData && snapshot.data!.exists) {
