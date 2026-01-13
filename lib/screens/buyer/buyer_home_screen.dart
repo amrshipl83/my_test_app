@@ -67,6 +67,7 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
       debugPrint('Error loading user data: $e');
     }
     
+    // استدعاء دالة الفحص
     await _checkDeliveryStatusAndDisplayIcons();
     await _updateNewDealerOrdersCount();
   }
@@ -129,31 +130,35 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
     }
   }
 
+  // ✅ التعديل الجوهري بناءً على المنطق الجديد:
   Future<void> _checkDeliveryStatusAndDisplayIcons() async {
     if (_currentUserId == null) return;
     try {
-      // تم استبدال get بـ snapshots للمراقبة اللحظية
-      _db.collection('deliverySupermarkets')
-          .where("ownerId", isEqualTo: _currentUserId)
-          .snapshots()
-          .listen((snapshot) {
-        if (mounted) {
-          if (snapshot.docs.isNotEmpty) {
-            final docData = snapshot.docs.first.data();
+      // 1. فحص مجموعة الانتظار لحظياً
+      _db.collection('pendingSupermarkets').doc(_currentUserId).snapshots().listen((pendingDoc) {
+        // 2. فحص مجموعة المقبولين لحظياً
+        _db.collection('deliverySupermarkets').doc(_currentUserId).snapshots().listen((approvedDoc) {
+          if (mounted) {
             setState(() {
-              _deliveryIsActive = docData['isActive'] ?? false;
-              _deliveryPricesAvailable = true;
-              // إخفاء أيقونة الإعدادات فور وجود مستند لمنع التكرار
-              _deliverySettingsAvailable = false; 
-            });
-          } else {
-            setState(() {
-              _deliverySettingsAvailable = true;
-              _deliveryPricesAvailable = false;
-              _deliveryIsActive = false;
+              // أيقونة الاشتراك تظهر فقط لو مش موجود في الاثنين
+              if (!pendingDoc.exists && !approvedDoc.exists) {
+                _deliverySettingsAvailable = true;
+              } else {
+                _deliverySettingsAvailable = false;
+              }
+
+              // أيقونات الإدارة تظهر فقط لو موجود في المقبولين
+              if (approvedDoc.exists) {
+                final data = approvedDoc.data() as Map<String, dynamic>;
+                _deliveryPricesAvailable = true;
+                _deliveryIsActive = data['isActive'] ?? false;
+              } else {
+                _deliveryPricesAvailable = false;
+                _deliveryIsActive = false;
+              }
             });
           }
-        }
+        });
       });
     } catch (e) {
       debugPrint("Delivery Status Error: $e");
@@ -168,27 +173,15 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
     if (mounted) setState(() => _newOrdersCount = q.size);
   }
 
-  // 🎯 التعديل المطلوب: التوجيه لـ /my_orders بشكل مستقل مع الحفاظ على Stack التنقل
   void _onItemTapped(int index) {
     if (index == _selectedIndex) return;
-
     switch (index) {
-      case 0:
-        Navigator.pushReplacementNamed(context, '/traders'); 
-        break;
-      case 1:
-        // نحن بالفعل هنا
-        break;
+      case 0: Navigator.pushReplacementNamed(context, '/traders'); break;
+      case 1: break;
       case 2:
-        // 🚀 التعديل: فتح صفحة مستقلة باستخدام Navigator.push لتمكين زر الرجوع
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const MyOrdersScreen()),
-        );
+        Navigator.push(context, MaterialPageRoute(builder: (context) => const MyOrdersScreen()));
         break;
-      case 3:
-        Navigator.pushReplacementNamed(context, '/wallet'); 
-        break;
+      case 3: Navigator.pushReplacementNamed(context, '/wallet'); break;
     }
   }
 
@@ -226,9 +219,7 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
               userName: _userName,
               onLogout: _handleLogout,
             ),
-            const Expanded(
-              child: HomeContent(), 
-            ),
+            const Expanded(child: HomeContent()),
           ],
         ),
         bottomNavigationBar: BuyerMobileNavWidget(
