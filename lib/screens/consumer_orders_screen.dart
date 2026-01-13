@@ -4,7 +4,9 @@ import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';                                                    
 import '../providers/customer_orders_provider.dart';
 import '../models/consumer_order_model.dart';        
-import '../constants/constants.dart';                                                                     
+import '../constants/constants.dart';
+// 🟢 إضافة ملف مساعد الطباعة
+import '../helpers/order_printer_helper.dart'; 
 
 class ConsumerOrdersScreen extends StatelessWidget {   
   const ConsumerOrdersScreen({super.key});                                                                  
@@ -150,7 +152,6 @@ class _OrderCardState extends State<OrderCard> {
                 const SizedBox(height: 10),
                 Text('رقم الهاتف: ${order.customerPhone}'),
                 Text('العنوان: ${order.customerAddress}'),                                                                
-                // 🟢 استخدام التنسيق الجديد
                 Text('تاريخ الطلب: ${order.orderDate?.toLocaleString() ?? 'غير متوفر'}'),                 
                 Text('مصاريف التوصيل: ${order.deliveryFee.toStringAsFixed(2)} EGP'),                                      
                 Text('النقاط المستخدمة: ${order.pointsUsed}'),
@@ -197,9 +198,11 @@ class _OrderCardState extends State<OrderCard> {
                       ),                                                 
                     ),
                     const SizedBox(height: 10),                          
+                    // 🔵 زر الطباعة المحدث
                     ElevatedButton.icon(                                   
-                      onPressed: () {                                        
-                        widget.provider.showNotification('لم يتم تنفيذ منطق الطباعة بعد.', false);                              
+                      onPressed: () async {
+                        // استدعاء دالة الطباعة وتمرير بيانات الطلب الحالي
+                        await OrderPrinterHelper.printOrderReceipt(order);
                       },                                                   
                       icon: const Icon(Icons.print, size: 20),                                                                  
                       label: const Text('طباعة الإيصال'),                                                                       
@@ -231,7 +234,6 @@ extension OrderStatusesHelpers on OrderStatuses {
   ];                                               
 }
 
-// 🟢 تعديل الـ Extension ليعمل مع DateTime الخاص بالموديل الجديد
 extension DateParsing on DateTime {
   String toLocaleString() {                              
     return this.toString().split('.')[0];
