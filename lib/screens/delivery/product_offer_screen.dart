@@ -1,12 +1,10 @@
 // lib/screens/delivery/product_offer_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/product_offer_provider.dart';
 import '../../theme/app_theme.dart';
 
-// -------------------------------------------------------------
-// الشاشة الرئيسية
-// -------------------------------------------------------------
 class ProductOfferScreen extends StatelessWidget {
   static const routeName = '/product_management';
   const ProductOfferScreen({super.key});
@@ -14,44 +12,104 @@ class ProductOfferScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Text('إضافة عرض لمنتج موجود'),
+        title: const Text('إضافة عرض جديد', style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: AppTheme.primaryGreen,
+        centerTitle: true,
+        elevation: 0,
       ),
       body: Consumer<ProductOfferProvider>(
         builder: (context, provider, child) {
           return Stack(
             children: [
-              SingleChildScrollView(
-                // ترك مساحة لزر الإرسال وشريط الأزرار السفلي
-                padding: const EdgeInsets.only(top: 20, left: 20, right: 20, bottom: 180),
-                child: Column(
-                  children: [
-                    _NotificationMessage(provider: provider),
-                    _CategoryAndSearchSection(provider: provider),
-                    const SizedBox(height: 30),
-                    // 💡 تم استخدام Consumer داخلي هنا لتفعيل زر الإلغاء
-                    const _SelectedProductDetailsSection(), 
-                    const SizedBox(height: 30),
-                    // 💡 تم تعديل المنطق هنا ليطابق منطق الـ JS (الوحدات فقط)
-                    const _ProductUnitsAndPriceSection(),
-                    const SizedBox(height: 30),
-                    _ActionButtonsSection(provider: provider), // زر الإرسال
-                  ],
-                ),
+              CustomScrollView(
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 20, 16, 200),
+                      child: Column(
+                        children: [
+                          _NotificationMessage(provider: provider),
+                          _buildStepHeader(context, "1", "البحث والتصنيف"),
+                          _CategoryAndSearchSection(provider: provider),
+                          
+                          if (provider.selectedProduct != null) ...[
+                            const SizedBox(height: 24),
+                            _buildStepHeader(context, "2", "تأكيد المنتج المختار"),
+                            const _SelectedProductDetailsSection(),
+                            
+                            const SizedBox(height: 24),
+                            _buildStepHeader(context, "3", "تحديد أسعار الوحدات"),
+                            const _ProductUnitsAndPriceSection(),
+                            
+                            const SizedBox(height: 30),
+                            _buildSubmitButton(provider),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              const _BottomBarButtons(), // شريط الأزرار السفلي
+              const _BottomBarButtons(),
             ],
           );
         },
       ),
     );
   }
+
+  Widget _buildStepHeader(BuildContext context, String step, String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12, right: 8),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 14,
+            backgroundColor: AppTheme.primaryGreen,
+            child: Text(step, style: const TextStyle(color: Colors.white, fontSize: 12)),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            title,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSubmitButton(ProductOfferProvider provider) {
+    bool canSubmit = provider.selectedProduct != null && provider.selectedUnitPrices.isNotEmpty;
+    return Container(
+      width: double.infinity,
+      height: 55,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(15),
+        gradient: canSubmit 
+            ? const LinearGradient(colors: [AppTheme.primaryGreen, Color(0xFF2E7D32)])
+            : const LinearGradient(colors: [Colors.grey, Colors.blueGrey]),
+        boxShadow: [
+          if (canSubmit) BoxShadow(color: AppTheme.primaryGreen.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 5))
+        ],
+      ),
+      child: ElevatedButton(
+        onPressed: canSubmit ? provider.submitOffer : null,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        ),
+        child: provider.isLoading 
+          ? const CircularProgressIndicator(color: Colors.white)
+          : const Text('اعتماد وإضافة العرض للمتجر', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+      ),
+    );
+  }
 }
 
-// ---
-// ويدجت داخلي 1: رسائل النظام (Success/Error)
-// ---
+// --- ويدجت الرسائل بتصميم أنيق ---
 class _NotificationMessage extends StatelessWidget {
   final ProductOfferProvider provider;
   const _NotificationMessage({required this.provider});
@@ -60,42 +118,29 @@ class _NotificationMessage extends StatelessWidget {
   Widget build(BuildContext context) {
     if (provider.message == null) return const SizedBox.shrink();
 
-    final Color bgColor = provider.isSuccess ? Colors.green.shade50 : Colors.red.shade50;
-    final Color textColor = provider.isSuccess ? AppTheme.primaryGreen : Colors.red.shade700;
-    final IconData icon = provider.isSuccess ? Icons.check_circle : Icons.error;
-
+    final isSuccess = provider.isSuccess;
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       margin: const EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: textColor, width: 1),
+        color: isSuccess ? Colors.green[50] : Colors.red[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: isSuccess ? Colors.green : Colors.red, width: 0.5),
       ),
       child: Row(
         children: [
-          Icon(icon, color: textColor, size: 24),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              provider.message!,
-              style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
-            ),
-          ),
-          IconButton(
-            icon: Icon(Icons.close, color: textColor),
-            onPressed: provider.clearNotification,
-          ),
+          Icon(isSuccess ? Icons.check_circle_outline : Icons.error_outline, 
+               color: isSuccess ? Colors.green[700] : Colors.red[700]),
+          const SizedBox(width: 12),
+          Expanded(child: Text(provider.message!, style: TextStyle(color: isSuccess ? Colors.green[900] : Colors.red[900], fontWeight: FontWeight.w500))),
+          IconButton(icon: const Icon(Icons.close, size: 20), onPressed: provider.clearNotification),
         ],
       ),
     );
   }
 }
 
-// ---
-// ويدجت داخلي 2: الأقسام والبحث
-// ---
+// --- قسم البحث والكارتات الذكية ---
 class _CategoryAndSearchSection extends StatefulWidget {
   final ProductOfferProvider provider;
   const _CategoryAndSearchSection({required this.provider});
@@ -110,459 +155,219 @@ class _CategoryAndSearchSectionState extends State<_CategoryAndSearchSection> {
   @override
   void initState() {
     super.initState();
-    _searchController.addListener(_onSearchInputChanged);
-  }
-
-  void _onSearchInputChanged() {
-    // نستخدم الـ debounce في الـ Provider أو Controller لتجنب الاستدعاءات المتكررة للـ API
-    widget.provider.searchProducts(_searchController.text.trim());
-  }
-
-  @override
-  void dispose() {
-    _searchController.removeListener(_onSearchInputChanged);
-    _searchController.dispose();
-    super.dispose();
+    _searchController.addListener(() => widget.provider.searchProducts(_searchController.text.trim()));
   }
 
   @override
   Widget build(BuildContext context) {
-    final provider = widget.provider;
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-      child: Padding(
-        padding: const EdgeInsets.all(25.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              'اختر المنتج وأدخل تفاصيل العرض',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: AppTheme.primaryGreen,
-              ),
+    final p = widget.provider;
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))],
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        children: [
+          _buildDropdown("القسم الرئيسي", p.selectedMainId, p.mainCategories, (id) => p.setSelectedMainCategory(id)),
+          const SizedBox(height: 16),
+          _buildDropdown("القسم الفرعي", p.selectedSubId, p.subCategories, 
+              p.subCategories.isEmpty ? null : (id) => p.setSelectedSubCategory(id)),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _searchController,
+            enabled: p.selectedSubId != null,
+            decoration: InputDecoration(
+              labelText: 'ابحث عن منتج بالاسم...',
+              prefixIcon: const Icon(Icons.search, color: AppTheme.primaryGreen),
+              filled: true,
+              fillColor: p.selectedSubId != null ? Colors.white : Colors.grey[100],
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide(color: Colors.grey[200]!)),
             ),
-            const Divider(height: 30),
+          ),
+          if (p.searchResults.isNotEmpty) _buildSearchResults(p),
+        ],
+      ),
+    );
+  }
 
-            // القسم الرئيسي
-            DropdownButtonFormField<String>(
-              decoration: const InputDecoration(labelText: 'القسم الرئيسي', border: OutlineInputBorder()),
-              value: provider.selectedMainId,
-              items: provider.mainCategories.map((cat) => DropdownMenuItem(
-                value: cat.id,
-                child: Text(cat.name),
-              )).toList(),
-              onChanged: (id) => provider.setSelectedMainCategory(id),
-              hint: const Text('اختر القسم الرئيسي'),
-            ),
-            const SizedBox(height: 20),
+  Widget _buildDropdown(String label, String? value, List items, Function(String?)? onChanged) {
+    return DropdownButtonFormField<String>(
+      value: value,
+      onChanged: onChanged,
+      decoration: InputDecoration(
+        labelText: label,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
+      ),
+      items: items.map<DropdownMenuItem<String>>((cat) => DropdownMenuItem(value: cat.id, child: Text(cat.name))).toList(),
+    );
+  }
 
-            // القسم الفرعي
-            DropdownButtonFormField<String>(
-              decoration: const InputDecoration(labelText: 'القسم الفرعي', border: OutlineInputBorder()),
-              value: provider.selectedSubId,
-              items: provider.subCategories.map((cat) => DropdownMenuItem(
-                value: cat.id,
-                child: Text(cat.name),
-              )).toList(),
-              onChanged: provider.subCategories.isEmpty ? null : (id) => provider.setSelectedSubCategory(id),
-              hint: const Text('اختر القسم الفرعي'),
-              disabledHint: const Text('اختر قسم رئيسي أولاً'),
-            ),
-            const SizedBox(height: 20),
-
-            // البحث عن المنتج
-            TextFormField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                labelText: 'ابحث عن المنتج (ضمن القسم الفرعي المختار):',
-                hintText: 'اكتب اسم المنتج للبحث...',
-                border: const OutlineInputBorder(),
-                suffixIcon: const Icon(Icons.search),
-                enabled: provider.selectedSubId != null,
-              ),
-              enabled: provider.selectedSubId != null,
-            ),
-
-            // نتائج البحث (Autocomplete dropdown)
-            if (provider.searchResults.isNotEmpty)
-              Container(
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade300),
-                  borderRadius: BorderRadius.circular(8),
-                  color: Theme.of(context).cardColor,
-                ),
-                margin: const EdgeInsets.only(top: 8),
-                constraints: const BoxConstraints(maxHeight: 250),
-                child: ListView.separated(
-                  shrinkWrap: true,
-                  padding: EdgeInsets.zero,
-                  itemCount: provider.searchResults.length,
-                  itemBuilder: (context, index) {
-                    final product = provider.searchResults[index];
-                    return ListTile(
-                      leading: (product.imageUrls.isNotEmpty)
-                          ? Image.network(
-                              product.imageUrls.first,
-                              width: 50,
-                              height: 50,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) => Container(
-                                width: 50, height: 50, color: Colors.grey.shade200, child: const Icon(Icons.error_outline),
-                              ),
-                            )
-                          : const Icon(Icons.image, size: 40, color: Colors.grey),
-                      title: Text(product.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text('القسم: ${product.mainId}/${product.subId}'),
-                      onTap: () {
-                        provider.selectProduct(product);
-                        // مسح قائمة البحث عند الاختيار
-                        provider.searchProducts('');
-                        _searchController.text = product.name;
-                      },
-                    );
-                  },
-                  separatorBuilder: (context, index) => const Divider(height: 0),
-                ),
-              ),
-          ],
-        ),
+  Widget _buildSearchResults(ProductOfferProvider p) {
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      constraints: const BoxConstraints(maxHeight: 200),
+      decoration: BoxDecoration(border: Border.all(color: Colors.grey[200]!), borderRadius: BorderRadius.circular(15)),
+      child: ListView.builder(
+        shrinkWrap: true,
+        itemCount: p.searchResults.length,
+        itemBuilder: (context, i) {
+          final prod = p.searchResults[i];
+          return ListTile(
+            leading: ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network(prod.imageUrls.first, width: 45, height: 45, fit: BoxFit.cover)),
+            title: Text(prod.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            onTap: () { p.selectProduct(prod); _searchController.clear(); p.searchProducts(''); FocusScope.of(context).unfocus(); },
+          );
+        },
       ),
     );
   }
 }
 
-// -------------------------------------------------------------
-// 💡 ويدجت داخلي 3: تفاصيل المنتج المختار (تم تعديله ليصبح Consumer مع زر إلغاء)
-// -------------------------------------------------------------
+// --- كارت المنتج المختار (الاحترافي) ---
 class _SelectedProductDetailsSection extends StatelessWidget {
   const _SelectedProductDetailsSection();
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<ProductOfferProvider>(
-      builder: (context, p, child) {
-        final selectedProduct = p.selectedProduct;
+    final p = Provider.of<ProductOfferProvider>(context);
+    final prod = p.selectedProduct;
+    if (prod == null) return const SizedBox.shrink();
 
-        if (selectedProduct == null) {
-          return const SizedBox.shrink();
-        }
-        
-        const Color accentColor = Colors.blue;
-        return Card(
-          elevation: 4,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-          child: Padding(
-            padding: const EdgeInsets.all(25.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.blue[50],
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.blue[200]!),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(15),
+                child: Image.network(prod.imageUrls.first, width: 80, height: 80, fit: BoxFit.cover),
+              ),
+              const SizedBox(width: 15),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'تفاصيل المنتج المختار',
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: accentColor),
-                    ),
-                    TextButton.icon(
-                      onPressed: () {
-                        // استخدام دالة selectProduct(null) لمسح المنتج
-                        p.selectProduct(null); 
-                      }, 
-                      icon: const Icon(Icons.close, color: Colors.red), 
-                      label: const Text('إلغاء الاختيار/تغيير المنتج', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 14)),
-                    ),
+                    Text(prod.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 4),
+                    Text(prod.description, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.grey[600], fontSize: 13)),
                   ],
                 ),
-                const Divider(height: 20),
-                // اسم المنتج
-                TextFormField(
-                  initialValue: selectedProduct.name,
-                  readOnly: true,
-                  decoration: const InputDecoration(
-                    labelText: 'المنتج المختار',
-                    border: OutlineInputBorder(),
-                    filled: true,
-                    fillColor: AppTheme.scaffoldLight,
-                  ),
-                ),
-                const SizedBox(height: 15),
-                // وصف المنتج
-                TextFormField(
-                  initialValue: selectedProduct.description,
-                  readOnly: true,
-                  maxLines: 4,
-                  decoration: const InputDecoration(
-                    labelText: 'وصف المنتج',
-                    border: OutlineInputBorder(),
-                    filled: true,
-                    fillColor: AppTheme.scaffoldLight,
-                  ),
-                ),
-                const SizedBox(height: 15),
-                // صور المنتج
-                const Text('صور المنتج:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
-                const SizedBox(height: 10),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: selectedProduct.imageUrls.map((url) => Padding(
-                      padding: const EdgeInsets.only(left: 8.0),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          url,
-                          width: 100,
-                          height: 100,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => Container(
-                            width: 100,
-                            height: 100,
-                            color: Colors.grey.shade200,
-                            child: const Icon(Icons.broken_image, color: Colors.grey),
-                          ),
-                        ),
-                      ),
-                    )).toList(),
-                  ),
-                ),
-              ],
-            ),
+              ),
+              IconButton(icon: const Icon(Icons.change_circle, color: Colors.blue), onPressed: () => p.selectProduct(null)),
+            ],
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 }
 
-// -------------------------------------------------------------
-// 💡 ويدجت داخلي 4: الوحدات والأسعار (النسخة النهائية المطابقة لمنطق الـ JS)
-// -------------------------------------------------------------
+// --- تسعير الوحدات بتصميم كروت تفاعلية ---
 class _ProductUnitsAndPriceSection extends StatelessWidget {
   const _ProductUnitsAndPriceSection();
 
   @override
   Widget build(BuildContext context) {
-    // استخدام Consumer داخلياً لضمان قراءة الحالة المحدثة عند تغيير selectedProduct
     return Consumer<ProductOfferProvider>(
       builder: (context, p, child) {
-        final selectedProduct = p.selectedProduct;
-        final units = selectedProduct?.units; // القراءة من الـ p المحدث
-
-        const Color accentColor = Colors.blue;
-
-        return Card(
-          elevation: 4,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-          child: Padding(
-            padding: const EdgeInsets.all(25.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text(
-                  'الوحدات المتاحة للعرض',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: accentColor),
-                ),
-                const Divider(height: 20),
-
-                if (selectedProduct == null) 
-                  const Text(
-                    'اختر منتجًا لعرض وحداته المتاحة.',
-                    style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
-                  )
-                else if (units == null || units.isEmpty) 
-                  const Text(
-                    '⚠️ لا توجد وحدات متاحة لهذا المنتج في الكتالوج.',
-                    style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
-                  )
-                else
-                  ...units.map((unit) {
-                    // التأكد من أن الوحدة هي Map<String, dynamic> قبل القراءة
-                    if (unit is! Map<String, dynamic>) return const SizedBox.shrink();
-
-                    final String unitName = unit['unitName'] ?? 'وحدة غير مسماة';
-                    // 🚨 تم إزالة أي قراءة لـ 'price' الافتراضي من الكتالوج (منطق JS)
-                    
-                    final bool isSelected = p.selectedUnitPrices.containsKey(unitName);
-
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 15),
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: isSelected ? AppTheme.primaryGreen.withOpacity(0.05) : Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: isSelected ? AppTheme.primaryGreen : Colors.grey.shade300),
-                        ),
-                        child: Row(
-                          children: [
-                            Checkbox(
-                              value: isSelected,
-                              onChanged: (bool? checked) {
-                                if (checked == true) {
-                                  // عند التحديد، استخدم القيمة الحالية إذا كانت موجودة، وإلا استخدم 0.0 لتمكين الحقل
-                                  final priceToUse = p.selectedUnitPrices.containsKey(unitName)
-                                      ? p.selectedUnitPrices[unitName]
-                                      : 0.0;
-                                  p.setSelectedUnitPrice(unitName, priceToUse);
-                                } else {
-                                  // عند إلغاء التحديد، قم بإزالة الوحدة
-                                  p.setSelectedUnitPrice(unitName, null);
-                                }
-                              },
-                              activeColor: AppTheme.primaryGreen,
-                            ),
-                            Expanded(
-                              child: Text(
-                                unitName,
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: isSelected ? AppTheme.primaryGreen : Theme.of(context).textTheme.bodyLarge?.color,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 15),
-                            Expanded(
-                              flex: 2,
-                              child: TextFormField(
-                                keyboardType: TextInputType.number,
-                                // 💡 العرض: إذا كانت الوحدة مختارة، اعرض السعر الذي أدخله التاجر، وإلا اجعله فارغاً.
-                                initialValue: isSelected 
-                                    ? (p.selectedUnitPrices[unitName] == 0.0 ? '' : p.selectedUnitPrices[unitName]?.toStringAsFixed(2))
-                                    : '', // فارغ لطلب إدخال السعر
-                                enabled: isSelected,
-                                decoration: const InputDecoration(
-                                  labelText: 'السعر',
-                                  suffixText: 'ر.س',
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(8))),
-                                  contentPadding: EdgeInsets.symmetric(vertical: 10, horizontal: 10),
-                                ),
-                                onChanged: (value) {
-                                  final price = double.tryParse(value);
-                                  if (isSelected) {
-                                    // تخزين القيمة المدخلة في الـ Provider
-                                    p.setSelectedUnitPrice(unitName, price);
-                                  }
-                                },
-                              ),
-                            ),
-                          ],
+        final units = p.selectedProduct?.units ?? [];
+        return Column(
+          children: units.map((unit) {
+            final name = unit['unitName'];
+            final isSelected = p.selectedUnitPrices.containsKey(name);
+            return Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: isSelected ? Colors.white : Colors.grey[50],
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(color: isSelected ? AppTheme.primaryGreen : Colors.grey[300]!, width: isSelected ? 2 : 1),
+                boxShadow: isSelected ? [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)] : [],
+              ),
+              child: Row(
+                children: [
+                  Checkbox(
+                    value: isSelected,
+                    activeColor: AppTheme.primaryGreen,
+                    onChanged: (val) => p.setSelectedUnitPrice(name, val == true ? 0.0 : null),
+                  ),
+                  Text(name, style: TextStyle(fontWeight: FontWeight.bold, color: isSelected ? AppTheme.primaryGreen : Colors.black87)),
+                  const Spacer(),
+                  if (isSelected)
+                    SizedBox(
+                      width: 120,
+                      child: TextFormField(
+                        keyboardType: TextInputType.number,
+                        initialValue: p.selectedUnitPrices[name] == 0.0 ? '' : p.selectedUnitPrices[name].toString(),
+                        onChanged: (v) => p.setSelectedUnitPrice(name, double.tryParse(v)),
+                        decoration: InputDecoration(
+                          hintText: 'السعر',
+                          suffixText: 'ج.م',
+                          isDense: true,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                         ),
                       ),
-                    );
-                  }).toList(),
-              ],
-            ),
-          ),
+                    ),
+                ],
+              ),
+            );
+          }).toList(),
         );
       },
     );
   }
 }
 
-// ---
-// ويدجت داخلي 5: زر الإرسال
-// ---
-class _ActionButtonsSection extends StatelessWidget {
-  final ProductOfferProvider provider;
-  const _ActionButtonsSection({required this.provider});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 20.0),
-      child: ElevatedButton.icon(
-        icon: const Icon(Icons.add_box_rounded, color: Colors.white),
-        label: const Text(
-          'إضافة العرض',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
-        ),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppTheme.primaryGreen,
-          padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 30),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-        onPressed: provider.selectedProduct == null || provider.selectedUnitPrices.isEmpty
-            ? null // تعطيل الزر إذا لم يتم اختيار منتج أو وحدة
-            : provider.submitOffer,
-      ),
-    );
-  }
-}
-
-// ---
-// ويدجت داخلي 6: الشريط السفلي (Bottom Bar)
-// ---
+// --- الشريط السفلي المطور ---
 class _BottomBarButtons extends StatelessWidget {
   const _BottomBarButtons();
 
   @override
   Widget build(BuildContext context) {
-    // 💡 تصحيح الخطأ: تم تحديد درجات اللون مباشرة كـ Color لتجنب خطأ shade600
-    const Color buttonColor1 = Colors.blue;
-    const Color buttonColor2 = Color(0xFF757575); // تم استخدام قيمة لون ثابتة لـ Colors.grey.shade600
-
     return Align(
       alignment: Alignment.bottomCenter,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
+        height: 100,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
         decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              spreadRadius: 2,
-              blurRadius: 10,
-              offset: const Offset(0, -2),
-            ),
-          ],
+          color: Colors.white,
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 20, offset: const Offset(0, -5))],
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
         ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.shopping_basket),
-                  label: const Text('العودة للمتجر'),
-                  onPressed: () {
-                    // التوجيه إلى شاشة المشترين (BuyerHomeScreen)
-                    Navigator.of(context).pushReplacementNamed('/buyer_home');
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: buttonColor1, // استخدام اللون المُعرف
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                ),
-              ),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.settings),
-                  label: const Text('لوحة التحكم'),
-                  onPressed: () {
-                    // التوجيه إلى شاشة لوحة التحكم الخاصة بالدليفري
-                    Navigator.of(context).pushReplacementNamed('/deliveryPrices');
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: buttonColor2, // استخدام اللون المُعرف
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                ),
-              ),
-            ),
+            _buildNavButton(context, Icons.storefront, "المتجر", Colors.blue, '/buyer_home'),
+            const SizedBox(width: 15),
+            _buildNavButton(context, Icons.dashboard_customize, "لوحة التحكم", Colors.blueGrey, '/deliveryPrices'),
           ],
         ),
       ),
     );
   }
-}
 
+  Widget _buildNavButton(BuildContext context, IconData icon, String label, Color color, String route) {
+    return Expanded(
+      child: OutlinedButton.icon(
+        icon: Icon(icon, size: 20),
+        label: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+        onPressed: () => Navigator.pushReplacementNamed(context, route),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: color,
+          side: BorderSide(color: color),
+          padding: const EdgeInsets.symmetric(vertical: 15),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      ),
+    );
+  }
+}
