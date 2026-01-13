@@ -37,14 +37,13 @@ class ClientDetailsStep extends StatefulWidget {
 
 class _ClientDetailsStepState extends State<ClientDetailsStep> {
   final _formKey = GlobalKey<FormState>();
-  late MapController _mapController;
+  late final MapController _mapController; // تم جعلها final لتحسين الأداء
   LatLng _selectedPosition = const LatLng(30.0444, 31.2357); 
   
   final String mapboxToken = "pk.eyJ1IjoiYW1yc2hpcGwiLCJhIjoiY21lajRweGdjMDB0eDJsczdiemdzdXV6biJ9.E--si9vOB93NGcAq7uVgGw";
 
   File? _logoPreview, _crPreview, _tcPreview;
   bool _termsAgreed = false;
-  bool _isMapActive = false;
   bool _obscurePassword = true;
   bool _isUploading = false;
 
@@ -89,7 +88,7 @@ class _ClientDetailsStepState extends State<ClientDetailsStep> {
     } catch (e) {
       debugPrint("Cloudinary Error: $e");
     } finally {
-      setState(() => _isUploading = false);
+      if (mounted) setState(() => _isUploading = false);
     }
   }
 
@@ -128,7 +127,9 @@ class _ClientDetailsStepState extends State<ClientDetailsStep> {
               
               _buildSectionHeader('العنوان والموقع التجاري', Icons.map_rounded),
               _buildInputField('address', 'العنوان بالتفصيل', Icons.location_on_rounded),
-              _buildMapContainer(),
+              
+              // تم عزل الخريطة لتحسين سرعة لوحة المفاتيح
+              RepaintBoundary(child: _buildMapContainer()),
               
               _buildSectionHeader('الأمان', Icons.security_rounded),
               _buildInputField('password', 'كلمة المرور', Icons.lock_open_rounded, isPassword: true),
@@ -214,7 +215,6 @@ class _ClientDetailsStepState extends State<ClientDetailsStep> {
   void _handleLocationChange(LatLng point) {
     setState(() {
       _selectedPosition = point;
-      _isMapActive = true;
     });
     _updateAddressText(point);
     widget.onLocationChanged(lat: point.latitude, lng: point.longitude);
@@ -233,6 +233,24 @@ class _ClientDetailsStepState extends State<ClientDetailsStep> {
   }
 
   Future<void> _goToCurrentLocation() async {
+    // ✅ النقطة 1: إفصاح جوجل بلاي (Google Play Disclosure)
+    bool? proceed = await showDialog<bool>(
+      context: context,
+      builder: (context) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          title: const Text("استخدام الموقع"),
+          content: const Text("يحتاج تطبيق 'أكسب' للوصول إلى موقعك لتحديد عنوان متجرك بدقة وتسهيل عملية التوصيل."),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("إلغاء")),
+            TextButton(onPressed: () => Navigator.pop(context, true), child: const Text("موافق")),
+          ],
+        ),
+      ),
+    );
+
+    if (proceed != true) return;
+
     if (await Permission.location.request().isGranted) {
       Position position = await Geolocator.getCurrentPosition();
       final newPos = LatLng(position.latitude, position.longitude);
@@ -252,9 +270,10 @@ class _ClientDetailsStepState extends State<ClientDetailsStep> {
         children: [
           _buildInputField('merchantName', 'اسم النشاط', Icons.storefront_rounded),
           _buildBusinessTypeDropdown(),
-          _buildUploadItem('شعار النشاط', 'logo', _logoPreview),
-          _buildUploadItem('السجل التجاري', 'cr', _crPreview),
-          _buildUploadItem('البطاقة الضريبية', 'tc', _tcPreview),
+          // ✅ النقطة 3: تكبير خط العناوين إلى 18
+          _buildUploadItem('شعار النشاط / اللوجو', 'logo', _logoPreview),
+          _buildUploadItem('صورة السجل التجاري', 'cr', _crPreview),
+          _buildUploadItem('صورة البطاقة الضريبية', 'tc', _tcPreview),
         ],
       ),
     );
@@ -264,10 +283,16 @@ class _ClientDetailsStepState extends State<ClientDetailsStep> {
     return Container(
       margin: EdgeInsets.only(bottom: 2.h),
       padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15)),
+      decoration: BoxDecoration(
+        color: Colors.white, 
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: Colors.grey.shade300)
+      ),
       child: DropdownButtonFormField<String>(
         value: _selectedBusinessType,
-        decoration: const InputDecoration(border: InputBorder.none, hintText: "نوع النشاط"),
+        // ✅ النقطة 2: جعل الحقل إجبارياً
+        validator: (value) => (value == null || value.isEmpty) ? "يرجى تحديد نوع النشاط" : null,
+        decoration: const InputDecoration(border: InputBorder.none, hintText: "نوع النشاط *"),
         items: _businessTypes.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
         onChanged: (val) {
           setState(() => _selectedBusinessType = val);
@@ -284,6 +309,7 @@ class _ClientDetailsStepState extends State<ClientDetailsStep> {
         controller: widget.controllers[key],
         obscureText: isPassword && _obscurePassword,
         keyboardType: keyboardType,
+        validator: (value) => (value == null || value.isEmpty) ? "هذا الحقل مطلوب" : null,
         decoration: InputDecoration(
           labelText: label,
           prefixIcon: Icon(icon, color: const Color(0xFF2D9E68)),
@@ -300,13 +326,18 @@ class _ClientDetailsStepState extends State<ClientDetailsStep> {
     return GestureDetector(
       onTap: () => _pickFile(field),
       child: Container(
-        margin: EdgeInsets.only(bottom: 1.h),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: file != null ? Colors.green : Colors.grey.shade200)),
+        margin: EdgeInsets.only(bottom: 1.5.h),
+        padding: const EdgeInsets.all(15),
+        decoration: BoxDecoration(
+          color: Colors.white, 
+          borderRadius: BorderRadius.circular(12), 
+          border: Border.all(color: file != null ? Colors.green : Colors.grey.shade200, width: 1.5)
+        ),
         child: Row(children: [
-          Icon(file != null ? Icons.check_circle : Icons.upload_file, color: file != null ? Colors.green : Colors.grey),
-          const SizedBox(width: 10),
-          Expanded(child: Text(label, style: TextStyle(fontSize: 10.sp))),
+          Icon(file != null ? Icons.check_circle : Icons.upload_file, color: file != null ? Colors.green : Colors.grey, size: 28),
+          const SizedBox(width: 15),
+          // ✅ النقطة 3: تكبير الخط إلى 18
+          Expanded(child: Text(label, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500))),
         ]),
       ),
     );
@@ -328,7 +359,7 @@ class _ClientDetailsStepState extends State<ClientDetailsStep> {
       value: _termsAgreed,
       onChanged: (v) => setState(() => _termsAgreed = v!),
       activeColor: const Color(0xFF2D9E68),
-      title: Text("أوافق على الشروط", style: TextStyle(fontSize: 9.sp)),
+      title: Text("أوافق على الشروط والأحكام", style: TextStyle(fontSize: 10.sp)),
       controlAffinity: ListTileControlAffinity.leading,
     );
   }
@@ -337,9 +368,20 @@ class _ClientDetailsStepState extends State<ClientDetailsStep> {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
-        onPressed: (widget.isSaving || !_termsAgreed || _isUploading) ? null : widget.onRegister,
-        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2D9E68), padding: const EdgeInsets.symmetric(vertical: 15)),
-        child: (widget.isSaving || _isUploading) ? const CircularProgressIndicator(color: Colors.white) : const Text('إتمام التسجيل', style: TextStyle(color: Colors.white)),
+        onPressed: (widget.isSaving || !_termsAgreed || _isUploading) ? null : () {
+          // التحقق من صحة جميع الحقول قبل التسجيل
+          if (_formKey.currentState!.validate()) {
+            widget.onRegister();
+          }
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF2D9E68), 
+          padding: const EdgeInsets.symmetric(vertical: 15),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))
+        ),
+        child: (widget.isSaving || _isUploading) 
+            ? const CircularProgressIndicator(color: Colors.white) 
+            : const Text('إتمام التسجيل', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
       ),
     );
   }
