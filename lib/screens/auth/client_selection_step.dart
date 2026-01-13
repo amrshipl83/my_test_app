@@ -2,9 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:sizer/sizer.dart';
 
-// المسميات هنا أصبحت متطابقة تماماً مع منطق الـ HTML وقاعدة البيانات
 typedef SelectionCompleted = void Function({required String country, required String userType});
-typedef CountrySelected = void Function(String country);
 
 class ClientSelectionStep extends StatelessWidget {
   final int stepNumber;
@@ -27,23 +25,21 @@ class ClientSelectionStep extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 3.w),
+      // زيادة المسافات الجانبية لتوسيع الكروت
+      padding: EdgeInsets.symmetric(horizontal: 5.w),
       child: Column(
         children: [
-          const SizedBox(height: 20),
+          SizedBox(height: 3.h),
           Text(
             stepNumber == 1 ? 'أين يقع نشاطك التجاري؟' : 'ما هو دورك في المنصة؟',
-            style: TextStyle(
-              fontSize: 16.sp,
-              fontWeight: FontWeight.bold,
-              color: const Color(0xFF1A1A1A),
-            ),
+            // ✅ تكبير عنوان الصفحة الرئيسي
+            style: TextStyle(fontSize: 20.sp, fontWeight: FontWeight.w900, color: const Color(0xFF1A1A1A)),
             textAlign: TextAlign.center,
           ),
-          SizedBox(height: 1.5.h),
+          SizedBox(height: 1.h),
           Text(
             stepNumber == 1 ? 'اختر الدولة لبدء تخصيص تجربتك' : 'اختر نوع الحساب المناسب لطبيعة عملك',
-            style: TextStyle(fontSize: 11.sp, color: Colors.grey.shade600),
+            style: TextStyle(fontSize: 12.sp, color: Colors.grey.shade600),
             textAlign: TextAlign.center,
           ),
           SizedBox(height: 4.h),
@@ -56,11 +52,11 @@ class ClientSelectionStep extends StatelessWidget {
 
           if (stepNumber == 2 && onGoBack != null)
             Padding(
-              padding: EdgeInsets.only(bottom: 2.h),
+              padding: EdgeInsets.only(bottom: 3.h),
               child: TextButton.icon(
                 onPressed: onGoBack,
-                icon: const Icon(Icons.keyboard_arrow_right_rounded, size: 24),
-                label: Text('العودة للخطوة السابقة', style: TextStyle(fontSize: 12.sp)),
+                icon: const Icon(Icons.arrow_forward_ios_rounded, size: 20),
+                label: Text('العودة للخطوة السابقة', style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.bold)),
                 style: TextButton.styleFrom(foregroundColor: Colors.grey[700]),
               ),
             ),
@@ -71,30 +67,31 @@ class ClientSelectionStep extends StatelessWidget {
 
   Widget _buildCountrySelection(BuildContext context) {
     return ListView(
-      shrinkWrap: true,
       children: [
         _OptionCard(
           title: 'جمهورية مصر العربية',
-          subtitle: 'ادعم التجارة المحلية في مصر',
+          subtitle: 'ادعم التجارة المحلية والنمو الاقتصادي في مصر',
           icon: Icons.flag_rounded,
           flagColors: const [Colors.red, Colors.white, Colors.black],
           isActive: initialCountry == 'egypt',
           onTap: () => onCountrySelected('egypt'),
         ),
-        SizedBox(height: 2.5.h),
-        _OptionCard(
-          title: 'المملكة العربية السعودية',
-          subtitle: 'توسع في أسواق الخليج العربي',
-          icon: Icons.flag_circle_rounded,
-          flagColors: const [Color(0xFF006C35), Colors.white],
-          isActive: initialCountry == 'saudi',
-          // الـ HTML جعل السعودية disabled حالياً
-          onTap: () {
-             // يمكنك إظهار رسالة "قريباً" هنا لتطابق الـ HTML
-             ScaffoldMessenger.of(context).showSnackBar(
-               const SnackBar(content: Text("قريباً في المملكة العربية السعودية"))
-             );
-          },
+        SizedBox(height: 3.h),
+        // ✅ كارت السعودية (قريباً) بتصميم باهت وغير قابل للضغط
+        Opacity(
+          opacity: 0.6,
+          child: _OptionCard(
+            title: 'المملكة العربية السعودية',
+            subtitle: 'انتظرونا قريباً.. نتوسع لنخدم الخليج العربي',
+            icon: Icons.flag_circle_rounded,
+            flagColors: const [Color(0xFF006C35), Colors.white],
+            isActive: false,
+            onTap: () {
+               ScaffoldMessenger.of(context).showSnackBar(
+                 const SnackBar(content: Text("خدماتنا ستتوفر قريباً في المملكة العربية السعودية"))
+               );
+            },
+          ),
         ),
       ],
     );
@@ -102,32 +99,31 @@ class ClientSelectionStep extends StatelessWidget {
 
   Widget _buildAccountTypeSelection(BuildContext context) {
     return ListView(
-      shrinkWrap: true,
       children: [
         _OptionCard(
           title: 'تاجر تجزئة (سوبر ماركت)',
-          subtitle: 'أطلب بضاعتك بأسعار الجملة',
+          subtitle: 'اطلب بضاعتك بأسعار الجملة مباشرةً، ووفر مجهودك وزود أرباحك.',
           icon: Icons.storefront_rounded,
           iconColor: const Color(0xFF4A69BD),
-          isActive: initialUserType == 'buyer', // متوافق مع HTML (buyer)
+          isActive: initialUserType == 'buyer',
           onTap: () => onCompleted!(country: initialCountry, userType: 'buyer'),
         ),
         SizedBox(height: 2.5.h),
         _OptionCard(
           title: 'موردين (شركات ومصانع)',
-          subtitle: 'اعرض منتجاتك وزود مبيعاتك',
+          subtitle: 'افتح سوقاً جديداً لمنتجاتك، وأوصل لآلاف المحلات بضغطة زر واحدة.',
           icon: Icons.local_shipping_rounded,
           iconColor: const Color(0xFFE67E22),
-          isActive: initialUserType == 'seller', // متوافق مع HTML (seller)
+          isActive: initialUserType == 'seller',
           onTap: () => onCompleted!(country: initialCountry, userType: 'seller'),
         ),
         SizedBox(height: 2.5.h),
         _OptionCard(
           title: 'مستهلك (مشتري)',
-          subtitle: 'تسوق أفضل العروض من حولك',
+          subtitle: 'تسوق بذكاء، قارن الأسعار في منطقتك، واجمع نقاط المكافآت مع كل شروة.',
           icon: Icons.person_pin_rounded,
           iconColor: const Color(0xFFE74C3C),
-          isActive: initialUserType == 'consumer', // متوافق مع HTML (consumer)
+          isActive: initialUserType == 'consumer',
           onTap: () => onCompleted!(country: initialCountry, userType: 'consumer'),
         ),
       ],
@@ -158,58 +154,84 @@ class _OptionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     const primary = Color(0xFF2D9E68);
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 250),
-      decoration: BoxDecoration(
-        color: isActive ? primary.withOpacity(0.05) : Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isActive ? primary : Colors.grey.shade200,
-          width: isActive ? 2.5 : 1.5,
-        ),
-        boxShadow: isActive ? [
-          BoxShadow(color: primary.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))
-        ] : [],
-      ),
-      child: ListTile(
-        onTap: onTap,
-        contentPadding: EdgeInsets.symmetric(horizontal: 5.w, vertical: 1.5.h),
-        leading: flagColors != null
-          ? _buildFlagIcon(flagColors!)
-          : Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: (iconColor ?? primary).withOpacity(0.1),
-                borderRadius: BorderRadius.circular(15),
-              ),
-              child: Icon(icon, color: iconColor ?? primary, size: 30),
-            ),
-        title: Text(
-          title,
-          style: TextStyle(
-            fontWeight: FontWeight.bold, 
-            fontSize: 13.sp,
-            color: isActive ? primary : Colors.black87
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        padding: EdgeInsets.all(2.h), // زيادة الحشو الداخلي للكارت
+        decoration: BoxDecoration(
+          color: isActive ? primary.withOpacity(0.08) : Colors.white,
+          borderRadius: BorderRadius.circular(25), // حواف دائرية أكثر احترافية
+          border: Border.all(
+            color: isActive ? primary : Colors.grey.shade300,
+            width: isActive ? 3 : 1.5,
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 15,
+              offset: const Offset(0, 8),
+            )
+          ],
         ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Text(subtitle, style: TextStyle(fontSize: 10.sp, color: Colors.grey.shade600)),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // أيقونة كبيرة وواضحة
+            flagColors != null
+              ? _buildFlagIcon(flagColors!)
+              : Container(
+                  padding: const EdgeInsets.all(15),
+                  decoration: BoxDecoration(
+                    color: (iconColor ?? primary).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Icon(icon, color: iconColor ?? primary, size: 35),
+                ),
+            SizedBox(width: 5.w),
+            // نصوص الكارت
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    // ✅ الخط هنا 18 (معدل ليتناسب مع sizer)
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900, 
+                      fontSize: 15.sp, // يعادل تقريباً 19-20 بكسل
+                      color: isActive ? primary : Colors.blackDE,
+                    ),
+                  ),
+                  SizedBox(height: 0.5.h),
+                  Text(
+                    subtitle,
+                    // ✅ خط الشرح واضح ومقروء
+                    style: TextStyle(
+                      fontSize: 11.sp, 
+                      color: Colors.grey.shade700,
+                      height: 1.3, // زيادة المسافة بين السطور لسهولة القراءة
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (isActive)
+              const Icon(Icons.check_circle_rounded, color: primary, size: 30),
+          ],
         ),
-        trailing: isActive
-          ? const Icon(Icons.check_circle_rounded, color: primary, size: 28)
-          : Icon(Icons.arrow_back_ios_new_rounded, size: 16, color: Colors.grey.shade400),
       ),
     );
   }
 
   Widget _buildFlagIcon(List<Color> colors) {
     return Container(
-      width: 52,
-      height: 52,
+      width: 60,
+      height: 60,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: Colors.grey.shade200, width: 2),
+        border: Border.all(color: Colors.grey.shade100, width: 3),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 5)],
       ),
       child: ClipOval(
         child: Column(
