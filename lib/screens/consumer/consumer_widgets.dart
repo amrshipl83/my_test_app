@@ -1,3 +1,4 @@
+// lib/screens/consumer/consumer_widgets.dart
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -6,9 +7,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'consumer_data_models.dart';
 import 'package:my_test_app/screens/consumer/consumer_store_search_screen.dart';
-import 'package:my_test_app/screens/consumer/points_loyalty_screen.dart';
 
-// 1. القائمة الجانبية (Drawer) - الاسم والخصوصية والخروج فقط
+// 1. الشريط الجانبي - تم ضبطه ليسحب من consumers ويظهر الخصوصية والخروج
 class ConsumerSideMenu extends StatelessWidget {
   const ConsumerSideMenu({super.key});
 
@@ -19,7 +19,6 @@ class ConsumerSideMenu extends StatelessWidget {
     return Drawer(
       child: Column(
         children: [
-          // جزء الهيدر - يسحب الاسم من كولكشن consumers
           StreamBuilder<DocumentSnapshot>(
             stream: FirebaseFirestore.instance.collection('consumers').doc(user?.uid).snapshots(),
             builder: (context, snapshot) {
@@ -39,22 +38,15 @@ class ConsumerSideMenu extends StatelessWidget {
               );
             },
           ),
-
-          // سياسة الخصوصية
           ListTile(
             leading: const Icon(Icons.privacy_tip_outlined, color: Color(0xFF43A047), size: 28),
             title: const Text('سياسة الخصوصية', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             onTap: () async {
               final url = Uri.parse('https://amrshipl83.github.io/aksabprivce/');
-              if (await canLaunchUrl(url)) {
-                await launchUrl(url, mode: LaunchMode.externalApplication);
-              }
+              if (await canLaunchUrl(url)) await launchUrl(url, mode: LaunchMode.externalApplication);
             },
           ),
-          
           const Divider(),
-
-          // تسجيل الخروج
           ListTile(
             leading: const Icon(Icons.logout_rounded, color: Colors.red, size: 28),
             title: const Text('تسجيل الخروج', style: TextStyle(color: Colors.red, fontSize: 16, fontWeight: FontWeight.bold)),
@@ -62,9 +54,7 @@ class ConsumerSideMenu extends StatelessWidget {
               final prefs = await SharedPreferences.getInstance();
               await prefs.clear();
               await FirebaseAuth.instance.signOut();
-              if (context.mounted) {
-                Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
-              }
+              if (context.mounted) Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
             },
           ),
         ],
@@ -73,99 +63,23 @@ class ConsumerSideMenu extends StatelessWidget {
   }
 }
 
-// 2. شريط التنقل العلوي (AppBar) - متوافق مع صفحة الـ Home
-class ConsumerCustomAppBar extends StatelessWidget implements PreferredSizeWidget {
-  final String userName;
-  final int userPoints;
-  final VoidCallback onMenuPressed;
-
-  const ConsumerCustomAppBar({
-    super.key,
-    required this.userName,
-    required this.userPoints,
-    required this.onMenuPressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return AppBar(
-      automaticallyImplyLeading: false,
-      backgroundColor: const Color(0xFF43A047),
-      elevation: 2,
-      title: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          // زر فتح المنيو
-          IconButton(
-            icon: const Icon(Icons.menu_rounded, color: Colors.white, size: 30),
-            onPressed: onMenuPressed,
-          ),
-          
-          // اسم المستخدم
-          Expanded(
-            child: Text(
-              userName,
-              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-            ),
-          ),
-
-          // كبسولة النقاط
-          GestureDetector(
-            onTap: () => Navigator.of(context).pushNamed(PointsLoyaltyScreen.routeName),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: Colors.white24,
-                borderRadius: BorderRadius.circular(15),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.stars_rounded, color: Colors.orange, size: 20),
-                  const SizedBox(width: 4),
-                  Text('$userPoints', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  @override
-  Size get preferredSize => const Size.fromHeight(65);
-}
-
-// 3. بقية الـ Widgets الأساسية المطلوبة لنجاح الـ Build
-class ConsumerSectionTitle extends StatelessWidget {
-  final String title;
-  const ConsumerSectionTitle({super.key, required this.title});
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-    );
-  }
-}
-
+// 2. شريط التنقل السفلي - متوافق مع Home (PageIndex: 0)
 class ConsumerFooterNav extends StatelessWidget {
   final int cartCount;
   final int activeIndex;
   const ConsumerFooterNav({super.key, required this.cartCount, required this.activeIndex});
+
   @override
   Widget build(BuildContext context) {
     return BottomNavigationBar(
       currentIndex: activeIndex == -1 ? 0 : activeIndex,
       selectedItemColor: const Color(0xFF43A047),
       type: BottomNavigationBarType.fixed,
-      items: [
-        const BottomNavigationBarItem(icon: Icon(Icons.store), label: 'المتجر'),
-        const BottomNavigationBarItem(icon: Icon(Icons.receipt_long), label: 'طلباتي'),
-        const BottomNavigationBarItem(icon: Icon(Icons.shopping_cart), label: 'السلة'),
-        const BottomNavigationBarItem(icon: Icon(Icons.person), label: 'حسابي'),
+      items: const [
+        BottomNavigationBarItem(icon: Icon(Icons.store), label: 'المتجر'),
+        BottomNavigationBarItem(icon: Icon(Icons.receipt_long), label: 'طلباتي'),
+        BottomNavigationBarItem(icon: Icon(Icons.shopping_cart), label: 'السلة'),
+        BottomNavigationBarItem(icon: Icon(Icons.person), label: 'حسابي'),
       ],
       onTap: (index) {
         final routes = ['/consumerhome', '/consumer-purchases', '/cart', '/myDetails'];
@@ -175,22 +89,40 @@ class ConsumerFooterNav extends StatelessWidget {
   }
 }
 
+// 3. العناوين - لكي لا يحدث خطأ Build
+class ConsumerSectionTitle extends StatelessWidget {
+  final String title;
+  const ConsumerSectionTitle({super.key, required this.title});
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+      child: Align(
+        alignment: Alignment.centerRight,
+        child: Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+      ),
+    );
+  }
+}
+
+// 4. بانر الأقسام
 class ConsumerCategoriesBanner extends StatelessWidget {
   final List<ConsumerCategory> categories;
   const ConsumerCategoriesBanner({super.key, required this.categories});
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 110,
+      height: 120,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         itemCount: categories.length,
         itemBuilder: (context, index) => Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
+          padding: const EdgeInsets.all(8.0),
           child: Column(
             children: [
-              CircleAvatar(radius: 35, backgroundImage: CachedNetworkImageProvider(categories[index].imageUrl)),
-              Text(categories[index].name, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+              CircleAvatar(radius: 30, backgroundImage: NetworkImage(categories[index].imageUrl)),
+              const SizedBox(height: 5),
+              Text(categories[index].name, style: const TextStyle(fontSize: 12)),
             ],
           ),
         ),
@@ -199,6 +131,7 @@ class ConsumerCategoriesBanner extends StatelessWidget {
   }
 }
 
+// 5. بانر العروض
 class ConsumerPromoBanners extends StatelessWidget {
   final List<ConsumerBanner> banners;
   final double height;
@@ -209,21 +142,14 @@ class ConsumerPromoBanners extends StatelessWidget {
       height: height,
       child: PageView.builder(
         itemCount: banners.length,
-        itemBuilder: (context, index) => Image.network(banners[index].imageUrl, fit: BoxFit.cover),
+        itemBuilder: (context, index) => Padding(
+          padding: const EdgeInsets.all(10),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(15),
+            child: Image.network(banners[index].imageUrl, fit: BoxFit.cover),
+          ),
+        ),
       ),
-    );
-  }
-}
-
-class ConsumerSearchBar extends StatelessWidget {
-  const ConsumerSearchBar({super.key});
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      onTap: () => Navigator.pushNamed(context, ConsumerStoreSearchScreen.routeName),
-      leading: const Icon(Icons.radar, color: Color(0xFF43A047)),
-      title: const Text('رادار المحلات القريبة', style: TextStyle(fontWeight: FontWeight.bold)),
-      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
     );
   }
 }
