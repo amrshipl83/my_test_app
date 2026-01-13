@@ -1,4 +1,3 @@
-// lib/screens/consumer/consumer_home_screen.dart
 import 'package:flutter/material.dart';
 import 'package:my_test_app/screens/consumer/consumer_widgets.dart';
 import 'package:my_test_app/screens/consumer/consumer_data_models.dart';
@@ -8,6 +7,8 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:my_test_app/screens/consumer/consumer_store_search_screen.dart';
 import 'package:my_test_app/screens/consumer/points_loyalty_screen.dart';
+// 🎯 استيراد الويدجت الجديدة المستقلة
+import 'package:my_test_app/widgets/promo_slider_widget.dart'; 
 import 'package:latlong2/latlong.dart';
 import 'package:sizer/sizer.dart';
 import 'package:geolocator/geolocator.dart';
@@ -30,10 +31,9 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTick
   @override
   void initState() {
     super.initState();
-    // 💡 تم تفريغ initState من طلب الإشعارات الفوري لترك المجال للاحتفالية أولاً
   }
 
-  // ✅ تعديل: طلب الإشعارات يظهر الآن فقط بعد انتهاء رسالة الترحيب
+  // إعداد الإشعارات بعد انتهاء الترحيب
   Future<void> _setupNotificationsAfterCelebration() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -66,7 +66,6 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTick
         points: points, 
         onDismiss: () {
           overlayEntry.remove();
-          // 🎯 بعد إغلاق الرسالة الترحيبية، نطلب إذن الإشعارات
           _setupNotificationsAfterCelebration();
         },
       ),
@@ -86,12 +85,10 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTick
       });
       await prefs.setBool('welcome_anim_shown_v2', true);
     } else {
-      // إذا كانت قد ظهرت سابقاً، نطلب الإشعارات فوراً عند الدخول
       _setupNotificationsAfterCelebration();
     }
   }
 
-  // ... (دالة _handleAbaatlyHad كما هي)
   Future<void> _handleAbaatlyHad() async {
     try {
       LocationPermission permission = await Geolocator.checkPermission();
@@ -121,12 +118,11 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTick
 
     return Scaffold(
       backgroundColor: const Color(0xFFFBFBFB),
-      drawer: const ConsumerSideMenu(), // ✅ الشريط الجانبي موجود هنا
+      drawer: const ConsumerSideMenu(), 
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
         toolbarHeight: 90,
-        // ✅ زر القائمة الجانبية (leading) سيظهر تلقائياً هنا بفضل الـ Drawer
         iconTheme: IconThemeData(color: softGreen, size: 28),
         centerTitle: true,
         title: StreamBuilder<DocumentSnapshot>(
@@ -150,56 +146,8 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTick
           }
         ),
         actions: [
-          // ✅ تم نقل الإشعارات هنا بجانب النقاط لعدم حجب زر الـ Menu
-          StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('nofictions')
-                .where('userId', isEqualTo: user?.uid)
-                .orderBy('createdAt', descending: true)
-                .limit(10)
-                .snapshots(),
-            builder: (context, snapshot) {
-              int notificationCount = snapshot.hasData ? snapshot.data!.docs.length : 0;
-              return Stack(
-                alignment: Alignment.center,
-                children: [
-                  IconButton(
-                    icon: Icon(Icons.notifications_active_outlined, color: softGreen, size: 26),
-                    onPressed: () {}, // سيفتح صفحة الإشعارات لاحقاً
-                  ),
-                  if (notificationCount > 0)
-                    Positioned(
-                      top: 25,
-                      right: 8,
-                      child: Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(10)),
-                        constraints: const BoxConstraints(minWidth: 14, minHeight: 14),
-                        child: Text('$notificationCount', 
-                          style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ),
-                ],
-              );
-            },
-          ),
-          StreamBuilder<DocumentSnapshot>(
-            stream: FirebaseFirestore.instance.collection('consumers').doc(user?.uid).snapshots(),
-            builder: (context, snapshot) {
-              int points = 0;
-              if (snapshot.hasData && snapshot.data!.exists) {
-                var userData = snapshot.data!.data() as Map<String, dynamic>;
-                points = userData['loyaltyPoints'] ?? 0;
-                bool isProcessed = userData['welcomePointsProcessed'] ?? false;
-                if (isProcessed && points > 0) {
-                  _checkFirstTimeWelcome(points);
-                }
-              }
-              return _buildPointsBadge(points);
-            },
-          ),
+          _buildNotificationIcon(user?.uid),
+          _buildPointsStream(user?.uid),
           const SizedBox(width: 5),
         ],
       ),
@@ -215,6 +163,7 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTick
               _buildCategoriesSection(),
               const SizedBox(height: 10),
               const ConsumerSectionTitle(title: 'أحدث العروض الحصرية'),
+              // 🎯 استدعاء البانر الجديد بارتفاع أقل
               _buildBannersSection(),
               const SizedBox(height: 30),
             ],
@@ -225,7 +174,61 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTick
     );
   }
 
-  // (بقية الـ Widgets كما هي في كودك)
+  Widget _buildNotificationIcon(String? uid) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('nofictions')
+          .where('userId', isEqualTo: uid)
+          .orderBy('createdAt', descending: true)
+          .limit(10)
+          .snapshots(),
+      builder: (context, snapshot) {
+        int notificationCount = snapshot.hasData ? snapshot.data!.docs.length : 0;
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            IconButton(
+              icon: Icon(Icons.notifications_active_outlined, color: softGreen, size: 26),
+              onPressed: () {}, 
+            ),
+            if (notificationCount > 0)
+              Positioned(
+                top: 25,
+                right: 8,
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(10)),
+                  constraints: const BoxConstraints(minWidth: 14, minHeight: 14),
+                  child: Text('$notificationCount', 
+                    style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildPointsStream(String? uid) {
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance.collection('consumers').doc(uid).snapshots(),
+      builder: (context, snapshot) {
+        int points = 0;
+        if (snapshot.hasData && snapshot.data!.exists) {
+          var userData = snapshot.data!.data() as Map<String, dynamic>;
+          points = userData['loyaltyPoints'] ?? 0;
+          bool isProcessed = userData['welcomePointsProcessed'] ?? false;
+          if (isProcessed && points > 0) {
+            _checkFirstTimeWelcome(points);
+          }
+        }
+        return _buildPointsBadge(points);
+      },
+    );
+  }
+
   Widget _buildSmartRadarButton() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
@@ -279,9 +282,21 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTick
         ),
         child: Row(
           children: [
-            _buildBannerIcon(),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), shape: BoxShape.circle),
+              child: Icon(Icons.delivery_dining, color: Colors.white, size: 30.sp),
+            ),
             const SizedBox(width: 15),
-            Expanded(child: _buildBannerText()),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("ابعتلي حد", style: TextStyle(color: Colors.white, fontSize: 17.sp, fontWeight: FontWeight.w900)),
+                  Text("مندوب حر لنقل أغراضك فوراً", style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 10.sp, fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
             ElevatedButton(
               onPressed: _handleAbaatlyHad,
               style: ElevatedButton.styleFrom(
@@ -298,20 +313,6 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTick
       ),
     );
   }
-
-  Widget _buildBannerIcon() => Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), shape: BoxShape.circle),
-        child: Icon(Icons.delivery_dining, color: Colors.white, size: 30.sp),
-      );
-
-  Widget _buildBannerText() => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text("ابعتلي حد", style: TextStyle(color: Colors.white, fontSize: 17.sp, fontWeight: FontWeight.w900)),
-          Text("مندوب حر لنقل أغراضك فوراً", style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 10.sp, fontWeight: FontWeight.bold)),
-        ],
-      );
 
   Widget _buildPointsBadge(int points) => InkWell(
         onTap: () => Navigator.pushNamed(context, PointsLoyaltyScreen.routeName),
@@ -339,16 +340,22 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTick
         },
       );
 
+  // 🎯 التعديل الجوهري: نداء الـ PromoSliderWidget المستقلة
   Widget _buildBannersSection() => FutureBuilder<List<ConsumerBanner>>(
         future: dataService.fetchPromoBanners(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-          return ConsumerPromoBanners(banners: snapshot.data ?? [], height: 220);
+          if (!snapshot.hasData || snapshot.data!.isEmpty) return const SizedBox.shrink();
+          
+          return PromoSliderWidget(
+            banners: snapshot.data!, 
+            height: 160.0 // 🎯 الارتفاع الجديد الاحترافي
+          );
         },
       );
 }
 
-// ✅ تعديل: كلاس الاحتفال أصبح أكبر وأكثر فخامة
+// كلاس الاحتفالية (يبقى كما هو)
 class _CelebrationWidget extends StatefulWidget {
   final int points;
   final VoidCallback onDismiss;
@@ -368,11 +375,8 @@ class _CelebrationWidgetState extends State<_CelebrationWidget> with SingleTicke
     _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000));
     _scaleAnimation = CurvedAnimation(parent: _controller, curve: Curves.elasticOut);
     _controller.forward();
-
     Future.delayed(const Duration(seconds: 4), () {
-      if (mounted) {
-        _controller.reverse().then((value) => widget.onDismiss());
-      }
+      if (mounted) _controller.reverse().then((value) => widget.onDismiss());
     });
   }
 
@@ -385,14 +389,14 @@ class _CelebrationWidgetState extends State<_CelebrationWidget> with SingleTicke
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.black45, // تعتيم الخلفية أكثر لتركيز الانتباه
+      color: Colors.black45,
       child: Center(
         child: ScaleTransition(
           scale: _scaleAnimation,
           child: Container(
             margin: const EdgeInsets.symmetric(horizontal: 20),
-            padding: const EdgeInsets.all(35), // زيادة الحشو الداخلي
-            width: 85.w, // عرض أكبر
+            padding: const EdgeInsets.all(35),
+            width: 85.w,
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(40),
