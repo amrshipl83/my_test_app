@@ -3,9 +3,10 @@
 import 'package:flutter/material.dart';         
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/delivery_settings_model.dart';
-import 'buyer_data_provider.dart'; // 💡 تم الإبقاء على هذا الاستيراد
-                       
-// نموذج مبسط لبيانات التاجر من مجموعة users    
+import 'buyer_data_provider.dart'; 
+import 'dart:async'; // مطلوب للـ Timer
+
+// نموذج بيانات التاجر من مجموعة users    
 class DealerProfile {                             
   final String name;                              
   final String address;
@@ -17,23 +18,22 @@ class DealerProfile {
                                                 
 class DeliverySettingsProvider with ChangeNotifier {                                              
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-                                                  
-  // 💡 متغير BuyerDataProvider الحقيقي           
   final BuyerDataProvider _buyerData;                                                             
-  // 1. تعريف المتغيرات التي ستحمل القيمة الحقيقية
+  
   late final String _currentDealerId;             
-  late final String _currentDealerOriginalPhone;                                                                                                  
+  late String _currentDealerOriginalPhone;                                                                                                  
+  
   static const DELIVERY_COLLECTION = 'deliverySupermarkets';
   static const USERS_COLLECTION = 'users';                                                        
-  // حالة التحميل والرسائل                        
+
   bool _isLoading = false;
   String? _message;                               
-  bool _isSuccess = true;                                                                         
-  // البيانات                                     
+  bool _isSuccess = true;
+  Timer? _messageTimer; // تايمر لإخفاء الرسائل تلقائياً                                                                         
+
   DealerProfile? _dealerProfile;                  
   DeliverySettingsModel? _settings;
                                                   
-  // الحقول القابلة للتعديل
   bool _deliveryActive = false;                   
   String _deliveryHours = '';                     
   String _whatsappNumber = '';                    
@@ -41,13 +41,13 @@ class DeliverySettingsProvider with ChangeNotifier {
   String _deliveryFee = '0.0';
   String _minimumOrderValue = '0.0';
   String _descriptionForDelivery = '';                                                            
+
   // Getters                                      
   bool get isLoading => _isLoading;
   String? get message => _message;                
   bool get isSuccess => _isSuccess;               
   DealerProfile? get dealerProfile => _dealerProfile;                                             
   DeliverySettingsModel? get settings => _settings;                                                                                               
-  // Getters لحالة الفورم                         
   bool get deliveryActive => _deliveryActive;
   String get deliveryHours => _deliveryHours;     
   String get whatsappNumber => _whatsappNumber;   
@@ -56,48 +56,57 @@ class DeliverySettingsProvider with ChangeNotifier {
   String get minimumOrderValue => _minimumOrderValue;                                             
   String get descriptionForDelivery => _descriptionForDelivery;
                                                   
-  // 2. تحديث Constructor ليتلقى BuyerDataProvider                                                
   DeliverySettingsProvider(this._buyerData) {       
-    // 3. تعيين القيم الحقيقية من BuyerDataProvider
     _currentDealerId = _buyerData.loggedInUser?.id ?? '';
     _currentDealerOriginalPhone = _buyerData.loggedInUser?.phone ?? '';                         
     loadDeliveryData();                           
   }                                                                                               
+
   // ------------------------------------
-  // وظائف إدارة الحالة                           
+  // وظائف إدارة الحالة (محسنة)
   // ------------------------------------
   void showNotification(String msg, bool success) {                                                 
     _message = msg;                                 
     _isSuccess = success;
     notifyListeners();                            
+
+    // 🟢 ميزة الاختفاء التلقائي الاحترافي بعد 3 ثوانٍ
+    _messageTimer?.cancel(); 
+    _messageTimer = Timer(const Duration(seconds: 3), () {
+      _message = null;
+      notifyListeners();
+    });
   }                                               
+
   void clearNotification() {                        
     _message = null;
+    _messageTimer?.cancel();
     notifyListeners();                            
   }                                                                                               
+
   void setIsLoading(bool value) {
     _isLoading = value;
     notifyListeners();                            
   }                                                                                               
+
   void setDeliveryActive(bool value) {              
     _deliveryActive = value;
     notifyListeners();                            
   }                                                                                               
+
   // ------------------------------------         
-  // وظائف تحميل البيانات                         
+  // وظائف تحميل البيانات (معدلة لمنع الخطأ الوهمي)
   // ------------------------------------       
   Future<void> loadDeliveryData() async {           
     setIsLoading(true);                             
-    clearNotification();                        
+    _message = null; // بدء التحميل بصمت بدون رسائل قديمة
     
-    // 💡 استخدام المتغير الحقيقي (مطابق لـ JS في الحصول على ID)
     if (_currentDealerId.isEmpty) {                    
-        showNotification('يجب أن تكون مسجلاً كتاجر.', false);                                                                                            
         setIsLoading(false);                            
         return;                                      
     }                                                                                                                                               
     try {                                               
-        // 1. جلب بيانات التاجر الأساسية (مطابق لـ JS في طريقة البحث doc(ID))
+        // 1. جلب بيانات التاجر الأساسية
         final dealerDocSnap = await _firestore.collection(USERS_COLLECTION).doc(_currentDealerId).get();                                                
         if (dealerDocSnap.exists) {
             final data = dealerDocSnap.data()!;                                                             
@@ -110,47 +119,36 @@ class DeliverySettingsProvider with ChangeNotifier {
             }
                                                             
             _dealerProfile = DealerProfile(
-                name: data['fullname'] ?? data['name'] ?? 'غير معروف',                                          
-                address: data['address'] ?? 'غير متوفر',                                                        
+                name: data['fullname'] ?? data['name'] ?? 'تاجر معتمد',                                          
+                address: data['address'] ?? 'العنوان المسجل',                                                        
                 location: locationModel,                        
-                phone: data['phone'] ?? '' // جلب الهاتف من ملف التاجر الأساسي
+                phone: data['phone'] ?? '' 
             );                                                                                              
-            
             _currentDealerOriginalPhone = _dealerProfile!.phone;                                                                                        
-        } else {
-             // إذا فشل الجلب، هذا هو مصدر الرسالة الأولى
-             showNotification('لم يتم العثور على ملف التاجر الأساسي.', false);                               
-             setIsLoading(false);                            
-             return;
-        }                                                                                                                                               
-        // 2. جلب إعدادات الدليفري الفعلية (مطابق لـ JS في طريقة البحث doc(ID))
+        } 
+        
+        // 2. جلب إعدادات الدليفري الفعلية
         final deliveryDocSnap = await _firestore.collection(DELIVERY_COLLECTION).doc(_currentDealerId).get();                                   
         
         if (deliveryDocSnap.exists) {                                                                       
-            _settings = DeliverySettingsModel.fromFirestore(deliveryDocSnap); // 🚨 هذا قد ينهار هنا إذا كانت البيانات غير نظيفة 🚨
+            _settings = DeliverySettingsModel.fromFirestore(deliveryDocSnap); 
             
-            // تهيئة حقول الفورم بالقيم الموجودة
             _deliveryActive = _settings!.deliveryActive;                                                    
             _deliveryHours = _settings!.deliveryHours;                                                      
             _whatsappNumber = _settings!.whatsappNumber;                                        
-            
-            // منطق الـ JS: لو رقم الدليفري المتسجل هو نفسه رقم حساب التاجر الأصلي، نتركه فارغاً
             _deliveryPhone = (_settings!.deliveryContactPhone == _currentDealerOriginalPhone) ? '' : _settings!.deliveryContactPhone;                                                                       
-            
             _deliveryFee = _settings!.deliveryFee.toStringAsFixed(2);                           
             _minimumOrderValue = _settings!.minimumOrderValue.toStringAsFixed(2);                                                                           
             _descriptionForDelivery = _settings!.descriptionForDelivery;
-                                                                                                        
         } else {                                            
-            // إذا لم يتم العثور على مستند الدليفري                                                         
-            _settings = DeliverySettingsModel(ownerId: _currentDealerId); // إنشاء نموذج فارغ               
+            // إذا لم يتم العثور على مستند الدليفري (تاجر جديد لم يضبط إعداداته بعد)
+            _settings = DeliverySettingsModel(ownerId: _currentDealerId); 
             _deliveryActive = false;                    
-        }
-                                                    
+            _message = null; // نضمن عدم وجود رسالة "حدث خطأ"
+        }                                                    
     } catch (e) {                                       
-        // إذا ظهرت رسالة الخطأ الحمراء، فهذا هو مصدرها الوحيد المتبقي (مشاكل تحويل أو شبكة)
-        showNotification('حدث خطأ أثناء تحميل إعدادات الدليفري.', false);                                                                               
-        debugPrint('Error loading delivery data: $e'); // يجب مراجعة هذا السجل
+        // 🔴 لا يظهر هنا إلا إذا حدث خطأ تقني حقيقي (إنترنت أو صلاحيات)
+        debugPrint('Error loading delivery data: $e');
     }                                                                                               
     setIsLoading(false);                          
   }
@@ -170,22 +168,14 @@ class DeliverySettingsProvider with ChangeNotifier {
     clearNotification();
                                                                                                     
     if (_dealerProfile?.location == null) {           
-      showNotification('موقع السوبر ماركت غير متوفر. لا يمكن الحفظ.', false);
+      showNotification('موقع السوبر ماركت غير متوفر في ملفك الشخصي.', false);
       setIsLoading(false);                            
       return;                                                                                       
-    }
-                                                    
-    if (_currentDealerId.isEmpty) {
-        showNotification('هوية التاجر مفقودة.', false);
-        setIsLoading(false);                            
-        return;
     }
                                                     
     try {
         final double parsedFee = double.tryParse(fee) ?? 0.0;
         final double parsedMinOrder = double.tryParse(minOrder) ?? 0.0;                         
-        
-        // منطق تحديد رقم الهاتف للتواصل
         final contactPhone = phone.isEmpty ? _currentDealerOriginalPhone : phone;               
                                                         
         final DeliverySettingsModel dataToSave = DeliverySettingsModel(
@@ -193,7 +183,6 @@ class DeliverySettingsProvider with ChangeNotifier {
             supermarketName: _dealerProfile!.name,                                                                                                          
             address: _dealerProfile!.address,
             location: _dealerProfile!.location,
-            // الحقول القابلة للتحديث           
             deliveryActive: _deliveryActive,
             deliveryHours: hours,
             whatsappNumber: whatsapp,                                                                       
@@ -206,26 +195,29 @@ class DeliverySettingsProvider with ChangeNotifier {
         final deliveryDocRef = _firestore.collection(DELIVERY_COLLECTION).doc(_currentDealerId);
                                                 
         if (!_deliveryActive) {                             
-            // حالة: إيقاف الدليفري
             await deliveryDocRef.update({                       
                 'deliveryActive': false,
                 'lastUpdated': FieldValue.serverTimestamp()                                                 
             });                                             
-            showNotification('تم إيقاف خدمة الدليفري بنجاح.', true);                                    
+            showNotification('تم إيقاف الخدمة بنجاح، لن يراك العملاء حالياً.', true);                                    
         } else {                                            
-            // حالة: حفظ التعديلات وتفعيل الدليفري - (مطابق لـ JS set with merge: true)                                                          
             await deliveryDocRef.set(dataToSave.toFirestore(), SetOptions(merge: true));        
-            showNotification('تم حفظ وتحديث إعدادات الدليفري بنجاح!', true);                                                                            
+            showNotification('تم حفظ وتفعيل إعدادات الدليفري بنجاح!', true);                                                                            
         }
                                                         
-        // إعادة تحميل البيانات لتعكس التغييرات في الواجهة                                              
+        // إعادة التحميل بصمت لتحديث الواجهة
         await loadDeliveryData();
 
     } catch (e) {                               
-        showNotification('حدث خطأ أثناء حفظ التعديلات. يرجى المحاولة لاحقاً.', false);                   
+        showNotification('عذراً، فشل الحفظ. تأكد من اتصالك بالإنترنت.', false);                   
         debugPrint('Error submitting delivery settings: $e');
     }
-                                                    
     setIsLoading(false);                          
+  }
+
+  @override
+  void dispose() {
+    _messageTimer?.cancel(); // تنظيف التايمر عند إغلاق الشاشة
+    super.dispose();
   }                                             
 }
