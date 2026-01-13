@@ -6,7 +6,7 @@ import 'package:my_test_app/models/product_offer.dart';
 import '../models/category_model.dart'; 
 import 'buyer_data_provider.dart';
 
-// --- نموذج بيانات الكتالوج ---
+// --- نموذج المنتج للكتالوج ---
 class CatalogProductModel {
   final String id;
   final String name;
@@ -45,7 +45,7 @@ class ProductOfferProvider with ChangeNotifier {
     fetchMainCategories();
   }
 
-  // الحالة (State)
+  // --- الحالة (State) ---
   List<CategoryModel> _mainCategories = [];
   List<CategoryModel> _subCategories = [];
   List<CatalogProductModel> _searchResults = [];
@@ -57,7 +57,11 @@ class ProductOfferProvider with ChangeNotifier {
   String? _selectedMainId;
   String? _selectedSubId;
 
-  // Getters
+  // 🚨 متغيرات التنبيهات (لحماية شاشة product_offer_screen)
+  String? _message;
+  bool _isSuccess = true;
+
+  // --- Getters ---
   List<CategoryModel> get mainCategories => _mainCategories;
   List<CategoryModel> get subCategories => _subCategories;
   List<CatalogProductModel> get searchResults => _searchResults;
@@ -69,8 +73,24 @@ class ProductOfferProvider with ChangeNotifier {
   String? get ownerId => _buyerData.loggedInUser?.id;
   String? get selectedMainId => _selectedMainId;
   String? get selectedSubId => _selectedSubId;
+  
+  // 🚨 Getters التنبيهات المفقودة
+  String? get message => _message;
+  bool get isSuccess => _isSuccess;
 
-  // 1. دالة تهيئة البيانات (حل الخطأ الأول)
+  // --- وظائف التنبيهات ---
+  void showNotification(String msg, bool success) {
+    _message = msg;
+    _isSuccess = success;
+    notifyListeners();
+  }
+
+  void clearNotification() {
+    _message = null;
+    notifyListeners();
+  }
+
+  // --- وظائف إدارة العروض (للشاشة التي كانت تنهار) ---
   Future<void> initializeData(String ownerId) async {
     _isLoading = true;
     notifyListeners();
@@ -80,14 +100,11 @@ class ProductOfferProvider with ChangeNotifier {
       if (q.docs.isNotEmpty) {
         _supermarketName = q.docs.first.data()['supermarketName'];
       }
-    } catch (e) {
-      debugPrint("Init Error: $e");
-    }
+    } catch (e) { debugPrint("Init Error: $e"); }
     _isLoading = false;
     notifyListeners();
   }
 
-  // 2. دالة جلب العروض (حل الخطأ الثاني)
   Future<void> fetchOffers(String ownerId) async {
     _isLoading = true;
     _offers = [];
@@ -107,31 +124,26 @@ class ProductOfferProvider with ChangeNotifier {
         }
       }
       _offers = fetched;
-    } catch (e) {
-      debugPrint("Fetch Error: $e");
-    }
+    } catch (e) { debugPrint("Fetch Error: $e"); }
     _isLoading = false;
     notifyListeners();
   }
 
-  // 3. دالة الحذف (حل الخطأ الثالث)
   Future<void> deleteOffer(String offerId) async {
     await _firestore.collection('marketOffer').doc(offerId).delete();
     _offers.removeWhere((o) => o.id == offerId);
     notifyListeners();
   }
 
-  // 4. دالة تحديث السعر (حل الخطأ الرابع)
   Future<void> updateUnitPrice({required String offerId, required int unitIndex, required double newPrice}) async {
     final offer = _offers.firstWhere((o) => o.id == offerId);
     final updatedUnits = offer.units.map((u) => u.toMap()).toList();
     updatedUnits[unitIndex]['price'] = newPrice;
-
     await _firestore.collection('marketOffer').doc(offerId).update({'units': updatedUnits});
-    await fetchOffers(ownerId!); // تحديث القائمة
+    await fetchOffers(ownerId!); 
   }
 
-  // --- دوال الكتالوج والإضافة ---
+  // --- وظائف الكتالوج والإضافة ---
   void setSelectedMainCategory(String? id) {
     _selectedMainId = id; _selectedSubId = null;
     if (id != null) fetchSubCategories(id);
@@ -146,6 +158,7 @@ class ProductOfferProvider with ChangeNotifier {
 
   void selectProduct(CatalogProductModel? p) {
     _selectedProduct = p;
+    _selectedUnitPrices.clear();
     notifyListeners();
   }
 
@@ -169,24 +182,44 @@ class ProductOfferProvider with ChangeNotifier {
 
   Future<void> searchProducts(String term) async {
     if (_selectedSubId == null) return;
-    final q = await _firestore.collection('products').where('subId', isEqualTo: _selectedSubId).get();
-    _searchResults = q.docs.map((doc) => CatalogProductModel.fromFirestore(doc)).toList();
+    Query q = _firestore.collection('products').where('subId', isEqualTo: _selectedSubId);
+    if (term.isNotEmpty) {
+      q = q.where('name', isGreaterThanOrEqualTo: term).where('name', isLessThanOrEqualTo: term + '\uf8ff');
+    }
+    final snap = await q.limit(20).get();
+    _searchResults = snap.docs.map((doc) => CatalogProductModel.fromFirestore(doc)).toList();
     notifyListeners();
   }
 
   Future<void> submitOffer() async {
-    if (_selectedProduct == null || ownerId == null) return;
-    final units = _selectedUnitPrices.entries.map((e) => {'unitName': e.key, 'price': e.value}).toList();
-    await _firestore.collection('marketOffer').add({
-      'ownerId': ownerId,
-      'productId': _selectedProduct!.id,
-      'supermarketName': _supermarketName ?? 'متجر',
-      'units': units,
-      'status': 'active',
-      'createdAt': FieldValue.serverTimestamp(),
-    });
-    _selectedProduct = null;
-    _selectedUnitPrices.clear();
+    if (_selectedProduct == null || ownerId == null) {
+      showNotification("يرجى اختيار منتج أولاً", false);
+      return;
+    }
+    if (_selectedUnitPrices.isEmpty) {
+      showNotification("يرجى تحديد سعر لوحدة واحدة على الأقل", false);
+      return;
+    }
+
+    _isLoading = true;
+    notifyListeners();
+    try {
+      final units = _selectedUnitPrices.entries.map((e) => {'unitName': e.key, 'price': e.value}).toList();
+      await _firestore.collection('marketOffer').add({
+        'ownerId': ownerId,
+        'productId': _selectedProduct!.id,
+        'supermarketName': _supermarketName ?? 'متجر غير معروف',
+        'units': units,
+        'status': 'active',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      showNotification("تم إضافة العرض بنجاح", true);
+      _selectedProduct = null;
+      _selectedUnitPrices.clear();
+    } catch (e) {
+      showNotification("خطأ أثناء الإضافة: $e", false);
+    }
+    _isLoading = false;
     notifyListeners();
   }
 }
