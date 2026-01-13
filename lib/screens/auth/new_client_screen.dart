@@ -48,82 +48,13 @@ class _NewClientScreenState extends State<NewClientScreen> {
     super.dispose();
   }
 
-  // 🛡️ رسالة اشتراطات جوجل للشفافية (Disclosure Statement)
-  Future<bool> _showLocationDisclosure() async {
-    return await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(
-          children: [
-            Icon(Icons.location_on_rounded, color: Color(0xFF2D9E68)),
-            SizedBox(width: 10),
-            Text('الوصول إلى الموقع'),
-          ],
-        ),
-        content: const Text(
-          'تطبيق أكسب يجمع بيانات الموقع الجغرافي لتمكين ميزة "تحديد مكان النشاط التجاري" '
-          'ولضمان دقة التوصيل وربطك بأقرب الموردين، حتى عندما يكون التطبيق قيد الاستخدام أثناء عملية التسجيل.',
-          style: TextStyle(height: 1.5),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('لاحقاً', style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF2D9E68),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('موافق وفهمت', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    ) ?? false;
-  }
-
-  // 📍 دالة تحديد الموقع المحدثة
-  Future<void> _determinePosition() async {
-    // إظهار رسالة الشفافية أولاً
-    bool disclosureAccepted = await _showLocationDisclosure();
-    if (!disclosureAccepted) return;
-
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('❌ يرجى تفعيل GPS في الهاتف')),
-        );
-      }
-      return;
-    }
-
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) return;
-    }
-
-    try {
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high
-      );
-      setState(() {
-        _location = {'lat': position.latitude, 'lng': position.longitude};
-      });
-    } catch (e) {
-      debugPrint("Error location: $e");
-    }
-  }
+  // ✅ تم نقل رسالة الموقع لتكون داخل ملف التفاصيل عند الضغط على زر الموقع لتقليل الثقل
 
   void _goToStep(int step) {
     setState(() => _currentStep = step);
     _pageController.animateToPage(
       step - 1,
-      duration: const Duration(milliseconds: 400),
+      duration: const Duration(milliseconds: 500), // زيادة النعومة في الانتقال
       curve: Curves.easeInOutCubic,
     );
   }
@@ -141,36 +72,39 @@ class _NewClientScreenState extends State<NewClientScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        icon: const Icon(Icons.check_circle_outline, color: Color(0xFF2D9E68), size: 60),
-        title: const Text('تم التسجيل بنجاح', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold)),
-        content: Text(
-          isSeller
-              ? "تم استلام طلب انضمامك بنجاح! يسعدنا تواجدك معنا، يمكنك تسجيل الدخول فور موافقة الإدارة على حسابك."
-              : "مرحباً بك في أكسب! تم إنشاء حسابك بنجاح، يرجى تسجيل الدخول للاستمتاع بخدماتنا.",
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 12.sp),
-        ),
-        actions: [
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2D9E68),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-              onPressed: () => Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false),
-              child: const Text('الذهاب لتسجيل الدخول', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            ),
+      builder: (context) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+          icon: const Icon(Icons.check_circle_rounded, color: Color(0xFF2D9E68), size: 70),
+          title: Text('تم التسجيل بنجاح!', 
+            style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w900, color: const Color(0xFF2D9E68))),
+          content: Text(
+            isSeller
+                ? "شكراً لانضمامك لأسرة أكسب. طلبك قيد المراجعة حالياً، وسنقوم بتفعيل حسابك خلال 24 ساعة كحد أقصى."
+                : "أهلاً بك في أكسب! حسابك جاهز الآن، ابدأ رحلة توفيرك وجمع نقاطك من اليوم.",
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13.sp, color: Colors.black87),
           ),
-        ],
+          actions: [
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2D9E68),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                ),
+                onPressed: () => Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false),
+                child: Text('الذهاب لتسجيل الدخول', style: TextStyle(color: Colors.white, fontSize: 13.sp, fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  // 🎯 التسجيل النهائي مع دمج "رقم الهاتف" و "الميل الذكي"
   Future<void> _handleRegistration() async {
     final phoneValue = _controllers['phone']!.text.trim();
     final pass = _controllers['password']!.text;
@@ -181,7 +115,6 @@ class _NewClientScreenState extends State<NewClientScreen> {
       return;
     }
     
-    // إنشاء الميل الذكي كمعرف للهوية فقط
     String smartEmail = "$phoneValue@aksab.com";
 
     if (pass != confirmPass) {
@@ -189,16 +122,12 @@ class _NewClientScreenState extends State<NewClientScreen> {
       return;
     }
 
-    if (_location == null) {
-      await _determinePosition();
-    }
-
     setState(() => _isSaving = true);
     try {
       await _dataSource.registerClient(
         fullname: _controllers['fullname']!.text,
-        email: smartEmail,      // يرسل لـ Auth
-        phone: phoneValue,      // يرسل كحقل بيانات مستقل
+        email: smartEmail,
+        phone: phoneValue,
         password: pass,
         address: _controllers['address']!.text,
         country: _selectedCountry,
@@ -219,7 +148,7 @@ class _NewClientScreenState extends State<NewClientScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('❌ خطأ: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('❌ خطأ في التسجيل: $e')));
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
@@ -229,81 +158,76 @@ class _NewClientScreenState extends State<NewClientScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFBFDFB),
+      backgroundColor: const Color(0xFFFBFDFB), // لون خلفية مريح جداً
       body: Directionality(
         textDirection: TextDirection.rtl,
         child: SafeArea(
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
-              child: Column(
-                children: [
-                  const _LogoHeader(),
-                  SizedBox(height: 3.h),
-                  _buildStepProgress(),
-                  SizedBox(height: 4.h),
-                  Container(
-                    width: double.infinity,
-                    constraints: BoxConstraints(minHeight: 60.h, maxHeight: 85.h),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(30),
-                      boxShadow: [
-                        BoxShadow(
-                            color: Colors.black.withOpacity(0.04),
-                            blurRadius: 20,
-                            offset: const Offset(0, 10)),
+          child: Column( // تم التغيير لـ Column بدلاً من ScrollView هنا لتحسين أداء PageView
+            children: [
+              SizedBox(height: 2.h),
+              const _LogoHeader(),
+              SizedBox(height: 2.h),
+              _buildStepProgress(),
+              SizedBox(height: 2.h),
+              Expanded(
+                child: Container(
+                  width: double.infinity,
+                  margin: EdgeInsets.symmetric(horizontal: 5.w, vertical: 1.h),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(35),
+                    boxShadow: [
+                      BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 25, offset: const Offset(0, 5)),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(35),
+                    child: PageView(
+                      controller: _pageController,
+                      physics: const NeverScrollableScrollPhysics(),
+                      children: [
+                        ClientSelectionStep(
+                          stepNumber: 1,
+                          onCountrySelected: (country) {
+                            setState(() => _selectedCountry = country);
+                            _goToStep(2);
+                          },
+                          initialCountry: _selectedCountry,
+                          initialUserType: _selectedUserType,
+                        ),
+                        ClientSelectionStep(
+                          stepNumber: 2,
+                          initialCountry: _selectedCountry,
+                          initialUserType: _selectedUserType,
+                          onCompleted: _handleSelectionStep,
+                          onGoBack: () => _goToStep(1),
+                          onCountrySelected: (_) {},
+                        ),
+                        ClientDetailsStep(
+                          controllers: _controllers,
+                          selectedUserType: _selectedUserType,
+                          isSaving: _isSaving,
+                          onUploadComplete: ({required field, required url}) {
+                            setState(() {
+                              if (field == 'logo') _logoUrl = url;
+                              if (field == 'cr') _crUrl = url;
+                              if (field == 'tc') _tcUrl = url;
+                            });
+                          },
+                          onLocationChanged: ({required lat, required lng}) {
+                            setState(() => _location = {'lat': lat, 'lng': lng});
+                          },
+                          onRegister: _handleRegistration,
+                          onGoBack: () => _goToStep(2),
+                        ),
                       ],
                     ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(30),
-                      child: PageView(
-                        controller: _pageController,
-                        physics: const NeverScrollableScrollPhysics(),
-                        children: [
-                          ClientSelectionStep(
-                            stepNumber: 1,
-                            onCountrySelected: (country) {
-                              setState(() => _selectedCountry = country);
-                              _goToStep(2);
-                            },
-                            initialCountry: _selectedCountry,
-                            initialUserType: _selectedUserType,
-                          ),
-                          ClientSelectionStep(
-                            stepNumber: 2,
-                            initialCountry: _selectedCountry,
-                            initialUserType: _selectedUserType,
-                            onCompleted: _handleSelectionStep,
-                            onGoBack: () => _goToStep(1),
-                            onCountrySelected: (_) {},
-                          ),
-                          ClientDetailsStep(
-                            controllers: _controllers,
-                            selectedUserType: _selectedUserType,
-                            isSaving: _isSaving,
-                            onUploadComplete: ({required field, required url}) {
-                              setState(() {
-                                if (field == 'logo') _logoUrl = url;
-                                if (field == 'cr') _crUrl = url;
-                                if (field == 'tc') _tcUrl = url;
-                              });
-                            },
-                            onLocationChanged: ({required lat, required lng}) {
-                              setState(() => _location = {'lat': lat, 'lng': lng});
-                            },
-                            onRegister: _handleRegistration,
-                            onGoBack: () => _goToStep(2),
-                          ),
-                        ],
-                      ),
-                    ),
                   ),
-                  SizedBox(height: 3.h),
-                  const _Footer(),
-                ],
+                ),
               ),
-            ),
+              const _Footer(),
+              SizedBox(height: 2.h),
+            ],
           ),
         ),
       ),
@@ -311,38 +235,45 @@ class _NewClientScreenState extends State<NewClientScreen> {
   }
 
   Widget _buildStepProgress() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(3, (index) {
-        int stepNum = index + 1;
-        bool isCompleted = _currentStep > stepNum;
-        bool isActive = _currentStep == stepNum;
-        return Row(
-          children: [
-            Container(
-              width: 35,
-              height: 35,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: isActive || isCompleted ? const Color(0xFF2D9E68) : Colors.grey.shade200,
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 10.w),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: List.generate(3, (index) {
+          int stepNum = index + 1;
+          bool isCompleted = _currentStep > stepNum;
+          bool isActive = _currentStep == stepNum;
+          return Row(
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                width: 45,
+                height: 45,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isActive || isCompleted ? const Color(0xFF2D9E68) : Colors.grey.shade100,
+                  border: Border.all(color: isActive ? const Color(0xFF2D9E68) : Colors.transparent, width: 2),
+                ),
+                child: Center(
+                  child: isCompleted
+                      ? const Icon(Icons.check_rounded, color: Colors.white, size: 24)
+                      : Text('$stepNum',
+                          style: TextStyle(
+                              fontSize: 14.sp,
+                              color: isActive ? Colors.white : Colors.grey,
+                              fontWeight: FontWeight.bold)),
+                ),
               ),
-              child: Center(
-                child: isCompleted
-                    ? const Icon(Icons.check, color: Colors.white, size: 18)
-                    : Text('$stepNum',
-                        style: TextStyle(
-                            color: isActive ? Colors.white : Colors.grey,
-                            fontWeight: FontWeight.bold)),
-              ),
-            ),
-            if (index < 2)
-              Container(
-                  width: 15.w,
-                  height: 2,
-                  color: isCompleted ? const Color(0xFF2D9E68) : Colors.grey.shade200),
-          ],
-        );
-      }),
+              if (index < 2)
+                AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    width: 12.w,
+                    height: 4,
+                    color: isCompleted ? const Color(0xFF2D9E68) : Colors.grey.shade100),
+            ],
+          );
+        }),
+      ),
     );
   }
 }
@@ -353,13 +284,13 @@ class _LogoHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        const Icon(Icons.person_add_rounded, size: 50, color: Color(0xFF2D9E68)),
-        const SizedBox(height: 12),
-        Text('إنشاء حساب جديد',
+        const Icon(Icons.person_add_check_rounded, size: 60, color: Color(0xFF2D9E68)),
+        SizedBox(height: 1.h),
+        Text('انضم إلينا الآن',
             style: TextStyle(
-                fontSize: 20.sp, fontWeight: FontWeight.bold, color: const Color(0xFF1A1A1A))),
-        const SizedBox(height: 4),
-        Text('سجل برقم هاتفك لسهولة الوصول',
+                fontSize: 22.sp, fontWeight: FontWeight.w900, color: const Color(0xFF1A1A1A))),
+        SizedBox(height: 0.5.h),
+        Text('خطوات بسيطة وتبدأ تجربتك الفريدة مع أكسب',
             style: TextStyle(fontSize: 11.sp, color: Colors.grey.shade600)),
       ],
     );
@@ -370,18 +301,21 @@ class _Footer extends StatelessWidget {
   const _Footer();
   @override
   Widget build(BuildContext context) {
-    return TextButton(
-      onPressed: () => Navigator.of(context).pop(),
-      child: Text.rich(
-        TextSpan(
-          text: 'لديك حساب بالفعل؟ ',
-          style: TextStyle(color: Colors.grey.shade600, fontSize: 12.sp),
-          children: const [
-            TextSpan(
-              text: 'تسجيل الدخول',
-              style: TextStyle(color: Color(0xFF2D9E68), fontWeight: FontWeight.bold),
-            ),
-          ],
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 1.h),
+      child: TextButton(
+        onPressed: () => Navigator.of(context).pop(),
+        child: Text.rich(
+          TextSpan(
+            text: 'لديك حساب بالفعل؟ ',
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 13.sp),
+            children: const [
+              TextSpan(
+                text: 'تسجيل الدخول',
+                style: TextStyle(color: Color(0xFF2D9E68), fontWeight: FontWeight.w900, decoration: TextDecoration.underline),
+              ),
+            ],
+          ),
         ),
       ),
     );
