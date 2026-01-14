@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../screens/consumer/consumer_data_models.dart';
 
+// المسارات الصحيحة لنسخة المستهلك (Consumer) لضمان ظهور الشريط السفلي الأخضر
 import '../screens/consumer/consumer_category_screen.dart'; 
 import '../screens/consumer/consumer_product_list_screen.dart'; 
 import '../screens/consumer/MarketplaceHomeScreen.dart'; 
@@ -53,11 +54,8 @@ class _PromoSliderWidgetState extends State<PromoSliderWidget> {
   }
 
   void _handleNavigation(ConsumerBanner banner) {
-    // إعطاء الأولوية للـ targetType الجديد ثم الـ link القديم
-    final String type = (banner.targetType != null && banner.targetType!.isNotEmpty) 
-                        ? banner.targetType! 
-                        : (banner.link ?? ''); 
-    
+    // 🎯 الأولوية لـ linkType لأنه الحقل المليء بالبيانات في الفايربيز عندك
+    final String type = banner.linkType ?? banner.targetType ?? banner.link ?? ''; 
     final String targetId = banner.targetId ?? '';
     final String name = banner.name ?? 'عرض خاص';
 
@@ -66,7 +64,7 @@ class _PromoSliderWidgetState extends State<PromoSliderWidget> {
       return;
     }
 
-    switch (type.toUpperCase()) { // استخدام upperCase لضمان المطابقة
+    switch (type.toUpperCase()) { 
       case 'CATEGORY':
         Navigator.push(
           context,
@@ -81,13 +79,14 @@ class _PromoSliderWidgetState extends State<PromoSliderWidget> {
 
       case 'SUB_CATEGORY':
       case 'SUBCATEGORY':
-        // 🎯 الربط المباشر مع صفحة المنتجات والـ Grid
+        // 🎯 التوجيه المباشر لنسخة المستهلك لضمان الشريط السفلي الصحيح
+        // نمرر targetId ليكون هو subCategoryId الذي يبحث عنه الجريد
         Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => ConsumerProductListScreen(
-              mainCategoryId: '', // الجريد بيعتمد على subId فده مش هيأثر
-              subCategoryId: targetId, // ده اللي هيروح للجريد ويستخدمه كـ subId
+              mainCategoryId: '', 
+              subCategoryId: targetId,
               manufacturerId: null,
             ),
           ),
