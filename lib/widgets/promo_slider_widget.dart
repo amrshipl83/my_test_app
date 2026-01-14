@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../screens/consumer/consumer_data_models.dart';
 
-// التصحيح النهائي بناءً على ملفاتك الحقيقية
+// المسارات الصحيحة بناءً على بنية مشروعك الحالية
 import '../screens/consumer/consumer_category_screen.dart'; 
 import '../screens/consumer/consumer_product_list_screen.dart'; 
 import '../screens/consumer/MarketplaceHomeScreen.dart'; 
@@ -54,7 +54,7 @@ class _PromoSliderWidgetState extends State<PromoSliderWidget> {
   }
 
   void _handleNavigation(ConsumerBanner banner) {
-    // حل مشكلة الـ Null Safety لإرضاء مترجم جوجل (Compiler)
+    // التأكد من وجود قيم لتجنب أخطاء الـ Null Safety أثناء التشغيل
     final String type = banner.targetType ?? ''; 
     final String targetId = banner.targetId ?? '';
     final String name = banner.name ?? 'عرض خاص';
@@ -64,10 +64,9 @@ class _PromoSliderWidgetState extends State<PromoSliderWidget> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            // تأكد أن الكلاس اسمه ConsumerCategoryScreen داخل الملف
+            // تم حذف ownerId لتطابق الـ Constructor في ملف consumer_category_screen.dart
             builder: (context) => ConsumerCategoryScreen(
               mainCategoryId: targetId,
-              ownerId: widget.currentOwnerId ?? '', 
               mainCategoryName: name,
             ),
           ),
@@ -75,7 +74,6 @@ class _PromoSliderWidgetState extends State<PromoSliderWidget> {
         break;
 
       case 'SUB_CATEGORY':
-        // إذا كان لديك صفحة فرعية للمنتجات
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -100,7 +98,7 @@ class _PromoSliderWidgetState extends State<PromoSliderWidget> {
         break;
 
       default:
-        debugPrint("Banner type not supported or null: $type");
+        debugPrint("نوع البانر غير مدعوم حالياً: $type");
     }
   }
 
@@ -132,7 +130,7 @@ class _PromoSliderWidgetState extends State<PromoSliderWidget> {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(15),
                     boxShadow: const [
-                      BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 4))
+                      BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 3))
                     ],
                   ),
                   child: ClipRRect(
@@ -144,10 +142,7 @@ class _PromoSliderWidgetState extends State<PromoSliderWidget> {
                         color: Colors.grey[100],
                         child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
                       ),
-                      errorWidget: (context, url, error) => Container(
-                        color: Colors.grey[200],
-                        child: const Icon(Icons.broken_image, color: Colors.grey),
-                      ),
+                      errorWidget: (context, url, error) => const Icon(Icons.broken_image, color: Colors.grey),
                     ),
                   ),
                 ),
@@ -167,7 +162,7 @@ class _PromoSliderWidgetState extends State<PromoSliderWidget> {
       children: widget.banners.asMap().entries.map((entry) {
         return AnimatedContainer(
           duration: const Duration(milliseconds: 300),
-          width: _currentPage == entry.key ? 18 : 6,
+          width: _currentPage == entry.key ? 16 : 6,
           height: 6,
           margin: const EdgeInsets.symmetric(horizontal: 3),
           decoration: BoxDecoration(
