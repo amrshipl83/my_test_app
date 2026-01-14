@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../screens/consumer/consumer_data_models.dart';
 
-// المسارات الصحيحة بناءً على بنية مشروعك الحالية
+// المسارات الصحيحة
 import '../screens/consumer/consumer_category_screen.dart'; 
 import '../screens/consumer/consumer_product_list_screen.dart'; 
 import '../screens/consumer/MarketplaceHomeScreen.dart'; 
@@ -54,7 +54,6 @@ class _PromoSliderWidgetState extends State<PromoSliderWidget> {
   }
 
   void _handleNavigation(ConsumerBanner banner) {
-    // التأكد من وجود قيم لتجنب أخطاء الـ Null Safety أثناء التشغيل
     final String type = banner.targetType ?? ''; 
     final String targetId = banner.targetId ?? '';
     final String name = banner.name ?? 'عرض خاص';
@@ -64,10 +63,10 @@ class _PromoSliderWidgetState extends State<PromoSliderWidget> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            // تم حذف ownerId لتطابق الـ Constructor في ملف consumer_category_screen.dart
+            // تم التعديل ليتطابق بالملي مع الكلاس اللي بعته
             builder: (context) => ConsumerCategoryScreen(
               mainCategoryId: targetId,
-              mainCategoryName: name,
+              categoryName: name, // هنا التغيير: حذفنا كلمة main اللي كانت مسببة الخطأ
             ),
           ),
         );
@@ -80,6 +79,7 @@ class _PromoSliderWidgetState extends State<PromoSliderWidget> {
             builder: (context) => ConsumerProductListScreen(
               mainCategoryId: '', 
               subCategoryId: targetId,
+              manufacturerId: null, // إضافة manufacturerId كـ null كما هو متوقع في الصفحة
             ),
           ),
         );
@@ -98,7 +98,7 @@ class _PromoSliderWidgetState extends State<PromoSliderWidget> {
         break;
 
       default:
-        debugPrint("نوع البانر غير مدعوم حالياً: $type");
+        debugPrint("Unknown type: $type");
     }
   }
 
@@ -129,20 +129,15 @@ class _PromoSliderWidgetState extends State<PromoSliderWidget> {
                   margin: const EdgeInsets.symmetric(horizontal: 8),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(15),
-                    boxShadow: const [
-                      BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 3))
-                    ],
+                    boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)],
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(15),
                     child: CachedNetworkImage(
                       imageUrl: banner.imageUrl,
                       fit: BoxFit.cover,
-                      placeholder: (context, url) => Container(
-                        color: Colors.grey[100],
-                        child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                      ),
-                      errorWidget: (context, url, error) => const Icon(Icons.broken_image, color: Colors.grey),
+                      placeholder: (context, url) => const Center(child: CircularProgressIndicator()),
+                      errorWidget: (context, url, error) => const Icon(Icons.error),
                     ),
                   ),
                 ),
@@ -150,7 +145,7 @@ class _PromoSliderWidgetState extends State<PromoSliderWidget> {
             },
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         _buildDotsIndicator(),
       ],
     );
@@ -160,14 +155,13 @@ class _PromoSliderWidgetState extends State<PromoSliderWidget> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: widget.banners.asMap().entries.map((entry) {
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          width: _currentPage == entry.key ? 16 : 6,
+        return Container(
+          width: _currentPage == entry.key ? 12 : 6,
           height: 6,
           margin: const EdgeInsets.symmetric(horizontal: 3),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(10),
-            color: _currentPage == entry.key ? Colors.green[700] : Colors.grey[400],
+            color: _currentPage == entry.key ? Colors.green : Colors.grey,
           ),
         );
       }).toList(),
