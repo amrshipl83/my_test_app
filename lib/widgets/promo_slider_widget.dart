@@ -5,15 +5,15 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../screens/consumer/consumer_data_models.dart';
 
-// استيراد الصفحات اللي بعتها عشان التوجيه يشتغل
-import '../screens/consumer/ConsumerSubCategoryScreen.dart'; // لتست 1
-import '../screens/consumer/consumer_product_list_screen.dart'; // لتست 2
-import '../screens/consumer/MarketplaceHomeScreen.dart'; // لتست 3
+// تأكد من مسار واسم الملف الصحيح - غالباً الحروف سمول في flutter
+import '../screens/consumer/consumer_subcategory_screen.dart'; // تأكد من الاسم هنا
+import '../screens/consumer/consumer_product_list_screen.dart'; 
+import '../screens/consumer/MarketplaceHomeScreen.dart'; 
 
 class PromoSliderWidget extends StatefulWidget {
   final List<ConsumerBanner> banners;
   final double height;
-  final String? currentOwnerId; // نحتاجه لتوريث الـ ownerId إذا لزم الأمر
+  final String? currentOwnerId; 
 
   const PromoSliderWidget({
     super.key, 
@@ -53,16 +53,14 @@ class _PromoSliderWidgetState extends State<PromoSliderWidget> {
     });
   }
 
-  // 🎯 المحرك الذكي للمسارات (تست 1، 2، 3)
   void _handleNavigation(ConsumerBanner banner) {
-    // ملاحظة: تأكد أن موديل ConsumerBanner بيقرأ linkType و targetId من فايربيز
-    final String type = banner.targetType; // CATEGORY, SUB_CATEGORY, RETAILER
-    final String targetId = banner.targetId;
-    final String name = banner.name;
+    // حل مشكلة الـ Null Safety بإضافة القيمة الافتراضية ''
+    final String type = banner.targetType ?? ''; 
+    final String targetId = banner.targetId ?? '';
+    final String name = banner.name ?? 'عرض جديد';
 
     switch (type) {
       case 'CATEGORY':
-        // ✅ تست 1: يفتح الأقسام الفرعية (الخياطة/الملابس)
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -76,7 +74,6 @@ class _PromoSliderWidgetState extends State<PromoSliderWidget> {
         break;
 
       case 'SUB_CATEGORY':
-        // ✅ تست 2: يفتح قائمة المنتجات فوراً
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -89,7 +86,6 @@ class _PromoSliderWidgetState extends State<PromoSliderWidget> {
         break;
 
       case 'RETAILER':
-        // ✅ تست 3: يفتح السوبر ماركت (الماركت بليس)
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -102,7 +98,7 @@ class _PromoSliderWidgetState extends State<PromoSliderWidget> {
         break;
 
       default:
-        print("بانر بدون وجهة أو نوع غير معرف: $type");
+        debugPrint("نوع غير مدعوم: $type");
     }
   }
 
