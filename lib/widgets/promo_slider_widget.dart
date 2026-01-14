@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../screens/consumer/consumer_data_models.dart';
 
-// المسارات الصحيحة
 import '../screens/consumer/consumer_category_screen.dart'; 
 import '../screens/consumer/consumer_product_list_screen.dart'; 
 import '../screens/consumer/MarketplaceHomeScreen.dart'; 
@@ -54,17 +53,20 @@ class _PromoSliderWidgetState extends State<PromoSliderWidget> {
   }
 
   void _handleNavigation(ConsumerBanner banner) {
-    // 🎯 دعم كلي لنوعي البيانات (القديم والجديد)
-    final String type = banner.targetType ?? banner.link ?? ''; 
+    // إعطاء الأولوية للـ targetType الجديد ثم الـ link القديم
+    final String type = (banner.targetType != null && banner.targetType!.isNotEmpty) 
+                        ? banner.targetType! 
+                        : (banner.link ?? ''); 
+    
     final String targetId = banner.targetId ?? '';
     final String name = banner.name ?? 'عرض خاص';
 
     if (targetId.isEmpty) {
-      debugPrint("Navigation ignored: targetId is empty");
+      debugPrint("⚠️ لا يوجد ID للبانر - تم إلغاء التوجيه");
       return;
     }
 
-    switch (type) {
+    switch (type.toUpperCase()) { // استخدام upperCase لضمان المطابقة
       case 'CATEGORY':
         Navigator.push(
           context,
@@ -78,14 +80,15 @@ class _PromoSliderWidgetState extends State<PromoSliderWidget> {
         break;
 
       case 'SUB_CATEGORY':
-        // 🎯 التعديل ليتوافق مع الـ Constructor الخاص بصفحة المنتجات
+      case 'SUBCATEGORY':
+        // 🎯 الربط المباشر مع صفحة المنتجات والـ Grid
         Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => ConsumerProductListScreen(
-              mainCategoryId: '', // يتم تركها فارغة لأننا نعتمد على الفرعي
-              subCategoryId: targetId,
-              manufacturerId: null, // الوضع الافتراضي عند فتح القسم لأول مرة
+              mainCategoryId: '', // الجريد بيعتمد على subId فده مش هيأثر
+              subCategoryId: targetId, // ده اللي هيروح للجريد ويستخدمه كـ subId
+              manufacturerId: null,
             ),
           ),
         );
@@ -93,6 +96,7 @@ class _PromoSliderWidgetState extends State<PromoSliderWidget> {
 
       case 'RETAILER':
       case 'SELLER': 
+      case 'STORE':
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -105,7 +109,7 @@ class _PromoSliderWidgetState extends State<PromoSliderWidget> {
         break;
 
       default:
-        debugPrint("Unknown navigation type: $type");
+        debugPrint("❓ نوع توجيه غير معروف: $type");
     }
   }
 
