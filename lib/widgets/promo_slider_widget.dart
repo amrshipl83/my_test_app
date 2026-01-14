@@ -54,19 +54,22 @@ class _PromoSliderWidgetState extends State<PromoSliderWidget> {
   }
 
   void _handleNavigation(ConsumerBanner banner) {
-    final String type = banner.targetType ?? ''; 
+    // 🎯 التعديل الجوهري هنا: القراءة من linkType بدلاً من targetType 
+    // لأن ده اللي بتبعته لوحة الإدارة فعلياً
+    final String type = banner.targetType ?? banner.link ?? ''; 
     final String targetId = banner.targetId ?? '';
     final String name = banner.name ?? 'عرض خاص';
 
+    // ملاحظة: لو الموديل عندك بيخزن linkType في متغير link، نستخدمه كبديل
+    
     switch (type) {
       case 'CATEGORY':
         Navigator.push(
           context,
           MaterialPageRoute(
-            // تم التعديل ليتطابق بالملي مع الكلاس اللي بعته
             builder: (context) => ConsumerCategoryScreen(
               mainCategoryId: targetId,
-              categoryName: name, // هنا التغيير: حذفنا كلمة main اللي كانت مسببة الخطأ
+              categoryName: name,
             ),
           ),
         );
@@ -79,13 +82,14 @@ class _PromoSliderWidgetState extends State<PromoSliderWidget> {
             builder: (context) => ConsumerProductListScreen(
               mainCategoryId: '', 
               subCategoryId: targetId,
-              manufacturerId: null, // إضافة manufacturerId كـ null كما هو متوقع في الصفحة
+              manufacturerId: null,
             ),
           ),
         );
         break;
 
       case 'RETAILER':
+      case 'SELLER': // أضفنا SELLER لأنها موجودة في بياناتك في الفايربيز
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -99,6 +103,7 @@ class _PromoSliderWidgetState extends State<PromoSliderWidget> {
 
       default:
         debugPrint("Unknown type: $type");
+        // تنبيه بسيط في الـ Debug عشان تعرف لو فيه نوع جديد الإدارة بعتته
     }
   }
 
