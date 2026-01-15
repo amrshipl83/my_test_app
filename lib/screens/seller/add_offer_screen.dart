@@ -22,8 +22,9 @@ class _AddOfferScreenState extends State<AddOfferScreen> {
   // التحكم في المدخلات النصية (Controllers)
   final _priceController = TextEditingController();
   final _quantityController = TextEditingController();
-  final _minOrderController = TextEditingController(); // مطابق لـ minOrderSpecific
-  final _maxOrderController = TextEditingController(); // مطابق لـ maxOrderSpecific
+  final _minOrderController = TextEditingController(); 
+  final _maxOrderController = TextEditingController();
+  final _lowStockController = TextEditingController(); // 🎯 الحقل الجديد المضاف
 
   // متغيرات البيانات
   List<SelectItemModel> _mainCategories = [];
@@ -37,7 +38,6 @@ class _AddOfferScreenState extends State<AddOfferScreen> {
   String? _selectedUnitName;
   List<String> _availableUnits = [];
   
-  // بيانات البائع المتوافقة مع الويب
   List<String> _sellerDeliveryAreas = []; 
   String _sellerName = "المورد";
 
@@ -58,22 +58,19 @@ class _AddOfferScreenState extends State<AddOfferScreen> {
     _quantityController.dispose();
     _minOrderController.dispose();
     _maxOrderController.dispose();
+    _lowStockController.dispose(); // 🎯 إغلاق الـ Controller الجديد
     super.dispose();
   }
 
-  // --- جلب البيانات الأولية (مطابق لمنطق HTML) ---
   Future<void> _loadInitialData() async {
     try {
       final categories = await _dataSource.loadMainCategories();
-      
-      // جلب وثيقة البائع للحصول على الاسم ومناطق التوصيل (deliveryAreas)
       final sellerDoc = await FirebaseFirestore.instance.collection('sellers').doc(_currentSellerId).get();
       
       if (sellerDoc.exists) {
         final data = sellerDoc.data()!;
         setState(() {
           _mainCategories = categories;
-          // جلب مناطق التوصيل كما في الويب لضمان اشتغال الفلاتر
           _sellerDeliveryAreas = List<String>.from(data['deliveryAreas'] ?? []);
           _sellerName = data['merchantName'] ?? data['supermarketName'] ?? "مورد غير معروف";
           _isLoading = false;
@@ -88,7 +85,6 @@ class _AddOfferScreenState extends State<AddOfferScreen> {
     }
   }
 
-  // منطق جلب الأقسام والمنتجات (نفس الكود المستقر)
   Future<void> _loadSubCategories(String mainId) async {
     try {
       final subCats = await _dataSource.loadSubCategories(mainId);
@@ -136,7 +132,6 @@ class _AddOfferScreenState extends State<AddOfferScreen> {
     });
   }
 
-  // --- دالة الحفظ النهائية (مطابقة تماماً للـ HTML) ---
   Future<void> _submitOffer() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedProductId == null || _selectedUnitName == null) {
@@ -160,7 +155,7 @@ class _AddOfferScreenState extends State<AddOfferScreen> {
         productId: selectedProduct.id,
         productName: selectedProduct.name,
         imageUrl: selectedProduct.imageUrl,
-        deliveryZones: _sellerDeliveryAreas, // إرسال مناطق التوصيل للفلترة
+        deliveryZones: _sellerDeliveryAreas,
         units: [
           OfferUnitModel(
             unitName: _selectedUnitName!,
@@ -168,9 +163,10 @@ class _AddOfferScreenState extends State<AddOfferScreen> {
             availableStock: int.parse(_quantityController.text),
           ),
         ],
-        // 🎯 الحقول المفقودة التي تمت إضافتها لتطابق الـ HTML
         minOrder: int.tryParse(_minOrderController.text),
         maxOrder: int.tryParse(_maxOrderController.text),
+        // 🎯 الحقل الجديد يُرسل هنا للقاعدة
+        lowStockThreshold: int.tryParse(_lowStockController.text) ?? 5, 
       );
 
       await _dataSource.addOffer(offerModel);
@@ -182,6 +178,7 @@ class _AddOfferScreenState extends State<AddOfferScreen> {
       _quantityController.clear();
       _minOrderController.clear();
       _maxOrderController.clear();
+      _lowStockController.clear(); // تنظيف الحقل الجديد
 
       setState(() {
         _selectedProductId = null;
@@ -198,7 +195,6 @@ class _AddOfferScreenState extends State<AddOfferScreen> {
     }
   }
 
-  // --- واجهة المستخدم الاحترافية ---
   Widget _buildStepCard({required String step, required String title, required IconData icon, required List<Widget> children}) {
     return Container(
       margin: EdgeInsets.only(bottom: 2.5.h),
@@ -333,10 +329,17 @@ class _AddOfferScreenState extends State<AddOfferScreen> {
                     keyboardType: TextInputType.number,
                     hintText: 'مثال: 100',
                   ),
+                  SizedBox(height: 2.h),
+                  // 🎯 حقل تحذير المخزون الجديد
+                  CustomInputField(
+                    label: 'حد التحذير لنقص المخزون',
+                    controller: _lowStockController,
+                    keyboardType: TextInputType.number,
+                    hintText: 'مثال: 10',
+                  ),
                 ],
               ),
 
-              // 🎯 الخطوة الإضافية المطابقة للويب
               _buildStepCard(
                 step: "4",
                 title: "سياسة الطلب (اختياري)",
