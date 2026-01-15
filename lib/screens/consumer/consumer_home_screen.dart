@@ -201,13 +201,15 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTick
 
   // --- Widgets ---
 
+  // 🛠️ تم تحديث منطق الأيقونة هنا ليتناسب مع Firestore ومعالجة الإشعارات غير المقروءة
   Widget _buildNotificationIcon(String? uid) {
+    if (uid == null) return const SizedBox.shrink();
+
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
-          .collection('nofictions')
+          .collection('notifications') // التصحيح من nofictions إلى notifications
           .where('userId', isEqualTo: uid)
-          .orderBy('createdAt', descending: true)
-          .limit(10)
+          .where('isRead', isEqualTo: false) // جلب الإشعارات الجديدة فقط
           .snapshots(),
       builder: (context, snapshot) {
         int notificationCount = snapshot.hasData ? snapshot.data!.docs.length : 0;
@@ -215,7 +217,13 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTick
           alignment: Alignment.center,
           children: [
             IconButton(
-              icon: Icon(Icons.notifications_active_outlined, color: softGreen, size: 26),
+              icon: Icon(
+                notificationCount > 0 
+                  ? Icons.notifications_active 
+                  : Icons.notifications_active_outlined, 
+                color: softGreen, 
+                size: 26
+              ),
               onPressed: () => Navigator.pushNamed(context, '/notifications'), 
             ),
             if (notificationCount > 0)
@@ -224,9 +232,14 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTick
                 right: 8,
                 child: Container(
                   padding: const EdgeInsets.all(2),
-                  decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(10)),
+                  decoration: BoxDecoration(
+                    color: Colors.red, 
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.white, width: 1),
+                  ),
                   constraints: const BoxConstraints(minWidth: 14, minHeight: 14),
-                  child: Text('$notificationCount', 
+                  child: Text(
+                    notificationCount > 9 ? '+9' : '$notificationCount', 
                     style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
                     textAlign: TextAlign.center,
                   ),
