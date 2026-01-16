@@ -28,7 +28,6 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
   final MarketplaceDataService _dataService = MarketplaceDataService();
   late Future<List<CategoryModel>> _categoriesFuture;
   
-  // متغيرات السلايدر المتحرك تلقائياً
   final PageController _bannerPageController = PageController();
   Timer? _bannerTimer;
   int _currentBannerPage = 0;
@@ -38,7 +37,6 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
     super.initState();
     _categoriesFuture = _dataService.fetchCategoriesByOffers(widget.currentStoreId);
     
-    // إعداد التحريك التلقائي للبانر
     _bannerTimer = Timer.periodic(const Duration(seconds: 5), (Timer timer) {
       if (_bannerPageController.hasClients) {
         _currentBannerPage++;
@@ -62,7 +60,6 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
   Widget build(BuildContext context) {
     final buyerProvider = Provider.of<BuyerDataProvider>(context);
     final cartProvider = Provider.of<CartProvider>(context);
-    // توحيد الترحيب: حذف "أهلاً بك" المكررة والتركيز على الاسم
     final welcomeName = buyerProvider.userName ?? 'عميلنا العزيز';
 
     return Directionality(
@@ -73,17 +70,17 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
         body: CustomScrollView(
           physics: const BouncingScrollPhysics(),
           slivers: [
-            // 1. قسم البانرات المتحرك (Auto Slider) مع الفلترة
+            // 1. السلايدر المتحرك
             SliverToBoxAdapter(child: _buildAutoBannerSlider()),
 
-            // 2. عنوان "الأقسام الرئيسية" (تم حذف عرض الكل وتكبير الخط)
+            // 2. عنوان الأقسام
             SliverToBoxAdapter(
               child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 5.w, vertical: 2.h),
+                padding: EdgeInsets.only(right: 5.w, left: 5.w, top: 3.h, bottom: 2.h),
                 child: Text(
                   "الأقسام الرئيسية",
                   style: TextStyle(
-                    fontSize: 19, // المقاس المطلوب
+                    fontSize: 19,
                     fontWeight: FontWeight.w900, 
                     color: const Color(0xFF2D3142)
                   ),
@@ -91,7 +88,7 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
               ),
             ),
 
-            // 3. شبكة الأقسام بكروت تملاها الصورة
+            // 3. شبكة الأقسام المحسنة
             _buildPremiumCategoriesGrid(),
 
             const SliverToBoxAdapter(child: SizedBox(height: 120)),
@@ -106,26 +103,49 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
     return AppBar(
       elevation: 0,
       backgroundColor: Colors.white,
-      toolbarHeight: 9.h,
+      toolbarHeight: 10.h,
       automaticallyImplyLeading: false,
-      title: Row(
-        children: [
-          CircleAvatar(
-            radius: 22,
-            backgroundColor: AppTheme.primaryGreen.withOpacity(0.1),
-            child: Icon(Icons.person, color: AppTheme.primaryGreen, size: 28),
-          ),
-          SizedBox(width: 4.w),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text("مرحباً بك، $name",
-                style: const TextStyle(fontSize: 19, color: Color(0xFF2D3142), fontWeight: FontWeight.bold)),
-              Text(widget.currentStoreName,
-                style: TextStyle(fontSize: 14, color: Colors.grey[600], fontWeight: FontWeight.w500)),
-            ],
-          ),
-        ],
+      title: Padding(
+        padding: EdgeInsets.only(top: 1.h),
+        child: Row(
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))
+                ]
+              ),
+              child: CircleAvatar(
+                radius: 24,
+                backgroundColor: AppTheme.primaryGreen.withOpacity(0.1),
+                child: Icon(Icons.person_rounded, color: AppTheme.primaryGreen, size: 30),
+              ),
+            ),
+            SizedBox(width: 4.w),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text("أهلاً بك،", 
+                  style: TextStyle(fontSize: 12, color: Colors.grey[500], fontWeight: FontWeight.w500)),
+                Text(name,
+                  style: const TextStyle(fontSize: 18, color: Color(0xFF2D3142), fontWeight: FontWeight.w900)),
+              ],
+            ),
+            const Spacer(),
+            // عرض اسم المتجر في زاوية أنيقة
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryGreen.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(12)
+              ),
+              child: Text(widget.currentStoreName,
+                style: TextStyle(fontSize: 11, color: AppTheme.primaryGreen, fontWeight: FontWeight.bold)),
+            )
+          ],
+        ),
       ),
     );
   }
@@ -139,7 +159,6 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const SizedBox.shrink();
 
-        // فلترة البانرات بناءً على المتجر الحالي أو البانرات العامة
         final banners = snapshot.data!.docs.where((doc) {
           final data = doc.data() as Map<String, dynamic>;
           return data['ownerId'] == widget.currentStoreId || data['targetAudience'] == 'general';
@@ -158,13 +177,15 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
                 margin: EdgeInsets.symmetric(horizontal: 4.w),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(20),
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10)],
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 15, offset: const Offset(0, 8))
+                  ],
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(20),
                   child: Image.network(
                     data['imageUrl'], 
-                    fit: BoxFit.cover, // الصورة تملا الحاوية بالكامل
+                    fit: BoxFit.cover,
                   ),
                 ),
               );
@@ -188,7 +209,7 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
           sliver: SliverGrid(
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
-              childAspectRatio: 0.8,
+              childAspectRatio: 0.82,
               crossAxisSpacing: 4.w,
               mainAxisSpacing: 4.w,
             ),
@@ -204,25 +225,27 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
                   child: Container(
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10)],
+                      borderRadius: BorderRadius.circular(22),
+                      boxShadow: [
+                        BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 12, offset: const Offset(0, 5))
+                      ],
                     ),
                     child: Column(
                       children: [
                         Expanded(
                           child: ClipRRect(
-                            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                            borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
                             child: Image.network(
                               cat.imageUrl, 
                               width: double.infinity,
-                              fit: BoxFit.cover, // الصورة تملا الكارت بالكامل
+                              fit: BoxFit.cover,
                             ),
                           ),
                         ),
                         Padding(
-                          padding: EdgeInsets.symmetric(vertical: 1.5.h),
+                          padding: EdgeInsets.symmetric(vertical: 1.8.h),
                           child: Text(cat.name,
-                            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 19, color: Color(0xFF2D3142))),
+                            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Color(0xFF2D3142))),
                         ),
                       ],
                     ),
@@ -239,11 +262,18 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
 
   Widget _buildModernBottomNav(CartProvider cart) {
     return Container(
-      decoration: BoxDecoration(boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 20)]),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 20, offset: const Offset(0, -5))
+        ]
+      ),
       child: BottomNavigationBar(
         currentIndex: 0,
         selectedItemColor: AppTheme.primaryGreen,
         unselectedItemColor: Colors.grey[400],
+        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
+        unselectedLabelStyle: const TextStyle(fontFamily: 'Cairo'),
         type: BottomNavigationBarType.fixed,
         items: [
           const BottomNavigationBarItem(icon: Icon(Icons.home_filled, size: 28), label: 'الرئيسية'),
@@ -259,6 +289,7 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
           const BottomNavigationBarItem(icon: Icon(Icons.person_rounded, size: 28), label: 'حسابي'),
         ],
         onTap: (index) {
+          if (index == 0) return;
           if (index == 1) Navigator.pushNamed(context, '/cart');
           if (index == 2) Navigator.pushNamed(context, '/orders');
           if (index == 3) Navigator.pushNamed(context, '/profile');
@@ -267,4 +298,3 @@ class _MarketplaceHomeScreenState extends State<MarketplaceHomeScreen> {
     );
   }
 }
-
