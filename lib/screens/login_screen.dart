@@ -2,7 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:my_test_app/widgets/login_form_widget.dart';
 import 'package:flutter/gestures.dart';
-import 'package:sizer/sizer.dart'; // سنستخدم sizer للخطوط
+import 'package:sizer/sizer.dart';
+import 'package:url_launcher/url_launcher.dart'; // تأكد من وجود هذه المكتبة لفتح الرابط
 
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
@@ -35,7 +36,7 @@ class LoginScreen extends StatelessWidget {
                     Text(
                       'أهلاً بك في أكسب',
                       style: TextStyle(
-                        fontSize: 22.sp, // خط كبير وواضح
+                        fontSize: 22.sp,
                         fontWeight: FontWeight.w900, 
                         color: const Color(0xFF1A1A1A)
                       ),
@@ -59,10 +60,10 @@ class LoginScreen extends StatelessWidget {
                           )
                         ],
                       ),
-                      child: const LoginFormWidget(), // 🎯 هنا يتم التعديل الجوهري
+                      child: const LoginFormWidget(),
                     ),
-                    SizedBox(height: 4.h),
-                    const _FooterWidget(),
+                    SizedBox(height: 3.h),
+                    const _FooterWidget(), // المكون المحدث الذي يحتوي على الشروط
                   ],
                 ),
               ),
@@ -74,23 +75,79 @@ class LoginScreen extends StatelessWidget {
   }
 }
 
-class _FooterWidget extends StatelessWidget {
+class _FooterWidget extends StatefulWidget {
   const _FooterWidget();
+
+  @override
+  State<_FooterWidget> createState() => _FooterWidgetState();
+}
+
+class _FooterWidgetState extends State<_FooterWidget> {
+  bool _isAccepted = true; // الحالة الافتراضية للموافقة
+
+  void _launchPrivacyUrl() async {
+    final Uri url = Uri.parse('https://amrshipl83.github.io/aksabprivce/');
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      debugPrint('Could not launch $url');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Text.rich(
-      TextSpan(
-        text: 'ليس لديك حساب؟ ',
-        style: TextStyle(color: Colors.grey.shade700, fontSize: 13.sp),
-        children: [
+    const Color primaryGreen = Color(0xFF2D9E68);
+
+    return Column(
+      children: [
+        // --- قسم شروط الاستخدام والخصوصية ---
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Checkbox(
+              value: _isAccepted,
+              activeColor: primaryGreen,
+              onChanged: (value) {
+                setState(() {
+                  _isAccepted = value ?? false;
+                });
+              },
+            ),
+            Text.rich(
+              TextSpan(
+                text: 'أوافق على ',
+                style: TextStyle(color: Colors.grey.shade700, fontSize: 11.sp),
+                children: [
+                  TextSpan(
+                    text: 'شروط الاستخدام والخصوصية',
+                    style: const TextStyle(
+                      color: primaryGreen,
+                      fontWeight: FontWeight.bold,
+                      decoration: TextDecoration.underline,
+                    ),
+                    recognizer: TapGestureRecognizer()..onTap = _launchPrivacyUrl,
+                  ),
+                ],
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        SizedBox(height: 1.h),
+        // --- قسم إنشاء حساب جديد ---
+        Text.rich(
           TextSpan(
-            text: 'إنشاء حساب جديد',
-            style: TextStyle(color: const Color(0xFF2D9E68), fontWeight: FontWeight.bold),
-            recognizer: TapGestureRecognizer()..onTap = () => Navigator.of(context).pushNamed('/register'),
+            text: 'ليس لديك حساب؟ ',
+            style: TextStyle(color: Colors.grey.shade700, fontSize: 13.sp),
+            children: [
+              TextSpan(
+                text: 'إنشاء حساب جديد',
+                style: const TextStyle(color: primaryGreen, fontWeight: FontWeight.bold),
+                recognizer: TapGestureRecognizer()..onTap = () => Navigator.of(context).pushNamed('/register'),
+              ),
+            ],
           ),
-        ],
-      ),
-      textAlign: TextAlign.center,
+          textAlign: TextAlign.center,
+        ),
+      ],
     );
   }
 }
