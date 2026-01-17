@@ -142,8 +142,8 @@ class _HomeContentState extends State<HomeContent> {
             itemCount: _categories.length,
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 3, 
-              childAspectRatio: 0.85, // تعديل بسيط لضمان عدم قص النص
-              mainAxisSpacing: 10,
+              childAspectRatio: 0.8, // تعديل بسيط لضمان عدم قص النص
+              mainAxisSpacing: 15,
               crossAxisSpacing: 10
             ),
             itemBuilder: (context, index) => _buildCategoryCard(_categories[index]),
@@ -170,7 +170,7 @@ class _HomeContentState extends State<HomeContent> {
       child: Column(
         children: [
           Container(
-            width: 70, height: 70,
+            width: 85, height: 85,
             decoration: BoxDecoration(
               color: Colors.white, shape: BoxShape.circle,
               boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 8, offset: const Offset(0, 4))],
@@ -181,7 +181,7 @@ class _HomeContentState extends State<HomeContent> {
                 : const Icon(Icons.category, size: 35, color: Color(0xFF4CAF50)),
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Text(data['name'], 
             textAlign: TextAlign.center,
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, fontFamily: 'Tajawal'), 
