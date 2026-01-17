@@ -53,7 +53,6 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     }
   }
 
-  // 🛒 دالة الإضافة للسلة (محدثة بمفاتيح الأمان)
   Future<void> _addToCart(Map<String, dynamic> offer) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -110,7 +109,6 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   }
 
   Future<void> _loadProductAndOffers() async {
-    // 1. إذا كان معي عرض فقط، أجلب المنتج المرتبط به
     if (_currentProductId == null && _currentOfferId != null) {
       try {
         final offerSnap = await _db.collection('productOffers').doc(_currentOfferId).get();
@@ -125,7 +123,6 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
       return;
     }
 
-    // 2. جلب بيانات المنتج
     try {
       final productDoc = await _db.collection('products').doc(_currentProductId!).get();
       if (productDoc.exists) {
@@ -136,7 +133,6 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     } catch (e) { _errorMessage = 'خطأ في تحميل المنتج'; }
     finally { if (mounted) setState(() => _isLoadingProduct = false); }
 
-    // 3. جلب العروض
     if (_currentOfferId != null) {
       await _loadSpecificOffer(_currentOfferId!);
     } else {
@@ -156,7 +152,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
               ...data, 
               'id': doc.id, 
               'sellerInfo': sellerInfo,
-              'price': data['price'] ?? 0.0 // التأكد من وجود السعر
+              'price': data['price'] ?? 0.0
             }];
           });
         }
@@ -219,11 +215,10 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // الصور
                 if (images.isNotEmpty)
                   Container(
                     height: 250,
-                    margin: const EdgeInsets.bottom(20),
+                    margin: const EdgeInsets.only(bottom: 20), // ✅ تم التصحيح هنا
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(15),
                       image: DecorationImage(image: NetworkImage(images.first), fit: BoxFit.cover),
@@ -232,6 +227,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                 else
                   Container(
                     height: 150,
+                    margin: const EdgeInsets.only(bottom: 20), // ✅ تم التصحيح هنا
                     color: Colors.grey[200],
                     child: const Icon(Icons.image_not_supported, size: 50, color: Colors.grey),
                   ),
@@ -282,7 +278,11 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                 onPressed: () => _addToCart(offer),
                 icon: const Icon(Icons.add_shopping_cart, color: Colors.white, size: 20),
                 label: const Text('أضف للسلة', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryGreen, padding: const EdgeInsets.symmetric(vertical: 12)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryGreen, 
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
               ),
             )
           ],
