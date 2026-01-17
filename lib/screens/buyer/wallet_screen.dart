@@ -10,9 +10,36 @@ import '../../theme/app_theme.dart';
 import '../../widgets/buyer_mobile_nav_widget.dart';
 import 'gifts_tab.dart'; 
 
-class WalletScreen extends StatelessWidget {
+class WalletScreen extends StatefulWidget {
   static const String routeName = '/wallet';
   const WalletScreen({super.key});
+
+  @override
+  State<WalletScreen> createState() => _WalletScreenState();
+}
+
+class _WalletScreenState extends State<WalletScreen> {
+  late Future<void> _initDataFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    // ✅ نقوم بتهيئة البيانات مرة واحدة عند تشغيل الصفحة
+    _initDataFuture = _refreshAllData();
+  }
+
+  Future<void> _refreshAllData() async {
+    final buyerProvider = Provider.of<BuyerDataProvider>(context, listen: false);
+    final cashbackProvider = Provider.of<CashbackProvider>(context, listen: false);
+    
+    // 1. التأكد من تحميل بيانات المستخدم (الاسم والمعرف)
+    await buyerProvider.loadUserData();
+    // 2. جلب رصيد الكاش باك والعروض المتوفرة للمستخدم
+    await Future.wait([
+      cashbackProvider.fetchCashbackBalance(),
+      cashbackProvider.fetchAvailableOffers(),
+    ]);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,11 +58,11 @@ class WalletScreen extends StatelessWidget {
             appBar: AppBar(
               backgroundColor: AppTheme.primaryGreen,
               elevation: 0,
-              toolbarHeight: 70, // زيادة مساحة العنوان
+              toolbarHeight: 70,
               title: Text(
                 'المحفظة والعروض',
                 style: GoogleFonts.cairo(
-                  fontSize: 20.sp, // خط كبير وواضح
+                  fontSize: 20.sp,
                   fontWeight: FontWeight.bold, 
                   color: Colors.white
                 ),
@@ -52,13 +79,22 @@ class WalletScreen extends StatelessWidget {
                 ],
               ),
             ),
-            body: SafeArea(
-              child: TabBarView(
-                children: [
-                  _buildCashbackTab(context),
-                  const GiftsTab(),
-                ],
-              ),
+            // ✅ استخدام FutureBuilder هنا يضمن أن الواجهة لن تظهر "فاضية" بل ستظهر مؤشر تحميل حتى تكتمل البيانات
+            body: FutureBuilder(
+              future: _initDataFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator(color: AppTheme.primaryGreen));
+                }
+                return SafeArea(
+                  child: TabBarView(
+                    children: [
+                      _buildCashbackTab(context),
+                      const GiftsTab(),
+                    ],
+                  ),
+                );
+              },
             ),
             bottomNavigationBar: BuyerMobileNavWidget(
               selectedIndex: 3,
@@ -81,7 +117,6 @@ class WalletScreen extends StatelessWidget {
 
     return Column(
       children: [
-        // كارت الرصيد العلوي المحدث
         Container(
           width: double.infinity,
           padding: EdgeInsets.symmetric(horizontal: 20.sp, vertical: 20.sp),
@@ -106,7 +141,7 @@ class WalletScreen extends StatelessWidget {
         
         Expanded(
           child: RefreshIndicator(
-            onRefresh: () => Provider.of<CashbackProvider>(context, listen: false).fetchAvailableOffers(),
+            onRefresh: _refreshAllData,
             child: _buildCashbackGoalsList(),
           ),
         ),
@@ -115,73 +150,65 @@ class WalletScreen extends StatelessWidget {
   }
 
   Widget _buildBalanceCard(CashbackProvider provider) {
-    return FutureBuilder<double>(
-      future: provider.fetchCashbackBalance(),
-      builder: (context, snapshot) {
-        double balance = snapshot.data ?? 0.0;
-        return Container(
-          padding: EdgeInsets.all(15.sp),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white24),
+    // نستخدم الرصيد المحمل مسبقاً في initState لضمان سرعة الاستجابة
+    return Container(
+      padding: EdgeInsets.all(15.sp),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            'رصيدك المتاح: ',
+            style: GoogleFonts.cairo(fontSize: 18.sp, color: Colors.white),
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                'رصيدك المتاح: ',
-                style: GoogleFonts.cairo(fontSize: 18.sp, color: Colors.white),
-              ),
-              Text(
-                '${balance.toStringAsFixed(2)} ج',
-                style: GoogleFonts.cairo(
-                  fontSize: 22.sp, 
-                  fontWeight: FontWeight.w900, 
-                  color: const Color(0xFFFFD700) // لون ذهبي للرصيد
-                ),
-              ),
-            ],
+          Text(
+            '${provider.availableBalance.toStringAsFixed(2)} ج',
+            style: GoogleFonts.cairo(
+              fontSize: 22.sp, 
+              fontWeight: FontWeight.w900, 
+              color: const Color(0xFFFFD700) 
+            ),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 
   Widget _buildCashbackGoalsList() {
     return Consumer<CashbackProvider>(
       builder: (context, provider, _) {
-        return FutureBuilder<List<Map<String, dynamic>>>(
-          future: provider.fetchAvailableOffers(),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            final goals = snapshot.data ?? [];
-            if (goals.isEmpty) {
-              return Center(
+        final goals = provider.offersList; // نعتمد على القائمة المخزنة في البروفايدر
+
+        if (goals.isEmpty) {
+          return ListView( // نستخدم ListView ليتمكن المستخدم من السحب لأسفل للتحديث
+            physics: const AlwaysScrollableScrollPhysics(),
+            children: [
+              SizedBox(height: 15.h),
+              Center(
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(Icons.receipt_long_outlined, size: 60.sp, color: Colors.grey[300]),
                     Text('لا توجد عروض حالياً', style: GoogleFonts.cairo(fontSize: 18.sp, color: Colors.grey)),
                   ],
                 ),
-              );
-            }
-            return ListView.builder(
-              padding: EdgeInsets.fromLTRB(15.sp, 15.sp, 15.sp, 30.sp),
-              itemCount: goals.length,
-              itemBuilder: (context, index) => _buildGoalCard(goals[index]),
-            );
-          },
+              ),
+            ],
+          );
+        }
+        return ListView.builder(
+          padding: EdgeInsets.fromLTRB(15.sp, 15.sp, 15.sp, 30.sp),
+          itemCount: goals.length,
+          itemBuilder: (context, index) => _buildGoalCard(goals[index]),
         );
       },
     );
   }
 
   Widget _buildGoalCard(Map<String, dynamic> goal) {
-    // التوافق مع مسميات لوحة التحكم الجديدة
     bool isCumulative = goal['targetType'] == 'cumulative_period';
     double minAmount = (goal['minAmount'] ?? 0.0).toDouble();
     double currentProgress = (goal['currentProgress'] ?? 0.0).toDouble();
@@ -202,16 +229,14 @@ class WalletScreen extends StatelessWidget {
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
                   child: Text(
                     goal['description'] ?? 'عرض كاش باك',
                     style: GoogleFonts.cairo(
-                      fontSize: 18.sp, // تكبير الخط كما طلبت
+                      fontSize: 18.sp, 
                       fontWeight: FontWeight.bold, 
                       color: AppTheme.primaryGreen,
-                      height: 1.2
                     ),
                   ),
                 ),
@@ -228,16 +253,13 @@ class WalletScreen extends StatelessWidget {
                 ),
               ],
             ),
-            
             SizedBox(height: 10.sp),
-            
             Text(
               isCumulative 
                 ? "هدف تراكمي: اشترِ بمجموع ${goal['minAmount']} ج"
                 : "كاش باك فوري على كل طلب بـ ${goal['minAmount']} ج",
-              style: GoogleFonts.cairo(fontSize: 15.sp, color: Colors.black87, fontWeight: FontWeight.w600),
+              style: GoogleFonts.cairo(fontSize: 15.sp, color: Colors.black87),
             ),
-
             if (isCumulative) ...[
               SizedBox(height: 15.sp),
               ClipRRect(
@@ -254,33 +276,27 @@ class WalletScreen extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text('المحقَّق: ${currentProgress.toStringAsFixed(0)} ج', 
-                    style: GoogleFonts.cairo(fontSize: 14.sp, color: Colors.grey[700], fontWeight: FontWeight.bold)),
+                    style: GoogleFonts.cairo(fontSize: 14.sp, fontWeight: FontWeight.bold)),
                   Text('%${(progressPercent * 100).toStringAsFixed(0)}', 
                     style: GoogleFonts.cairo(fontSize: 16.sp, color: progressColor, fontWeight: FontWeight.bold)),
                 ],
               ),
             ],
-
             Padding(
               padding: EdgeInsets.symmetric(vertical: 12.sp),
               child: Divider(height: 1, color: Colors.grey[200]),
             ),
-
             Row(
               children: [
-                Icon(Icons.calendar_month, size: 16.sp, color: Colors.redAccent),
+                const Icon(Icons.calendar_month, size: 18, color: Colors.redAccent),
                 SizedBox(width: 5.sp),
-                Text(
-                  "متبقي ${goal['daysRemaining']} يوم",
-                  style: GoogleFonts.cairo(fontSize: 14.sp, color: Colors.redAccent, fontWeight: FontWeight.bold),
-                ),
+                Text("متبقي ${goal['daysRemaining']} يوم",
+                  style: GoogleFonts.cairo(fontSize: 14.sp, color: Colors.redAccent, fontWeight: FontWeight.bold)),
                 const Spacer(),
-                Icon(Icons.storefront, size: 16.sp, color: Colors.blueGrey),
+                const Icon(Icons.storefront, size: 18, color: Colors.blueGrey),
                 SizedBox(width: 4.sp),
-                Text(
-                  goal['sellerName'] ?? 'كل التجار',
-                  style: GoogleFonts.cairo(fontSize: 14.sp, color: Colors.blueGrey, fontWeight: FontWeight.w600),
-                ),
+                Text(goal['sellerName'] ?? 'كل التجار',
+                  style: GoogleFonts.cairo(fontSize: 14.sp, color: Colors.blueGrey, fontWeight: FontWeight.w600)),
               ],
             ),
           ],
