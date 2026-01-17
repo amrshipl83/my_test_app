@@ -178,7 +178,7 @@ class _HomeContentState extends State<HomeContent> {
             child: ClipOval(
               child: data['imageUrl'].isNotEmpty 
                 ? Image.network(data['imageUrl'], fit: BoxFit.cover)
-                : const Icon(Icons.category, size: 35, color: Color(0xFF4CAF50)),
+                : const Icon(Icons.category, size: 40, color: Color(0xFF4CAF50)),
             ),
           ),
           const SizedBox(height: 12),
