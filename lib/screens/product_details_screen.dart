@@ -86,41 +86,41 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     List<Map<String, dynamic>> temp = [];
     for (var doc in snap.docs) {
       final data = doc.data();
+      
+      // استخراج السعر والوحدة من أول عنصر في مصفوفة units
       double extractedPrice = 0.0;
       String unitName = "وحدة";
-      
+      int unitIndex = 0;
+
       if (data['units'] != null && (data['units'] as List).isNotEmpty) {
         final firstUnit = (data['units'] as List).first;
-        extractedPrice = _parsePrice(firstUnit['price']);
+        extractedPrice = (firstUnit['price'] is num) ? firstUnit['price'].toDouble() : 0.0;
         unitName = firstUnit['unitName']?.toString() ?? "وحدة";
-      } else {
-        extractedPrice = _parsePrice(data['price']);
       }
 
       temp.add({
         ...data,
-        'offerId': doc.id, // استخدام نفس المفتاح للثبات
+        'offerId': doc.id,
         'displayPrice': extractedPrice,
         'displayUnit': unitName,
+        'unitIndex': unitIndex,
       });
     }
     _offers = temp;
   }
 
-  double _parsePrice(dynamic price) {
-    if (price == null) return 0.0;
-    if (price is num) return price.toDouble();
-    return double.tryParse(price.toString()) ?? 0.0;
-  }
-
-  // ✅ دالة الإضافة مطابقة تماماً للكود الناجح في الملف السابق
+  // ✅ هذه الدالة "نسخة طبق الأصل" من دالة الـ BuyerProductCard التي تعمل لديك
   void _addToCart(Map<String, dynamic> offer, int qty) async {
     if (offer['offerId'] == null || qty == 0) return;
+    
     final String imageUrl = _productData?['imageUrls']?.isNotEmpty == true
         ? _productData!['imageUrls'][0]
         : '';
+        
     try {
       final cartProvider = Provider.of<CartProvider>(context, listen: false);
+      
+      // استخدام نفس الحقول بالضبط كما في كودك المرجعي
       await cartProvider.addItemToCart(
         productId: _currentProductId!,
         name: _productData?['name'] ?? 'منتج غير معروف',
@@ -129,16 +129,17 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
         sellerName: offer['sellerName']!,
         price: offer['displayPrice'].toDouble(), 
         unit: offer['displayUnit'],
-        unitIndex: 0, // الافتراضي لأول وحدة
+        unitIndex: offer['unitIndex'] ?? 0,
         quantityToAdd: qty,
         imageUrl: imageUrl,
-        userRole: 'buyer',
+        userRole: 'buyer', //CurrentUserRole
         minOrderQuantity: offer['minQty'] ?? 1,
         availableStock: offer['stock'] ?? 0,
         maxOrderQuantity: offer['maxQty'] ?? 9999,
         mainId: _productData?['mainId'],
         subId: _productData?['subId'],
       );
+      
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('✅ تم الإضافة للسلة', style: GoogleFonts.cairo(fontSize: 14.sp)),
@@ -147,6 +148,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
         ),
       );
     } catch (e) {
+      // إظهار الخطأ الذي يظهر في أسفل صورتك (تجاوز الحد المتاح)
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
@@ -163,7 +165,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
         foregroundColor: Colors.white,
       ),
 
-      // ✅ أيقونة السلة العائمة الموحدة مع العداد
+      // أيقونة السلة العائمة الموحدة
       floatingActionButton: Consumer<CartProvider>(
         builder: (context, cart, child) {
           final count = cart.cartTotalItems;
@@ -204,7 +206,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                   const SizedBox(height: 8),
                   Text(_productData?['description'] ?? '', style: GoogleFonts.cairo(color: Colors.grey), textAlign: TextAlign.right),
                   const Divider(height: 40),
-                  Text('عروض التجار المتاحة', style: GoogleFonts.cairo(fontSize: 14.sp, fontWeight: FontWeight.bold), textAlign: TextAlign.right),
+                  Text('العروض المتاحة', style: GoogleFonts.cairo(fontSize: 14.sp, fontWeight: FontWeight.bold), textAlign: TextAlign.right),
                   const SizedBox(height: 12),
                   if (_offers.isEmpty)
                     const Center(child: Text('لا توجد عروض حالياً'))
@@ -241,7 +243,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
         child: Row(
           children: [
             ElevatedButton(
-              onPressed: () => _addToCart(offer, 1), // نمرر كمية 1 كافتراضي
+              onPressed: () => _addToCart(offer, 1), 
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppTheme.primaryGreen,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
