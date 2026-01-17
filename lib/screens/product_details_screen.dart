@@ -11,8 +11,9 @@ final FirebaseFirestore _db = FirebaseFirestore.instance;
 class ProductDetailsScreen extends StatefulWidget {
   static const routeName = '/productDetails';
   final String? productId;
+  final String? offerId; // ✅ أعدناه هنا لمنع خطأ main.dart
 
-  const ProductDetailsScreen({super.key, this.productId});
+  const ProductDetailsScreen({super.key, this.productId, this.offerId});
 
   @override
   State<ProductDetailsScreen> createState() => _ProductDetailsScreenState();
@@ -27,20 +28,24 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _extractArgs();
+    if (_isLoading) _initializeData();
+  }
+
+  void _extractArgs() {
     final args = ModalRoute.of(context)?.settings.arguments;
     if (args is Map<String, dynamic>) {
       _currentProductId = args['productId']?.toString();
+      // حتى لو تم تمرير offerId من main.dart، سنركز على productId لجلب كل العروض
     } else {
       _currentProductId = widget.productId;
     }
-    if (_isLoading) _initializeData();
   }
 
   Future<void> _initializeData() async {
     try {
-      if (_currentProductId == null) return;
+      if (_currentProductId == null || _currentProductId!.isEmpty) return;
       
-      // جلب بيانات المنتج والعروض
       final results = await Future.wait([
         _db.collection('products').doc(_currentProductId).get(),
         _db.collection('productOffers').where('productId', isEqualTo: _currentProductId).get(),
@@ -51,12 +56,10 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
 
       if (productDoc.exists) {
         _productData = productDoc.data();
-        _productData!['id'] = productDoc.id;
       }
 
       _offers = offersSnap.docs.map((doc) {
         final data = doc.data();
-        // منطق استخراج السعر والوحدة المتوافق مع الـ Provider
         double price = 0.0;
         String unit = "وحدة";
         int stock = 0;
@@ -66,9 +69,6 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
           price = (first['price'] is num) ? first['price'].toDouble() : 0.0;
           unit = first['unitName'] ?? "وحدة";
           stock = (first['availableStock'] is num) ? first['availableStock'].toInt() : 0;
-        } else {
-          price = (data['price'] is num) ? data['price'].toDouble() : 0.0;
-          stock = (data['availableQuantity'] is num) ? data['availableQuantity'].toInt() : 0;
         }
 
         return {
@@ -81,7 +81,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
       }).toList();
 
     } catch (e) {
-      debugPrint("Error initializing: $e");
+      debugPrint("Error: $e");
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -90,8 +90,9 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   void _addToCart(Map<String, dynamic> offer) async {
     try {
       final cartProvider = Provider.of<CartProvider>(context, listen: false);
-      
-      // نستخدم نفس البارامترات المعرفة في addItemToCart بملف الـ Provider
+      final String imageUrl = (_productData?['imageUrls'] as List?)?.isNotEmpty == true
+          ? _productData!['imageUrls'][0] : '';
+
       await cartProvider.addItemToCart(
         offerId: offer['offerId'],
         productId: _currentProductId!,
@@ -100,15 +101,13 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
         name: _productData?['name'] ?? 'منتج',
         price: (offer['displayPrice'] as num).toDouble(),
         unit: offer['displayUnit'],
-        unitIndex: 0, // نمرر 0 لأننا نأخذ أول وحدة دائماً في هذه الصفحة
-        imageUrl: (_productData?['imageUrls'] as List?)?.first ?? '',
-        userRole: 'buyer', // أو اجلبه من نظام تسجيل الدخول لديك
+        unitIndex: 0,
+        imageUrl: imageUrl,
+        userRole: 'buyer',
         quantityToAdd: 1,
-        // 🌟 تمرير حقول الأقسام المكتشفة في الـ Provider
         mainId: _productData?['mainId'],
         subId: _productData?['subId'],
-        // 🌟 تمرير بيانات المخزن والحدود بدقة لمنع خطأ الـ Exception
-        availableStock: offer['calculatedStock'] ?? 999,
+        availableStock: offer['calculatedStock'] ?? 0,
         minOrderQuantity: (offer['minOrder'] as num?)?.toInt() ?? 1,
         maxOrderQuantity: (offer['maxOrder'] as num?)?.toInt() ?? 9999,
       );
@@ -117,9 +116,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
         const SnackBar(content: Text('✅ تمت الإضافة للسلة'), backgroundColor: Colors.green)
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('⚠️ $e'), backgroundColor: Colors.red)
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('⚠️ $e')));
     }
   }
 
@@ -129,10 +126,10 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_productData?['name'] ?? 'تفاصيل المنتج', style: GoogleFonts.cairo()),
+        title: Text(_productData?['name'] ?? 'التفاصيل', style: GoogleFonts.cairo()),
         backgroundColor: AppTheme.primaryGreen,
+        foregroundColor: Colors.white,
       ),
-      // السلة العائمة الموحدة
       floatingActionButton: Consumer<CartProvider>(
         builder: (context, cart, _) => Badge(
           label: Text('${cart.cartTotalItems}'),
@@ -151,14 +148,18 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
             Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(_productData?['name'] ?? '', style: GoogleFonts.cairo(fontSize: 22, fontWeight: FontWeight.bold)),
-                  Text(_productData?['description'] ?? '', style: GoogleFonts.cairo(color: Colors.grey)),
-                  const Divider(height: 30),
-                  Text('العروض المتاحة:', style: GoogleFonts.cairo(fontSize: 18, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 10),
-                  ..._offers.map((offer) => _buildOfferCard(offer)).toList(),
+                  Text(_productData?['name'] ?? '', style: GoogleFonts.cairo(fontSize: 18.sp, fontWeight: FontWeight.bold), textAlign: TextAlign.right),
+                  const SizedBox(height: 8),
+                  Text(_productData?['description'] ?? '', style: GoogleFonts.cairo(color: Colors.grey), textAlign: TextAlign.right),
+                  const Divider(height: 40),
+                  Text('العروض المتاحة', style: GoogleFonts.cairo(fontSize: 14.sp, fontWeight: FontWeight.bold), textAlign: TextAlign.right),
+                  const SizedBox(height: 12),
+                  if (_offers.isEmpty)
+                    const Center(child: Text('لا توجد عروض حالياً'))
+                  else
+                    ..._offers.map((offer) => _buildOfferItem(offer)).toList(),
                 ],
               ),
             ),
@@ -170,20 +171,23 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
 
   Widget _buildImageGallery() {
     final images = (_productData?['imageUrls'] as List?) ?? [];
+    if (images.isEmpty) return Container(height: 200, color: Colors.grey[200], child: const Icon(Icons.image));
     return SizedBox(
-      height: 300,
+      height: 250,
       child: PageView.builder(
         itemCount: images.length,
-        itemBuilder: (context, i) => Image.network(images[i], fit: BoxFit.contain),
+        itemBuilder: (context, index) => Image.network(images[index], fit: BoxFit.contain),
       ),
     );
   }
 
-  Widget _buildOfferCard(Map<String, dynamic> offer) {
+  Widget _buildOfferItem(Map<String, dynamic> offer) {
     return Card(
+      elevation: 2,
+      margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
-        title: Text(offer['sellerName'] ?? '', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
-        subtitle: Text('${offer['displayPrice']} ج.م / ${offer['displayUnit']}'),
+        title: Text(offer['sellerName'] ?? 'تاجر', style: GoogleFonts.cairo(fontWeight: FontWeight.bold)),
+        subtitle: Text('${offer['displayPrice']} ج.م / ${offer['displayUnit']}', style: GoogleFonts.cairo(color: Colors.red)),
         leading: ElevatedButton(
           onPressed: () => _addToCart(offer),
           style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryGreen),
