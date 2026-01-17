@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
+import 'package:provider/provider.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:sizer/sizer.dart';
 import 'package:my_test_app/theme/app_theme.dart';
+import 'package:my_test_app/providers/cart_provider.dart';
 
 final FirebaseFirestore _db = FirebaseFirestore.instance;
 
@@ -45,7 +47,6 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
 
   Future<void> _initializeData() async {
     try {
-      // 1. إذا كان المنتج غير موجود، نحاول استخراجه من العرض (كما في صور Firestore)
       if ((_currentProductId == null || _currentProductId!.isEmpty) && _currentOfferId != null) {
         final offerDoc = await _db.collection('productOffers').doc(_currentOfferId).get();
         if (offerDoc.exists) {
@@ -57,10 +58,9 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
         throw 'عذراً، لم نتمكن من العثور على معرف المنتج';
       }
 
-      // 2. جلب البيانات
       await Future.wait([
         _fetchProductDetails(),
-        _fetchAllOffers(), // نجلب كل عروض هذا المنتج من كل التجار
+        _fetchAllOffers(),
       ]);
     } catch (e) {
       _errorMessage = e.toString();
@@ -74,12 +74,11 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     if (doc.exists) {
       _productData = doc.data();
     } else {
-      throw 'المنتج غير موجود في قائمة المنتجات';
+      throw 'المنتج غير موجود';
     }
   }
 
   Future<void> _fetchAllOffers() async {
-    // البحث في مجموعة productOffers عن كل الوثائق التي تملك productId المطلوب
     final snap = await _db.collection('productOffers')
         .where('productId', isEqualTo: _currentProductId)
         .get();
@@ -87,8 +86,6 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     List<Map<String, dynamic>> temp = [];
     for (var doc in snap.docs) {
       final data = doc.data();
-      
-      // ✅ استخراج السعر من مصفوفة units (كما يظهر في صورتك)
       double extractedPrice = 0.0;
       String unitName = "وحدة";
       
@@ -97,7 +94,6 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
         extractedPrice = _parsePrice(firstUnit['price']);
         unitName = firstUnit['unitName']?.toString() ?? "وحدة";
       } else {
-        // فحص في حال وجود حقل سعر مباشر (للتوافق)
         extractedPrice = _parsePrice(data['price']);
       }
 
@@ -118,28 +114,39 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     return double.tryParse(price.toString()) ?? 0.0;
   }
 
-  Future<void> _addToCart(Map<String, dynamic> offer) async {
-    final prefs = await SharedPreferences.getInstance();
-    List<dynamic> cart = jsonDecode(prefs.getString('cart_items') ?? '[]');
+  // ✅ الدالة المحدثة لتستخدم البروفايدر (نفس منطق الكود السابق)
+  void _addToCart(Map<String, dynamic> offer) async {
+    try {
+      final cartProvider = Provider.of<CartProvider>(context, listen: false);
+      final String imageUrl = (_productData?['imageUrls'] as List?)?.isNotEmpty == true
+          ? _productData!['imageUrls'][0]
+          : '';
 
-    cart.add({
-      'productId': _currentProductId,
-      'offerId': offer['id'],
-      'sellerId': offer['sellerId'],
-      'sellerName': offer['sellerName'],
-      'productName': _productData?['name'] ?? offer['productName'],
-      'price': offer['displayPrice'],
-      'unit': offer['displayUnit'],
-      'imageUrl': (_productData?['imageUrls'] as List?)?.first ?? offer['imageUrl'] ?? '',
-      'quantity': 1,
-      'timestamp': DateTime.now().millisecondsSinceEpoch,
-    });
-
-    await prefs.setString('cart_items', jsonEncode(cart));
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تمت الإضافة للسلة'), backgroundColor: AppTheme.primaryGreen)
+      await cartProvider.addItemToCart(
+        productId: _currentProductId!,
+        name: _productData?['name'] ?? 'منتج غير معروف',
+        offerId: offer['id'],
+        sellerId: offer['sellerId'],
+        sellerName: offer['sellerName'],
+        price: offer['displayPrice'],
+        unit: offer['displayUnit'],
+        quantityToAdd: 1, // الكمية الافتراضية
+        imageUrl: imageUrl,
+        userRole: 'buyer',
+        availableStock: offer['stock'] ?? 0,
+        minOrderQuantity: offer['minOrder'] ?? 1,
+        maxOrderQuantity: offer['maxOrder'] ?? 9999,
       );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('✅ تمت الإضافة للسلة', style: GoogleFonts.cairo()),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 1),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ: $e')));
     }
   }
 
@@ -147,51 +154,60 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   Widget build(BuildContext context) {
     if (_isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
-    if (_errorMessage != null) {
-      return Scaffold(
-        appBar: AppBar(backgroundColor: AppTheme.primaryGreen),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Text('⚠️ $_errorMessage', textAlign: TextAlign.center, style: const TextStyle(fontSize: 16)),
-          ),
-        ),
-      );
-    }
-
-    final imageUrl = (_productData?['imageUrls'] as List?)?.first;
-
     return Scaffold(
       appBar: AppBar(
-        title: Text(_productData?['name'] ?? 'تفاصيل المنتج'),
+        title: Text(_productData?['name'] ?? 'تفاصيل المنتج', style: GoogleFonts.cairo()),
         backgroundColor: AppTheme.primaryGreen,
         foregroundColor: Colors.white,
       ),
+      
+      // ✅ أيقونة السلة العائمة الموحدة
+      floatingActionButton: Consumer<CartProvider>(
+        builder: (context, cartProvider, child) {
+          final cartCount = cartProvider.cartTotalItems;
+          return Stack(
+            alignment: Alignment.topRight,
+            children: [
+              FloatingActionButton(
+                onPressed: () => Navigator.of(context).pushNamed('/cart'),
+                backgroundColor: const Color(0xFFFF7000), // لون برتقالي لتمييزها أو الأخضر حسب رغبتك
+                child: const Icon(Icons.shopping_cart, color: Colors.white),
+              ),
+              if (cartCount > 0)
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(color: Colors.red, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)),
+                    constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+                    child: Text('$cartCount', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // صورة المنتج
-            if (imageUrl != null)
-              Image.network(imageUrl, height: 300, width: double.infinity, fit: BoxFit.contain)
-            else
-              Container(height: 200, color: Colors.grey[200], child: const Icon(Icons.image_not_supported, size: 50)),
-
+            _buildProductHeader(),
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(_productData?['name'] ?? '', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                  Text(_productData?['name'] ?? '', style: GoogleFonts.cairo(fontSize: 18.sp, fontWeight: FontWeight.bold), textAlign: TextAlign.right),
                   const SizedBox(height: 8),
-                  Text(_productData?['description'] ?? '', style: const TextStyle(color: Colors.grey), textAlign: TextAlign.right),
-                  const Divider(height: 30),
-                  const Text('عروض التجار المتاحة:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 10),
-                  
+                  Text(_productData?['description'] ?? '', style: GoogleFonts.cairo(color: Colors.grey), textAlign: TextAlign.right),
+                  const Divider(height: 40),
+                  Text('العروض المتاحة', style: GoogleFonts.cairo(fontSize: 14.sp, fontWeight: FontWeight.bold), textAlign: TextAlign.right),
+                  const SizedBox(height: 12),
                   if (_offers.isEmpty)
-                    const Center(child: Text('لا توجد عروض متوفرة حالياً لهذا المنتج'))
+                    const Center(child: Text('لا توجد عروض حالياً'))
                   else
-                    ..._offers.map((offer) => _buildOfferCard(offer)).toList(),
+                    ..._offers.map((offer) => _buildOfferItem(offer)).toList(),
                 ],
               ),
             ),
@@ -201,30 +217,43 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     );
   }
 
-  Widget _buildOfferCard(Map<String, dynamic> offer) {
+  Widget _buildProductHeader() {
+    final imageUrl = (_productData?['imageUrls'] as List?)?.first;
+    return Container(
+      height: 250,
+      width: double.infinity,
+      color: Colors.white,
+      child: imageUrl != null 
+          ? Image.network(imageUrl, fit: BoxFit.contain)
+          : const Icon(Icons.image_not_supported, size: 100, color: Colors.grey),
+    );
+  }
+
+  Widget _buildOfferItem(Map<String, dynamic> offer) {
     return Card(
+      elevation: 2,
       margin: const EdgeInsets.only(bottom: 12),
-      elevation: 3,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        title: Text(offer['sellerName'], style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text('الوحدة: ${offer['displayUnit']}'),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Row(
           children: [
-            Text('${offer['displayPrice']} ج.م', style: const TextStyle(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 4),
             ElevatedButton(
               onPressed: () => _addToCart(offer),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppTheme.primaryGreen,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                minimumSize: const Size(80, 30)
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
-              child: const Text('طلب'),
+              child: Text('إضافة', style: GoogleFonts.cairo(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+            const Spacer(),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(offer['sellerName'], style: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 12.sp)),
+                Text('الوحدة: ${offer['displayUnit']}', style: GoogleFonts.cairo(fontSize: 10.sp, color: Colors.grey)),
+                Text('${offer['displayPrice']} ج.م', style: GoogleFonts.cairo(color: Colors.red, fontWeight: FontWeight.w900, fontSize: 13.sp)),
+              ],
             ),
           ],
         ),
