@@ -8,15 +8,10 @@ final FirebaseFirestore _db = FirebaseFirestore.instance;
 
 class ProductDetailsScreen extends StatefulWidget {
   static const routeName = '/productDetails';
-
   final String? productId;
   final String? offerId;
 
-  const ProductDetailsScreen({
-    super.key,
-    this.productId,
-    this.offerId,
-  });
+  const ProductDetailsScreen({super.key, this.productId, this.offerId});
 
   @override
   State<ProductDetailsScreen> createState() => _ProductDetailsScreenState();
@@ -25,20 +20,19 @@ class ProductDetailsScreen extends StatefulWidget {
 class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   Map<String, dynamic>? _productData;
   List<Map<String, dynamic>> _offers = [];
-  bool _isLoadingProduct = true;
-  bool _isLoadingOffers = true;
+  bool _isLoading = true;
   String? _errorMessage;
-
   String? _currentProductId;
   String? _currentOfferId;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _extractArgsAndLoad();
+    _extractArgs();
+    if (_isLoading) _initializeData();
   }
 
-  void _extractArgsAndLoad() {
+  void _extractArgs() {
     final args = ModalRoute.of(context)?.settings.arguments;
     if (args is Map<String, dynamic>) {
       _currentProductId = args['productId']?.toString();
@@ -47,160 +41,125 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
       _currentProductId = widget.productId;
       _currentOfferId = widget.offerId;
     }
+  }
 
-    if (_isLoadingProduct) {
-      _loadProductAndOffers();
+  Future<void> _initializeData() async {
+    try {
+      // 1. إذا كان المنتج غير موجود، نحاول استخراجه من العرض (كما في صور Firestore)
+      if ((_currentProductId == null || _currentProductId!.isEmpty) && _currentOfferId != null) {
+        final offerDoc = await _db.collection('productOffers').doc(_currentOfferId).get();
+        if (offerDoc.exists) {
+          _currentProductId = offerDoc.data()?['productId']?.toString();
+        }
+      }
+
+      if (_currentProductId == null || _currentProductId!.isEmpty) {
+        throw 'عذراً، لم نتمكن من العثور على معرف المنتج';
+      }
+
+      // 2. جلب البيانات
+      await Future.wait([
+        _fetchProductDetails(),
+        _fetchAllOffers(), // نجلب كل عروض هذا المنتج من كل التجار
+      ]);
+    } catch (e) {
+      _errorMessage = e.toString();
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _fetchProductDetails() async {
+    final doc = await _db.collection('products').doc(_currentProductId!).get();
+    if (doc.exists) {
+      _productData = doc.data();
+    } else {
+      throw 'المنتج غير موجود في قائمة المنتجات';
+    }
+  }
+
+  Future<void> _fetchAllOffers() async {
+    // البحث في مجموعة productOffers عن كل الوثائق التي تملك productId المطلوب
+    final snap = await _db.collection('productOffers')
+        .where('productId', isEqualTo: _currentProductId)
+        .get();
+
+    List<Map<String, dynamic>> temp = [];
+    for (var doc in snap.docs) {
+      final data = doc.data();
+      
+      // ✅ استخراج السعر من مصفوفة units (كما يظهر في صورتك)
+      double extractedPrice = 0.0;
+      String unitName = "وحدة";
+      
+      if (data['units'] != null && (data['units'] as List).isNotEmpty) {
+        final firstUnit = (data['units'] as List).first;
+        extractedPrice = _parsePrice(firstUnit['price']);
+        unitName = firstUnit['unitName']?.toString() ?? "وحدة";
+      } else {
+        // فحص في حال وجود حقل سعر مباشر (للتوافق)
+        extractedPrice = _parsePrice(data['price']);
+      }
+
+      temp.add({
+        ...data,
+        'id': doc.id,
+        'displayPrice': extractedPrice,
+        'displayUnit': unitName,
+        'sellerName': data['sellerName'] ?? 'تاجر غير معروف',
+      });
+    }
+    _offers = temp;
+  }
+
+  double _parsePrice(dynamic price) {
+    if (price == null) return 0.0;
+    if (price is num) return price.toDouble();
+    return double.tryParse(price.toString()) ?? 0.0;
   }
 
   Future<void> _addToCart(Map<String, dynamic> offer) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      List<dynamic> cart = [];
-      String? cartData = prefs.getString('cart_items');
-      
-      if (cartData != null) {
-        cart = jsonDecode(cartData);
-      }
+    final prefs = await SharedPreferences.getInstance();
+    List<dynamic> cart = jsonDecode(prefs.getString('cart_items') ?? '[]');
 
-      final cartItem = {
-        'productId': _currentProductId,
-        'offerId': offer['id'],
-        'sellerId': offer['sellerId'] ?? '',
-        'productName': _productData?['name'] ?? 'منتج',
-        'price': offer['price'] ?? 0.0,
-        'imageUrl': (_productData?['imageUrls'] as List?)?.isNotEmpty == true 
-                    ? (_productData?['imageUrls'] as List).first 
-                    : '',
-        'quantity': 1,
-        'timestamp': DateTime.now().millisecondsSinceEpoch,
-      };
+    cart.add({
+      'productId': _currentProductId,
+      'offerId': offer['id'],
+      'sellerId': offer['sellerId'],
+      'sellerName': offer['sellerName'],
+      'productName': _productData?['name'] ?? offer['productName'],
+      'price': offer['displayPrice'],
+      'unit': offer['displayUnit'],
+      'imageUrl': (_productData?['imageUrls'] as List?)?.first ?? offer['imageUrl'] ?? '',
+      'quantity': 1,
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+    });
 
-      cart.add(cartItem);
-      await prefs.setString('cart_items', jsonEncode(cart));
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('تم إضافة المنتج للسلة بنجاح', textAlign: TextAlign.right),
-            backgroundColor: AppTheme.primaryGreen,
-          ),
-        );
-      }
-    } catch (e) {
-      debugPrint("Cart Error: $e");
+    await prefs.setString('cart_items', jsonEncode(cart));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تمت الإضافة للسلة'), backgroundColor: AppTheme.primaryGreen)
+      );
     }
-  }
-
-  Future<Map<String, String>> _fetchSellerInfo(String sellerId) async {
-    String sellerName = 'تاجر غير معروف';
-    String sellerLogo = '';
-    if (sellerId.isEmpty) return {'name': sellerName, 'logo': sellerLogo};
-    
-    try {
-      final sellerDoc = await _db.collection('sellers').doc(sellerId).get();
-      if (sellerDoc.exists) {
-        final data = sellerDoc.data();
-        sellerName = data?['fullname'] ?? data?['name'] ?? sellerName;
-        sellerLogo = data?['imageUrl'] ?? '';
-      }
-    } catch (e) { debugPrint('Seller Info Error: $e'); }
-    return {'name': sellerName, 'logo': sellerLogo};
-  }
-
-  Future<void> _loadProductAndOffers() async {
-    if (_currentProductId == null && _currentOfferId != null) {
-      try {
-        final offerSnap = await _db.collection('productOffers').doc(_currentOfferId).get();
-        if (offerSnap.exists) {
-          _currentProductId = offerSnap.data()?['productId'];
-        }
-      } catch (e) { debugPrint("Error linking: $e"); }
-    }
-
-    if (_currentProductId == null) {
-      if (mounted) setState(() { _errorMessage = 'لم يتم تحديد المنتج'; _isLoadingProduct = false; });
-      return;
-    }
-
-    try {
-      final productDoc = await _db.collection('products').doc(_currentProductId!).get();
-      if (productDoc.exists) {
-        _productData = productDoc.data();
-      } else {
-        _errorMessage = 'المنتج غير موجود';
-      }
-    } catch (e) { _errorMessage = 'خطأ في تحميل المنتج'; }
-    finally { if (mounted) setState(() => _isLoadingProduct = false); }
-
-    if (_currentOfferId != null) {
-      await _loadSpecificOffer(_currentOfferId!);
-    } else {
-      await _loadAllOffers(_currentProductId!);
-    }
-  }
-
-  Future<void> _loadSpecificOffer(String offerId) async {
-    try {
-      final doc = await _db.collection('productOffers').doc(offerId).get();
-      if (doc.exists) {
-        final data = doc.data()!;
-        final sellerInfo = await _fetchSellerInfo(data['sellerId'] ?? '');
-        if (mounted) {
-          setState(() {
-            _offers = [{
-              ...data, 
-              'id': doc.id, 
-              'sellerInfo': sellerInfo,
-              'price': data['price'] ?? 0.0
-            }];
-          });
-        }
-      } else {
-         if (mounted) setState(() => _errorMessage = "العرض غير متوفر");
-      }
-    } catch (e) { debugPrint("Specific Offer Error: $e"); }
-    finally { if (mounted) setState(() => _isLoadingOffers = false); }
-  }
-
-  Future<void> _loadAllOffers(String productId) async {
-    try {
-      final snap = await _db.collection('productOffers').where('productId', isEqualTo: productId).get();
-      List<Map<String, dynamic>> list = [];
-      for (var doc in snap.docs) {
-        final data = doc.data();
-        final sellerInfo = await _fetchSellerInfo(data['sellerId'] ?? '');
-        list.add({
-          ...data, 
-          'id': doc.id, 
-          'sellerInfo': sellerInfo,
-          'price': data['price'] ?? 0.0
-        });
-      }
-      if (mounted) setState(() => _offers = list);
-    } catch (e) { debugPrint("All Offers Error: $e"); }
-    finally { if (mounted) setState(() => _isLoadingOffers = false); }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoadingProduct) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    
+    if (_isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+
     if (_errorMessage != null) {
       return Scaffold(
         appBar: AppBar(backgroundColor: AppTheme.primaryGreen),
-        body: Center(child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, size: 50, color: Colors.red),
-            const SizedBox(height: 10),
-            Text(_errorMessage!, style: const TextStyle(fontSize: 18)),
-          ],
-        )),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Text('⚠️ $_errorMessage', textAlign: TextAlign.center, style: const TextStyle(fontSize: 16)),
+          ),
+        ),
       );
     }
 
-    final images = (_productData?['imageUrls'] as List?)?.cast<String>() ?? [];
+    final imageUrl = (_productData?['imageUrls'] as List?)?.first;
 
     return Scaffold(
       appBar: AppBar(
@@ -208,83 +167,65 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
         backgroundColor: AppTheme.primaryGreen,
         foregroundColor: Colors.white,
       ),
-      body: _isLoadingOffers && _offers.isEmpty
-        ? const Center(child: CircularProgressIndicator())
-        : SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (images.isNotEmpty)
-                  Container(
-                    height: 250,
-                    margin: const EdgeInsets.only(bottom: 20), // ✅ تم التصحيح هنا
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(15),
-                      image: DecorationImage(image: NetworkImage(images.first), fit: BoxFit.cover),
-                    ),
-                  )
-                else
-                  Container(
-                    height: 150,
-                    margin: const EdgeInsets.only(bottom: 20), // ✅ تم التصحيح هنا
-                    color: Colors.grey[200],
-                    child: const Icon(Icons.image_not_supported, size: 50, color: Colors.grey),
-                  ),
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            // صورة المنتج
+            if (imageUrl != null)
+              Image.network(imageUrl, height: 300, width: double.infinity, fit: BoxFit.contain)
+            else
+              Container(height: 200, color: Colors.grey[200], child: const Icon(Icons.image_not_supported, size: 50)),
 
-                Text(_productData?['name'] ?? '', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold), textAlign: TextAlign.right),
-                const SizedBox(height: 10),
-                Text(_productData?['description'] ?? '', style: TextStyle(color: Colors.grey[600]), textAlign: TextAlign.right),
-                const Divider(height: 40),
-                const Text('العروض المتوفرة', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold), textAlign: TextAlign.right),
-                const SizedBox(height: 15),
-                
-                ..._offers.map((o) => _buildOfferCard(o)).toList(),
-              ],
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(_productData?['name'] ?? '', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  Text(_productData?['description'] ?? '', style: const TextStyle(color: Colors.grey), textAlign: TextAlign.right),
+                  const Divider(height: 30),
+                  const Text('عروض التجار المتاحة:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 10),
+                  
+                  if (_offers.isEmpty)
+                    const Center(child: Text('لا توجد عروض متوفرة حالياً لهذا المنتج'))
+                  else
+                    ..._offers.map((offer) => _buildOfferCard(offer)).toList(),
+                ],
+              ),
             ),
-          ),
+          ],
+        ),
+      ),
     );
   }
 
   Widget _buildOfferCard(Map<String, dynamic> offer) {
-    final seller = offer['sellerInfo'] as Map<String, String>;
-    final price = offer['price']?.toString() ?? '0.0';
-
     return Card(
-      elevation: 2,
       margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
+      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        title: Text(offer['sellerName'], style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text('الوحدة: ${offer['displayUnit']}'),
+        trailing: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('$price ج.م', style: const TextStyle(color: AppTheme.primaryGreen, fontSize: 18, fontWeight: FontWeight.bold)),
-                Row(
-                  children: [
-                    Text(seller['name']!, style: const TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(width: 10),
-                    CircleAvatar(radius: 20, backgroundImage: seller['logo']!.isNotEmpty ? NetworkImage(seller['logo']!) : null, child: seller['logo']!.isEmpty ? const Icon(Icons.store) : null),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 15),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () => _addToCart(offer),
-                icon: const Icon(Icons.add_shopping_cart, color: Colors.white, size: 20),
-                label: const Text('أضف للسلة', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryGreen, 
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
+            Text('${offer['displayPrice']} ج.م', style: const TextStyle(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 4),
+            ElevatedButton(
+              onPressed: () => _addToCart(offer),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primaryGreen,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                minimumSize: const Size(80, 30)
               ),
-            )
+              child: const Text('طلب'),
+            ),
           ],
         ),
       ),
