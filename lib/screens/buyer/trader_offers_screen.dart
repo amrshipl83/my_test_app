@@ -1,14 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
-
 import 'package:my_test_app/theme/app_theme.dart';
 import 'package:my_test_app/providers/cart_provider.dart';
 import 'package:my_test_app/widgets/trader_offer_card.dart';
-
-// ✅ 1. تفعيل استيراد صفحة التفاصيل واستخدام الـ Nav الموحد
 import 'package:my_test_app/screens/product_details_screen.dart';
 import 'package:my_test_app/widgets/buyer_mobile_nav_widget.dart';
 
@@ -23,25 +18,7 @@ class TraderOffersScreen extends StatefulWidget {
 }
 
 class _TraderOffersScreenState extends State<TraderOffersScreen> {
-  // 🎯 نحن في صفحة عروض التاجر، لذا نعتبر أنفسنا في قسم "التجار" (Index 0)
   final int _selectedIndex = 0;
-  int _cartCount = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadCartCount();
-  }
-
-  // تحديث عداد السلة للشريط السفلي
-  Future<void> _loadCartCount() async {
-    final prefs = await SharedPreferences.getInstance();
-    String? cartData = prefs.getString('cart_items');
-    if (cartData != null) {
-      List<dynamic> items = jsonDecode(cartData);
-      if (mounted) setState(() => _cartCount = items.length);
-    }
-  }
 
   void _onItemTapped(int index) {
     if (index == _selectedIndex) return;
@@ -58,9 +35,11 @@ class _TraderOffersScreenState extends State<TraderOffersScreen> {
     final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
+        // إزالة السهم التلقائي لضبط التصميم يدوياً
         automaticallyImplyLeading: false, 
-        toolbarHeight: 60,
+        toolbarHeight: 65,
         flexibleSpace: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -73,45 +52,82 @@ class _TraderOffersScreenState extends State<TraderOffersScreen> {
             ),
           ),
         ),
-        titleSpacing: 0,
-        title: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 15.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white, size: 20),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                  const SizedBox(width: 5),
-                  const Text(
-                    'عروض التاجر',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
-                  ),
-                ],
-              ),
-              const Icon(Icons.local_offer_outlined, color: Colors.white, size: 22),
-            ],
-          ),
+        // ✅ تنظيف العنوان وإزالة الأيقونات غير الضرورية
+        title: Row(
+          children: [
+            IconButton(
+              // استخدام سهم الرجوع التقليدي ليكون مألوفاً للمستخدم
+              icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 22),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            const Text(
+              'عروض التاجر',
+              style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: Colors.white),
+            ),
+          ],
         ),
+        elevation: 0,
       ),
+
+      // ✅ إضافة أيقونة السلة العائمة بنفس التصميم والعداد التلقائي
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      floatingActionButton: Consumer<CartProvider>(
+        builder: (context, cartProvider, child) {
+          final cartCount = cartProvider.cartTotalItems; 
+
+          return Stack(
+            alignment: Alignment.topRight,
+            children: [
+              FloatingActionButton(
+                onPressed: () => Navigator.of(context).pushNamed('/cart'),
+                backgroundColor: AppTheme.primaryGreen, 
+                elevation: 6,
+                child: const Icon(Icons.shopping_cart_rounded, color: Colors.white, size: 28),
+              ),
+              if (cartCount > 0)
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.redAccent,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                    constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+                    child: Text(
+                      '$cartCount',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+
       body: OffersDataFetcher(sellerId: widget.sellerId), 
-      // ✅ 2. توحيد الشريط السفلي مع نظام المسارات المعتمد
-      bottomNavigationBar: BuyerMobileNavWidget(
-        selectedIndex: _selectedIndex,
-        onItemSelected: _onItemTapped,
-        cartCount: _cartCount,
-        ordersChanged: false,
+      
+      // توحيد الشريط السفلي مع استخدام cartTotalItems من البروفايدر مباشرة هناك
+      bottomNavigationBar: Consumer<CartProvider>(
+        builder: (context, cart, child) => BuyerMobileNavWidget(
+          selectedIndex: _selectedIndex,
+          onItemSelected: _onItemTapped,
+          cartCount: cart.cartTotalItems,
+          ordersChanged: false,
+        ),
       ),
     );
   }
 }
 
-// =========================================================================
-// 🎯 OffersDataFetcher: معالجة ذكية لحقن البيانات (الصور والأسماء)
-// =========================================================================
+// الجزء الخاص بجلب البيانات (Fetcher) يبقى كما هو مع تعديلات بسيطة للتناسق
 class OffersDataFetcher extends StatefulWidget {
   final String sellerId;
   const OffersDataFetcher({super.key, required this.sellerId});
@@ -132,14 +148,13 @@ class _OffersDataFetcherState extends State<OffersDataFetcher> {
 
   Future<List<Map<String, dynamic>>> _loadOffersWithProductData() async {
     final db = FirebaseFirestore.instance;
-    
     try {
       final sellerDoc = await db.collection("sellers").doc(widget.sellerId).get();
       if (sellerDoc.exists && mounted) {
         setState(() => _sellerName = sellerDoc.data()?['fullname'] ?? "التاجر");
       }
     } catch (e) {
-      debugPrint("Error fetching seller name: $e");
+      debugPrint("Error: $e");
     }
 
     final offersSnapshot = await db.collection("productOffers")
@@ -148,38 +163,23 @@ class _OffersDataFetcherState extends State<OffersDataFetcher> {
     
     if (offersSnapshot.docs.isEmpty) return [];
 
-    final offersWithProducts = <Map<String, dynamic>>[];
-    
-    for (var offerDoc in offersSnapshot.docs) {
-        final offerData = offerDoc.data();
-        final productId = offerData['productId']?.toString();
-        
-        if (productId != null) {
-            final productSnap = await db.collection("products").doc(productId).get();
-            
-            if (productSnap.exists) {
-                final productData = productSnap.data()!;
-                final List<dynamic>? imageUrls = productData['imageUrls'] as List<dynamic>?;
-                
-                // ✅ 3. حقن البيانات لضمان العرض المتكامل (صور + أسماء)
-                offersWithProducts.add({
-                    ...offerData, 
-                    'offerDocId': offerDoc.id,
-                    'productName': productData['name'] ?? 'منتج غير معروف',
-                    'imageUrls': imageUrls, 
-                });
-            }
+    final List<Map<String, dynamic>> results = [];
+    for (var doc in offersSnapshot.docs) {
+      final data = doc.data();
+      final pId = data['productId']?.toString();
+      if (pId != null) {
+        final pSnap = await db.collection("products").doc(pId).get();
+        if (pSnap.exists) {
+          results.add({
+            ...data,
+            'offerDocId': doc.id,
+            'productName': pSnap.data()?['name'] ?? 'منتج غير معروف',
+            'imageUrls': pSnap.data()?['imageUrls'],
+          });
         }
+      }
     }
-    return offersWithProducts;
-  }
-
-  void _openProductDetails(String offerDocId) {
-    // ✅ تفعيل التوجيه لصفحة التفاصيل
-    Navigator.of(context).pushNamed(
-      ProductDetailsScreen.routeName,
-      arguments: {'offerId': offerDocId},
-    );
+    return results;
   }
 
   @override
@@ -187,57 +187,53 @@ class _OffersDataFetcherState extends State<OffersDataFetcher> {
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: _offersFuture,
       builder: (context, snapshot) {
-        
-        final titleWidget = Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Row(
-            children: [
-              const Icon(Icons.local_shipping_rounded, color: AppTheme.primaryGreen, size: 28), 
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'عروض $_sellerName',
-                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ],
-          ),
-        );
-
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return Column(children: [titleWidget, const Expanded(child: Center(child: CircularProgressIndicator()))]);
+          return const Center(child: CircularProgressIndicator());
         }
         
-        if (snapshot.hasError || snapshot.data == null || snapshot.data!.isEmpty) {
-          return Column(
-            children: [
-              titleWidget, 
-              const Expanded(child: Center(child: Text('لا توجد عروض متاحة حالياً.'))),
-            ],
-          );
+        final offers = snapshot.data ?? [];
+        if (offers.isEmpty) {
+          return const Center(child: Text('لا توجد عروض متاحة حالياً.'));
         }
 
-        final offers = snapshot.data!;
-        
         return Column(
           children: [
-            titleWidget,
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                children: [
+                  const Icon(Icons.storefront_rounded, color: AppTheme.primaryGreen, size: 28), 
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'عروض $_sellerName',
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+            ),
             Expanded(
               child: GridView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 2, 
-                  childAspectRatio: 0.68, 
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
+                  childAspectRatio: 0.7, 
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 10,
                 ),
                 itemCount: offers.length,
                 itemBuilder: (context, index) {
-                  final offer = offers[index];
                   return TraderOfferCard(
-                    offerData: offer,
-                    offerDocId: offer['offerDocId'],
-                    onTap: () => _openProductDetails(offer['offerDocId']),
+                    offerData: offers[index],
+                    offerDocId: offers[index]['offerDocId'],
+                    onTap: () {
+                      Navigator.pushNamed(
+                        context,
+                        ProductDetailsScreen.routeName,
+                        arguments: {'offerId': offers[index]['offerDocId']},
+                      );
+                    },
                   );
                 },
               ),
