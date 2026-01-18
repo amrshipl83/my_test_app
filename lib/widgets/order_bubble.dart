@@ -66,7 +66,6 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
         String status = data['status'] ?? 'pending';
         String? vehicleType = data['vehicleType'];
 
-        // إخفاء تلقائي عند اكتمال أو إلغاء الطلب
         if (status == 'delivered' || status == 'cancelled' || status == 'rejected') {
           Future.microtask(() => _clearOrder());
           return const SizedBox.shrink();
@@ -107,23 +106,19 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
     );
   }
 
-  // 🚀 المنطق الذكي: فتح أو غلق الصفحة حسب الحالة (مثل ماسنجر)
   void _handleBubbleTap(BuildContext context) {
     bool isAlreadyOpen = false;
     
-    // نتحقق من المسار الحالي باستخدام navigatorKey
     navigatorKey.currentState?.popUntil((route) {
       if (route.settings.name == '/customerTracking') {
         isAlreadyOpen = true;
       }
-      return true; // لا نغلق أي شيء فعلياً هنا
+      return true;
     });
 
     if (isAlreadyOpen) {
-      // إذا كانت مفتوحة، نقوم بإغلاقها
       navigatorKey.currentState?.pop();
     } else {
-      // إذا كانت مغلقة، نقوم بفتحها
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -154,43 +149,66 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
     );
   }
 
+  // ✅ التعديل الجديد لتحسين شكل "الرادار" ووضوح الفكرة
   Widget _buildBubbleUI(bool isAccepted, bool isDragging, String? vehicleType) {
     return Container(
       width: 16.w,
       height: 16.w,
       decoration: BoxDecoration(
-        color: isAccepted ? Colors.green[700] : Colors.orange[900],
+        // تدرج لوني في حالة البحث لزيادة العمق
+        gradient: isAccepted 
+            ? null 
+            : RadialGradient(
+                colors: [Colors.orange[800]!, Colors.orange[900]!],
+                center: Alignment.center,
+                radius: 0.8,
+              ),
+        color: isAccepted ? Colors.green[700] : null,
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: (isAccepted ? Colors.green : Colors.orange).withOpacity(0.4),
-            blurRadius: 12,
+            color: (isAccepted ? Colors.green : Colors.orange).withOpacity(0.5),
+            blurRadius: 15,
             spreadRadius: 2,
           )
         ],
-        border: Border.all(color: Colors.white, width: 2.5),
+        border: Border.all(color: Colors.white, width: 2),
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+      child: Stack(
+        alignment: Alignment.center,
         children: [
-          Icon(
-            isAccepted ? _getVehicleIcon(vehicleType) : Icons.search,
-            color: Colors.white,
-            size: 20.sp,
-          ),
+          // إضافة دائرة دوارة خفيفة جداً توحي بالبحث (الرادار)
           if (!isAccepted)
-            Text(
-              "بحث..",
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 7.sp,
-                fontWeight: FontWeight.bold,
-                decoration: TextDecoration.none,
+            const SizedBox(
+              width: 50,
+              height: 50,
+              child: CircularProgressIndicator(
+                strokeWidth: 1.5,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white30),
               ),
             ),
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                isAccepted ? _getVehicleIcon(vehicleType) : Icons.radar, // استخدام أيقونة رادار
+                color: Colors.white,
+                size: 20.sp,
+              ),
+              if (!isAccepted)
+                Text(
+                  "جاري البحث", // نص أوضح من "بحث.."
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 6.5.sp,
+                    fontWeight: FontWeight.bold,
+                    decoration: TextDecoration.none,
+                  ),
+                ),
+            ],
+          ),
         ],
       ),
     );
   }
 }
-
