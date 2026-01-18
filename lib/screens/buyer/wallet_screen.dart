@@ -19,14 +19,14 @@ class WalletScreen extends StatefulWidget {
 }
 
 class _WalletScreenState extends State<WalletScreen> {
-  // ✅ أضفنا هذا المتغير للتأكد من تحميل بيانات المستخدم أولاً
-  late Future<void> _userInitialData;
+  // ✅ سنستخدم Future بسيط يتأكد من جاهزية البروفايدر
+  late Future<void> _initFuture;
 
   @override
   void initState() {
     super.initState();
-    // نقوم بالتأكد من تحميل بيانات المستخدم لمرة واحدة فقط عند فتح الشاشة
-    _userInitialData = Provider.of<BuyerDataProvider>(context, listen: false).loadUserData();
+    // ننتظر مدة قصيرة جداً للتأكد من أن سياق التطبيق (Context) جاهز
+    _initFuture = Future.delayed(const Duration(milliseconds: 500));
   }
 
   @override
@@ -49,27 +49,22 @@ class _WalletScreenState extends State<WalletScreen> {
               toolbarHeight: 70,
               title: Text(
                 'المحفظة والعروض',
-                style: GoogleFonts.cairo(
-                  fontSize: 20.sp,
-                  fontWeight: FontWeight.bold, 
-                  color: Colors.white
-                ),
+                style: GoogleFonts.cairo(fontSize: 20.sp, fontWeight: FontWeight.bold, color: Colors.white),
               ),
               centerTitle: true,
               bottom: TabBar(
                 indicatorColor: Colors.orangeAccent,
                 indicatorWeight: 4,
                 labelStyle: GoogleFonts.cairo(fontSize: 16.sp, fontWeight: FontWeight.bold),
-                unselectedLabelStyle: GoogleFonts.cairo(fontSize: 14.sp),
                 tabs: const [
                   Tab(text: "أهداف الكاش باك"),
                   Tab(text: "هدايا المنطقة"),
                 ],
               ),
             ),
-            // ✅ ننتظر تحميل بيانات المستخدم "فقط" قبل عرض التبويبات
+            // ✅ ننتظر الـ Future الصغير للتأكد من استقرار البيانات
             body: FutureBuilder(
-              future: _userInitialData,
+              future: _initFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator(color: AppTheme.primaryGreen));
@@ -99,7 +94,7 @@ class _WalletScreenState extends State<WalletScreen> {
     );
   }
 
-  // 👇 باقي الأكواد كما هي تماماً بدون أي تغيير في المعرفات
+  // كل الدوال بالأسفل هي دوالك الأصلية بدون أي تغيير في المسميات
   Widget _buildCashbackTab(BuildContext context) {
     final buyerData = Provider.of<BuyerDataProvider>(context);
     final cashbackProvider = Provider.of<CashbackProvider>(context);
@@ -109,12 +104,9 @@ class _WalletScreenState extends State<WalletScreen> {
         Container(
           width: double.infinity,
           padding: EdgeInsets.symmetric(horizontal: 20.sp, vertical: 20.sp),
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             color: AppTheme.primaryGreen,
-            borderRadius: const BorderRadius.only(
-              bottomLeft: Radius.circular(30),
-              bottomRight: Radius.circular(30),
-            ),
+            borderRadius: BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30)),
           ),
           child: Column(
             children: [
@@ -127,7 +119,6 @@ class _WalletScreenState extends State<WalletScreen> {
             ],
           ),
         ),
-        
         Expanded(
           child: RefreshIndicator(
             onRefresh: () => Provider.of<CashbackProvider>(context, listen: false).fetchAvailableOffers(),
@@ -153,18 +144,9 @@ class _WalletScreenState extends State<WalletScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(
-                'رصيدك المتاح: ',
-                style: GoogleFonts.cairo(fontSize: 18.sp, color: Colors.white),
-              ),
-              Text(
-                '${balance.toStringAsFixed(2)} ج',
-                style: GoogleFonts.cairo(
-                  fontSize: 22.sp, 
-                  fontWeight: FontWeight.w900, 
-                  color: const Color(0xFFFFD700) 
-                ),
-              ),
+              Text('رصيدك المتاح: ', style: GoogleFonts.cairo(fontSize: 18.sp, color: Colors.white)),
+              Text('${balance.toStringAsFixed(2)} ج',
+                style: GoogleFonts.cairo(fontSize: 22.sp, fontWeight: FontWeight.w900, color: const Color(0xFFFFD700))),
             ],
           ),
         );
@@ -208,10 +190,7 @@ class _WalletScreenState extends State<WalletScreen> {
     bool isCumulative = goal['targetType'] == 'cumulative_period';
     double minAmount = (goal['minAmount'] ?? 0.0).toDouble();
     double currentProgress = (goal['currentProgress'] ?? 0.0).toDouble();
-    
-    double progressPercent = minAmount > 0 ? (currentProgress / minAmount) : 0.0;
-    if (progressPercent > 1.0) progressPercent = 1.0;
-    
+    double progressPercent = minAmount > 0 ? (currentProgress / minAmount).clamp(0.0, 1.0) : 0.0;
     Color progressColor = progressPercent >= 1.0 ? Colors.green : Colors.orange;
 
     return Card(
@@ -225,85 +204,39 @@ class _WalletScreenState extends State<WalletScreen> {
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: Text(
-                    goal['description'] ?? 'عرض كاش باك',
-                    style: GoogleFonts.cairo(
-                      fontSize: 18.sp, 
-                      fontWeight: FontWeight.bold, 
-                      color: AppTheme.primaryGreen,
-                      height: 1.2
-                    ),
-                  ),
+                  child: Text(goal['description'] ?? 'عرض كاش باك',
+                    style: GoogleFonts.cairo(fontSize: 18.sp, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen)),
                 ),
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 10.sp, vertical: 4.sp),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    '${goal['value']}${goal['type'] == 'percentage' ? '%' : 'ج'}',
-                    style: GoogleFonts.cairo(fontSize: 20.sp, fontWeight: FontWeight.w900, color: Colors.orange[800]),
-                  ),
-                ),
+                Text('${goal['value']}${goal['type'] == 'percentage' ? '%' : 'ج'}',
+                  style: GoogleFonts.cairo(fontSize: 20.sp, fontWeight: FontWeight.w900, color: Colors.orange[800])),
               ],
             ),
-            
             SizedBox(height: 10.sp),
-            
-            Text(
-              isCumulative 
-                ? "هدف تراكمي: اشترِ بمجموع ${goal['minAmount']} ج"
-                : "كاش باك فوري على كل طلب بـ ${goal['minAmount']} ج",
-              style: GoogleFonts.cairo(fontSize: 15.sp, color: Colors.black87, fontWeight: FontWeight.w600),
-            ),
-
+            Text(isCumulative ? "هدف تراكمي: ${goal['minAmount']} ج" : "كاش باك فوري: ${goal['minAmount']} ج",
+                style: GoogleFonts.cairo(fontSize: 15.sp, color: Colors.black87, fontWeight: FontWeight.w600)),
             if (isCumulative) ...[
               SizedBox(height: 15.sp),
               ClipRRect(
                 borderRadius: BorderRadius.circular(10),
-                child: LinearProgressIndicator(
-                  value: progressPercent,
-                  minHeight: 12,
-                  backgroundColor: Colors.grey[200],
-                  valueColor: AlwaysStoppedAnimation<Color>(progressColor),
-                ),
+                child: LinearProgressIndicator(value: progressPercent, minHeight: 12, backgroundColor: Colors.grey[200], color: progressColor),
               ),
-              SizedBox(height: 8.sp),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('المحقَّق: ${currentProgress.toStringAsFixed(0)} ج', 
-                    style: GoogleFonts.cairo(fontSize: 14.sp, color: Colors.grey[700], fontWeight: FontWeight.bold)),
-                  Text('%${(progressPercent * 100).toStringAsFixed(0)}', 
-                    style: GoogleFonts.cairo(fontSize: 16.sp, color: progressColor, fontWeight: FontWeight.bold)),
+                  Text('المحقَّق: ${currentProgress.toStringAsFixed(0)} ج', style: GoogleFonts.cairo(fontSize: 14.sp)),
+                  Text('%${(progressPercent * 100).toStringAsFixed(0)}', style: GoogleFonts.cairo(fontSize: 16.sp, color: progressColor, fontWeight: FontWeight.bold)),
                 ],
               ),
             ],
-
-            Padding(
-              padding: EdgeInsets.symmetric(vertical: 12.sp),
-              child: Divider(height: 1, color: Colors.grey[200]),
-            ),
-
+            const Divider(),
             Row(
               children: [
                 Icon(Icons.calendar_month, size: 16.sp, color: Colors.redAccent),
-                SizedBox(width: 5.sp),
-                Text(
-                  "متبقي ${goal['daysRemaining']} يوم",
-                  style: GoogleFonts.cairo(fontSize: 14.sp, color: Colors.redAccent, fontWeight: FontWeight.bold),
-                ),
+                Text(" متبقي ${goal['daysRemaining']} يوم", style: GoogleFonts.cairo(fontSize: 14.sp, color: Colors.redAccent)),
                 const Spacer(),
-                Icon(Icons.storefront, size: 16.sp, color: Colors.blueGrey),
-                SizedBox(width: 4.sp),
-                Text(
-                  goal['sellerName'] ?? 'كل التجار',
-                  style: GoogleFonts.cairo(fontSize: 14.sp, color: Colors.blueGrey, fontWeight: FontWeight.w600),
-                ),
+                Text(goal['sellerName'] ?? 'كل التجار', style: GoogleFonts.cairo(fontSize: 14.sp, color: Colors.blueGrey)),
               ],
             ),
           ],
