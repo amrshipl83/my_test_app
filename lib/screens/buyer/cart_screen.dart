@@ -1,11 +1,11 @@
+// lib/screens/buyer/cart_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:my_test_app/providers/cart_provider.dart';
 import 'package:my_test_app/widgets/cart/cart_item_card.dart';
 import 'package:my_test_app/screens/checkout/checkout_screen.dart';
-import 'package:my_test_app/screens/buyer/trader_offers_screen.dart'; // استيراد شاشة العروض
+import 'package:my_test_app/screens/buyer/trader_offers_screen.dart';
 
-// 🎨 التعريفات اللونية
 const Color kPrimaryColor = Color(0xFF3bb77e);
 const Color kErrorColor = Color(0xFFDC3545);
 const Color kClearButtonColor = Color(0xFFff7675);
@@ -122,14 +122,13 @@ class _CartScreenState extends State<CartScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // ✅ تم تمرير المعرف والحد الأدنى هنا
         _buildMinOrderWarning(
           context,
           isMinOrderMet: isMinOrderMet,
           sellerName: sellerData.sellerName,
           message: sellerData.minOrderAlert ?? '',
           sellerId: sellerData.sellerId,
-          minOrderAmount: sellerData.minOrderAmount,
+          minOrderAmount: sellerData.minOrderTotal, // ✅ تم التعديل هنا ليتوافق مع الـ Provider
         ),
         ...sellerData.items.map((item) => CartItemCard(
           item: item,
@@ -172,7 +171,7 @@ class _CartScreenState extends State<CartScreen> {
                   children: [
                     Text(message, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                     Text('حد الطلب الأدنى لـ $sellerName: ${minOrderAmount.toStringAsFixed(0)} ج', 
-                         style: TextStyle(color: Colors.black54, fontSize: 12)),
+                         style: const TextStyle(color: Colors.black54, fontSize: 12)),
                   ],
                 ),
               ),
