@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:sizer/sizer.dart';
+import 'package:geolocator/geolocator.dart'; // لإدارة أذونات الموقع
 import 'location_picker_screen.dart';
 
 class AbaatlyHadProScreen extends StatefulWidget {
@@ -18,7 +19,6 @@ class AbaatlyHadProScreen extends StatefulWidget {
 }
 
 class _AbaatlyHadProScreenState extends State<AbaatlyHadProScreen> {
-  // تم الاحتفاظ بالكونترولر لإدارة النصوص الظاهرة فقط
   final TextEditingController _pickupController = TextEditingController();
   final TextEditingController _dropoffController = TextEditingController();
 
@@ -26,21 +26,43 @@ class _AbaatlyHadProScreenState extends State<AbaatlyHadProScreen> {
   LatLng? _dropoffCoords;
   bool _pickupConfirmed = false;
   bool _dropoffConfirmed = false;
+  late LatLng _liveLocation; // لتخزين الموقع المحدث
 
   @override
   void initState() {
     super.initState();
-    // إفراغ الحقول تماماً لضمان تسلسل الاختيار اليدوي من الخريطة
-    _pickupController.clear();
-    _dropoffController.clear();
+    _liveLocation = widget.userCurrentLocation;
+    _checkPermissionAndGetLocation(); // التأكد من الأذونات فور الدخول
+  }
+
+  // دالة للتأكد من أن الموقع متاح وإلا تطلبه من المستخدم
+  Future<void> _checkPermissionAndGetLocation() async {
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return;
+
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) return;
+    }
+    
+    // تحديث الموقع الحالي لضمان فتح الخريطة بدقة
+    Position position = await Geolocator.getCurrentPosition();
+    setState(() {
+      _liveLocation = LatLng(position.latitude, position.longitude);
+    });
   }
 
   Future<void> _pickLocation(bool isPickup) async {
+    // الخريطة ستفتح الآن عند _liveLocation (موقع المستخدم الحالي المحدث)
     final LatLng? result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => LocationPickerScreen(
-          initialLocation: widget.userCurrentLocation,
+          initialLocation: _liveLocation, 
           title: isPickup ? "حدد مكان الاستلام" : "حدد مكان التسليم",
         ),
       ),
@@ -83,7 +105,6 @@ class _AbaatlyHadProScreenState extends State<AbaatlyHadProScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 10),
               _buildLocationCard(
                 label: "من أين سيستلم المندوب؟",
                 controller: _pickupController,
@@ -104,14 +125,9 @@ class _AbaatlyHadProScreenState extends State<AbaatlyHadProScreen> {
                 isConfirmed: _dropoffConfirmed,
                 onTap: () => _pickLocation(false),
               ),
-              
-              const SizedBox(height: 40),
-              
+              const SizedBox(height: 35),
               _buildTermsSection(),
-              
-              const SizedBox(height: 40),
-              
-              // زر المتابعة يظهر فقط عند اكتمال تحديد النقطتين
+              const SizedBox(height: 30),
               if (_pickupConfirmed && _dropoffConfirmed)
                 _buildConfirmButton(),
             ],
@@ -121,6 +137,8 @@ class _AbaatlyHadProScreenState extends State<AbaatlyHadProScreen> {
     );
   }
 
+  // --- (دوال _buildTermsSection و _buildTermItem و _buildLocationCard تبقى كما هي في الكود السابق مع تكبير الخط) ---
+  
   Widget _buildTermsSection() {
     return Container(
       padding: const EdgeInsets.all(22),
@@ -136,14 +154,12 @@ class _AbaatlyHadProScreenState extends State<AbaatlyHadProScreen> {
             children: [
               const Icon(Icons.shield_outlined, color: Colors.amber, size: 28),
               const SizedBox(width: 12),
-              Text("شروط الاستخدام والضمان", 
-                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16.sp, color: Colors.black87)),
+              Text("شروط الاستخدام والضمان", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16.sp, color: Colors.black87)),
             ],
           ),
           const SizedBox(height: 20),
           _buildTermItem("المنصة وسيط تقني؛ المسؤولية القانونية عن محتوى الشحنة تقع بالكامل على طرفي العملية."),
           _buildTermItem("يُمنع منعاً باتاً نقل الأموال، المشغولات الذهبية، أو المواد المحظورة قانوناً."),
-          // 👈 البند الجديد الذي طلبته بصيغة قوية
           _buildTermItem("كود التسليم (Delivery Code) هو توقيعك الإلكتروني بالاستلام؛ لا تعطه للمندوب إلا بعد فحص الشحنة والتأكد من سلامتها تماماً."),
           _buildTermItem("يجب مطابقة هوية المندوب وصورته من التطبيق قبل تسليمه أي أغراض."),
         ],
@@ -162,30 +178,13 @@ class _AbaatlyHadProScreenState extends State<AbaatlyHadProScreen> {
             child: Icon(Icons.check_circle_outline, size: 18, color: Colors.amber[900]),
           ),
           const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              text, 
-              style: TextStyle(
-                fontSize: 13.sp, // 👈 تكبير الخط كما طلبت (كان 12.5)
-                fontWeight: FontWeight.w700, 
-                color: Colors.black, 
-                height: 1.4
-              ),
-            ),
-          ),
+          Expanded(child: Text(text, style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.w700, color: Colors.black, height: 1.4))),
         ],
       ),
     );
   }
 
-  Widget _buildLocationCard({
-    required String label,
-    required TextEditingController controller,
-    required IconData icon,
-    required Color color,
-    required bool isConfirmed,
-    required VoidCallback onTap,
-  }) {
+  Widget _buildLocationCard({required String label, required TextEditingController controller, required IconData icon, required Color color, required bool isConfirmed, required VoidCallback onTap}) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(25),
@@ -199,34 +198,14 @@ class _AbaatlyHadProScreenState extends State<AbaatlyHadProScreen> {
         ),
         child: Row(
           children: [
-            CircleAvatar(
-              radius: 25,
-              backgroundColor: color.withOpacity(0.1), 
-              child: Icon(icon, color: color, size: 30)
-            ),
+            CircleAvatar(radius: 25, backgroundColor: color.withOpacity(0.1), child: Icon(icon, color: color, size: 30)),
             const SizedBox(width: 18),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(label, style: TextStyle(color: Colors.grey[500], fontSize: 11.sp, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  Text(
-                    controller.text.isEmpty ? "اضغط للتحديد من الخريطة" : controller.text,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w900, 
-                      fontSize: 14.sp, 
-                      color: isConfirmed ? Colors.black : Colors.red[800]
-                    )
-                  ),
-                ],
-              ),
-            ),
-            Icon(
-              isConfirmed ? Icons.verified : Icons.add_location_alt_outlined, 
-              color: isConfirmed ? Colors.green : Colors.grey[400], 
-              size: 30
-            ),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(label, style: TextStyle(color: Colors.grey[500], fontSize: 11.sp, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              Text(controller.text.isEmpty ? "اضغط للتحديد من الخريطة" : controller.text, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14.sp, color: isConfirmed ? Colors.black : Colors.red[800])),
+            ])),
+            Icon(isConfirmed ? Icons.verified : Icons.add_location_alt_outlined, color: isConfirmed ? Colors.green : Colors.grey[400], size: 30),
           ],
         ),
       ),
@@ -234,21 +213,6 @@ class _AbaatlyHadProScreenState extends State<AbaatlyHadProScreen> {
   }
 
   Widget _buildConfirmButton() {
-    return SizedBox(
-      width: double.infinity,
-      height: 60,
-      child: ElevatedButton(
-        onPressed: () {
-          // هنا يتم الانتقال لصفحة كتابة تفاصيل الحمولة النهائية والطلب
-        },
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.green[700],
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          elevation: 5,
-        ),
-        child: Text("تأكيد المسار والمتابعة", 
-          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16.sp, color: Colors.white)),
-      ),
-    );
+    return SizedBox(width: double.infinity, height: 60, child: ElevatedButton(onPressed: () {}, style: ElevatedButton.styleFrom(backgroundColor: Colors.green[700], shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)), elevation: 5), child: Text("تأكيد المسار والمتابعة", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16.sp, color: Colors.white))));
   }
 }
