@@ -152,7 +152,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     }
   }
 
-  Future<void> _finalizeAndUpload() async {
+  
     Future<void> _finalizeAndUpload() async {
     // التأكد من وجود حسبة سعرية قبل الرفع
     if (_pricingDetails['totalPrice'] == 0) {
