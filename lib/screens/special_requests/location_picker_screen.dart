@@ -1,4 +1,3 @@
-// lib/screens/special_requests/location_picker_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -10,7 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sizer/sizer.dart';
 import '../../services/bubble_service.dart';
 import '../../services/delivery_service.dart';
-import 'dart:math'; // 👈 إضافة المكتبة لتوليد الأرقام العشوائية
+import 'dart:math';
 
 enum PickerStep { pickup, dropoff, confirm }
 
@@ -38,7 +37,15 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   String _pickupAddress = "جاري جلب العنوان...";
   LatLng? _dropoffLocation;
   String _dropoffAddress = "";
+  
+  // المتغيرات المالية الجديدة
   double _estimatedPrice = 0.0;
+  Map<String, double> _pricingDetails = {
+    'totalPrice': 0.0,
+    'commissionAmount': 0.0,
+    'driverNet': 0.0
+  };
+
   String _tempAddress = "حرك الخريطة لتحديد الموقع";
   bool _isLoading = false;
   String _selectedVehicle = "motorcycle";
@@ -62,7 +69,6 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     super.dispose();
   }
 
-  // 🛠️ دالة توليد كود الأمان المكون من 4 أرقام
   String _generateOTP() {
     var rng = Random();
     return (1000 + rng.nextInt(9000)).toString();
@@ -100,6 +106,35 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     }
   }
 
+  // دالة موحدة لتحديث السعر من السيرفس الجديد
+  Future<void> _updatePricing(String vehicleType) async {
+    if (_pickupLocation == null || _dropoffLocation == null) return;
+    
+    try {
+      double distance = _deliveryService.calculateDistance(
+          _pickupLocation!.latitude, _pickupLocation!.longitude,
+          _dropoffLocation!.latitude, _dropoffLocation!.longitude
+      );
+
+      final results = await _deliveryService.calculateDetailedTripCost(
+          distanceInKm: distance,
+          vehicleType: vehicleType
+      );
+
+      setState(() {
+        _pricingDetails = results;
+        _estimatedPrice = results['totalPrice']!;
+      });
+    } catch (e) {
+      debugPrint("Pricing Error: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(backgroundColor: Colors.red, content: Text("خطأ: لم يتم العثور على إعدادات $vehicleType"))
+        );
+      }
+    }
+  }
+
   void _handleNextStep() async {
     if (_currentStep == PickerStep.pickup) {
       _pickupLocation = _currentMapCenter;
@@ -111,28 +146,22 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     } else if (_currentStep == PickerStep.dropoff) {
       _dropoffLocation = _currentMapCenter;
       _dropoffAddress = _tempAddress;
-      _estimatedPrice = await _calculatePrice(_selectedVehicle);
+      
+      await _updatePricing(_selectedVehicle);
       _showFinalConfirmation();
     }
   }
 
-  Future<double> _calculatePrice(String vehicleType) async {
-    if (_pickupLocation == null || _dropoffLocation == null) return 0.0;
-    double distance = _deliveryService.calculateDistance(
-        _pickupLocation!.latitude, _pickupLocation!.longitude,
-        _dropoffLocation!.latitude, _dropoffLocation!.longitude
-    );
-    return await _deliveryService.calculateTripCost(
-        distanceInKm: distance,
-        vehicleType: vehicleType
-    );
-  }
-
   Future<void> _finalizeAndUpload() async {
+    if (_pricingDetails['totalPrice'] == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("برجاء اختيار وسيلة نقل صحيحة أولاً")));
+      return;
+    }
+
     setState(() => _isLoading = true);
     try {
       final user = FirebaseAuth.instance.currentUser;
-      final String securityCode = _generateOTP(); // 👈 توليد الكود هنا
+      final String securityCode = _generateOTP();
 
       final docRef = await FirebaseFirestore.instance.collection('specialRequests').add({
         'userId': user?.uid ?? 'anonymous',
@@ -140,11 +169,16 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
         'pickupAddress': _pickupAddress,
         'dropoffLocation': GeoPoint(_dropoffLocation!.latitude, _dropoffLocation!.longitude),
         'dropoffAddress': _dropoffAddress,
-        'price': _estimatedPrice,
+        
+        // الحقول المالية الثلاثة 💰
+        'totalPrice': _pricingDetails['totalPrice'],       // شامل (للعميل)
+        'commissionAmount': _pricingDetails['commissionAmount'], // عمولة المنصة
+        'driverNet': _pricingDetails['driverNet'],         // صافي المندوب
+        
         'vehicleType': _selectedVehicle,
         'details': _detailsController.text,
         'status': 'pending',
-        'verificationCode': securityCode, // 👈 حفظ كود الأمان في قاعدة البيانات
+        'verificationCode': securityCode,
         'createdAt': FieldValue.serverTimestamp(),
       });
 
@@ -153,11 +187,11 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
       BubbleService.show(docRef.id);
 
       if (!mounted) return;
-      Navigator.pop(context); // إغلاق المودال
-      Navigator.pop(context); // العودة للرئيسية
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🚀 طلبك قيد التنفيذ! تابعه من الفقاعة.")));
+      Navigator.pop(context); 
+      Navigator.pop(context); 
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🚀 طلبك قيد التنفيذ!")));
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("خطأ: $e")));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("خطأ أثناء الرفع: $e")));
     } finally {
       setState(() => _isLoading = false);
     }
@@ -293,8 +327,9 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                         return GestureDetector(
                           onTap: () async {
                             setModalState(() => _selectedVehicle = v['id']);
-                            double newPrice = await _calculatePrice(v['id']);
-                            setModalState(() => _estimatedPrice = newPrice);
+                            // تحديث الحسبة عند تغيير المركبة داخل المودال
+                            await _updatePricing(v['id']);
+                            setModalState(() {}); 
                           },
                           child: Container(
                             width: 100,
@@ -336,7 +371,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text("التكلفة التقديرية:", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+                      const Text("التكلفة الإجمالية:", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
                       Text("${_estimatedPrice.toStringAsFixed(2)} ج.م", style: TextStyle(color: Colors.blue[900], fontWeight: FontWeight.w900, fontSize: 22)),
                     ],
                   ),
@@ -372,4 +407,3 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     );
   }
 }
-
