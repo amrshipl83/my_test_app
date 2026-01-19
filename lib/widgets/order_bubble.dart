@@ -5,7 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sizer/sizer.dart';
 import '../screens/customer_tracking_screen.dart';
 import '../services/bubble_service.dart';
-import '../main.dart'; // ضروري للوصول إلى navigatorKey
+import '../main.dart'; 
 
 class OrderBubble extends StatefulWidget {
   final String orderId;
@@ -34,18 +34,37 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
     super.dispose();
   }
 
+  // دالة مسح الطلب محلياً وإخفاء الفقاعة
   Future<void> _clearOrder() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('active_special_order_id');
     BubbleService.hide();
   }
 
-  // 🎯 تحديد الأيقونة بناءً على نوع المركبة المختارة في الطلب
+  // 🗑️ دالة إلغاء الطلب من طرف العميل في الفايربيز
+  Future<void> _cancelOrderInFirebase() async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('specialRequests')
+          .doc(widget.orderId)
+          .update({'status': 'cancelled'});
+      
+      // التنبيه بالإلغاء
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("✅ تم إلغاء الطلب بنجاح"), backgroundColor: Colors.red),
+        );
+      }
+    } catch (e) {
+      debugPrint("Error cancelling order: $e");
+    }
+  }
+
   IconData _getVehicleIcon(String? vehicleType) {
     switch (vehicleType) {
-      case 'ربع نقل': return Icons.local_shipping;
-      case 'جامبو': return Icons.fire_truck;
-      case 'موتوسيكل':
+      case 'pickup': return Icons.local_shipping;
+      case 'jumbo': return Icons.fire_truck;
+      case 'motorcycle':
       default: return Icons.delivery_dining;
     }
   }
@@ -66,7 +85,12 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
         String status = data['status'] ?? 'pending';
         String? vehicleType = data['vehicleType'];
 
-        if (status == 'delivered' || status == 'cancelled' || status == 'rejected') {
+        // 🛑 تحديث ذكي: الإخفاء التلقائي عند حالات النهاية أو عدم توفر مناديب
+        if (status == 'delivered' || 
+            status == 'cancelled' || 
+            status == 'rejected' || 
+            status == 'no_drivers_available' || 
+            status == 'expired') {
           Future.microtask(() => _clearOrder());
           return const SizedBox.shrink();
         }
@@ -91,7 +115,7 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
               },
               child: GestureDetector(
                 onTap: () => _handleBubbleTap(context),
-                onLongPress: () => _showOptionsDialog(context),
+                onLongPress: () => _showOptionsDialog(context, status), // تمرير الحالة للديالوج
                 child: isAccepted
                     ? _buildBubbleUI(isAccepted, false, vehicleType)
                     : ScaleTransition(
@@ -108,11 +132,8 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
 
   void _handleBubbleTap(BuildContext context) {
     bool isAlreadyOpen = false;
-    
     navigatorKey.currentState?.popUntil((route) {
-      if (route.settings.name == '/customerTracking') {
-        isAlreadyOpen = true;
-      }
+      if (route.settings.name == '/customerTracking') isAlreadyOpen = true;
       return true;
     });
 
@@ -129,33 +150,51 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
     }
   }
 
-  void _showOptionsDialog(BuildContext context) {
+  // 🛠️ خيارات الفقاعة المحدثة (إلغاء حقيقي للطلب)
+  void _showOptionsDialog(BuildContext context, String status) {
+    bool canCancel = status == 'pending'; // العميل يلغي فقط لو لسه مفيش مندوب قبل
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("إخفاء التتبع؟"),
-        content: const Text("هل تريد إخفاء الفقاعة؟ لن يتم إلغاء طلبك الحالي."),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("إلغاء")),
-          TextButton(
-            onPressed: () {
-              _clearOrder();
-              Navigator.pop(ctx);
-            },
-            child: const Text("إخفاء", style: TextStyle(color: Colors.red)),
-          ),
-        ],
+      builder: (ctx) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text("إدارة الطلب الحالي"),
+          content: Text(canCancel 
+            ? "هل تريد إلغاء الطلب نهائياً أم إخفاء الفقاعة فقط؟" 
+            : "الطلب قيد التنفيذ الآن. يمكنك إخفاء الفقاعة من شاشتك فقط."),
+          actions: [
+            if (canCancel)
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _cancelOrderInFirebase(); // يلغي في السيستم
+                },
+                child: const Text("إلغاء الطلب نهائياً", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+              ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _clearOrder(); // يخفي من الشاشة فقط
+              },
+              child: const Text("إخفاء الفقاعة فقط"),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text("رجوع", style: TextStyle(color: Colors.grey)),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  // ✅ التعديل الجديد لتحسين شكل "الرادار" ووضوح الفكرة
   Widget _buildBubbleUI(bool isAccepted, bool isDragging, String? vehicleType) {
     return Container(
       width: 16.w,
       height: 16.w,
       decoration: BoxDecoration(
-        // تدرج لوني في حالة البحث لزيادة العمق
         gradient: isAccepted 
             ? null 
             : RadialGradient(
@@ -177,11 +216,9 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // إضافة دائرة دوارة خفيفة جداً توحي بالبحث (الرادار)
           if (!isAccepted)
             const SizedBox(
-              width: 50,
-              height: 50,
+              width: 50, height: 50,
               child: CircularProgressIndicator(
                 strokeWidth: 1.5,
                 valueColor: AlwaysStoppedAnimation<Color>(Colors.white30),
@@ -191,13 +228,13 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
-                isAccepted ? _getVehicleIcon(vehicleType) : Icons.radar, // استخدام أيقونة رادار
+                isAccepted ? _getVehicleIcon(vehicleType) : Icons.radar,
                 color: Colors.white,
                 size: 20.sp,
               ),
               if (!isAccepted)
                 Text(
-                  "جاري البحث", // نص أوضح من "بحث.."
+                  "جاري البحث",
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 6.5.sp,
