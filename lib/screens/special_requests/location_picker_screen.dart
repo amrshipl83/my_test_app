@@ -153,27 +153,41 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   }
 
   Future<void> _finalizeAndUpload() async {
+    Future<void> _finalizeAndUpload() async {
+    // التأكد من وجود حسبة سعرية قبل الرفع
     if (_pricingDetails['totalPrice'] == 0) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("برجاء اختيار وسيلة نقل صحيحة أولاً")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("برجاء اختيار وسيلة نقل صحيحة أولاً"))
+      );
       return;
     }
 
     setState(() => _isLoading = true);
     try {
       final user = FirebaseAuth.instance.currentUser;
+      
+      // 🛡️ استخراج رقم التليفون من إيميل المستخدم المسجل (رقم@aksab.com)
+      // دي الخطوة اللي هتخلي أيقونة الاتصال عند المندوب تشتغل
+      String rawEmail = user?.email ?? ""; 
+      String derivedPhone = rawEmail.contains('@') 
+          ? rawEmail.split('@')[0] 
+          : (user?.phoneNumber ?? "0000000000");
+
       final String securityCode = _generateOTP();
 
+      // إنشاء المستند في الفايربيز مع الحقول المالية المؤمنة
       final docRef = await FirebaseFirestore.instance.collection('specialRequests').add({
         'userId': user?.uid ?? 'anonymous',
+        'userPhone': derivedPhone, // الحقل السري اللي بيظهر للمندوب بعد القبول ✅
         'pickupLocation': GeoPoint(_pickupLocation!.latitude, _pickupLocation!.longitude),
         'pickupAddress': _pickupAddress,
         'dropoffLocation': GeoPoint(_dropoffLocation!.latitude, _dropoffLocation!.longitude),
         'dropoffAddress': _dropoffAddress,
         
-        // الحقول المالية الثلاثة 💰
-        'totalPrice': _pricingDetails['totalPrice'],       // شامل (للعميل)
-        'commissionAmount': _pricingDetails['commissionAmount'], // عمولة المنصة
-        'driverNet': _pricingDetails['driverNet'],         // صافي المندوب
+        // المبالغ المالية (الأساسية لعمل الرادار)
+        'totalPrice': _pricingDetails['totalPrice'],       // للعميل
+        'commissionAmount': _pricingDetails['commissionAmount'], // للمنصة
+        'driverNet': _pricingDetails['driverNet'],         // للمندوب
         
         'vehicleType': _selectedVehicle,
         'details': _detailsController.text,
@@ -182,20 +196,36 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
         'createdAt': FieldValue.serverTimestamp(),
       });
 
+      // حفظ معرف الطلب محلياً للرجوع إليه
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('active_special_order_id', docRef.id);
+      
+      // تشغيل فقاعة التتبع العائمة للعميل
       BubbleService.show(docRef.id);
 
       if (!mounted) return;
-      Navigator.pop(context); 
-      Navigator.pop(context); 
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🚀 طلبك قيد التنفيذ!")));
+      
+      // إغلاق الشاشات المنبثقة والعودة للرئيسية
+      Navigator.pop(context); // إغلاق المودال
+      Navigator.pop(context); // العودة من الخريطة
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: Colors.green,
+          content: Text("🚀 طلبك وصل للمناديب القريبين!")
+        )
+      );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("خطأ أثناء الرفع: $e")));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("خطأ أثناء الرفع: $e"))
+        );
+      }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
