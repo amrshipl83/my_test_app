@@ -49,7 +49,6 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
           .doc(widget.orderId)
           .update({'status': 'cancelled'});
       
-      // التنبيه بالإلغاء
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("✅ تم إلغاء الطلب بنجاح"), backgroundColor: Colors.red),
@@ -85,7 +84,7 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
         String status = data['status'] ?? 'pending';
         String? vehicleType = data['vehicleType'];
 
-        // 🛑 تحديث ذكي: الإخفاء التلقائي عند حالات النهاية أو عدم توفر مناديب
+        // 🛑 التحديث الذكي: الإخفاء التلقائي عند انتهاء الطلب أو عدم توفر مناديب
         if (status == 'delivered' || 
             status == 'cancelled' || 
             status == 'rejected' || 
@@ -115,7 +114,7 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
               },
               child: GestureDetector(
                 onTap: () => _handleBubbleTap(context),
-                onLongPress: () => _showOptionsDialog(context, status), // تمرير الحالة للديالوج
+                onLongPress: () => _showOptionsDialog(context, status),
                 child: isAccepted
                     ? _buildBubbleUI(isAccepted, false, vehicleType)
                     : ScaleTransition(
@@ -150,42 +149,39 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
     }
   }
 
-  // 🛠️ خيارات الفقاعة المحدثة (إلغاء حقيقي للطلب)
   void _showOptionsDialog(BuildContext context, String status) {
-    bool canCancel = status == 'pending'; // العميل يلغي فقط لو لسه مفيش مندوب قبل
+    bool canCancel = status == 'pending'; 
 
     showDialog(
       context: context,
-      builder: (ctx) => Directionality(
-        textDirection: TextDirection.rtl,
-        child: AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Text("إدارة الطلب الحالي"),
-          content: Text(canCancel 
-            ? "هل تريد إلغاء الطلب نهائياً أم إخفاء الفقاعة فقط؟" 
-            : "الطلب قيد التنفيذ الآن. يمكنك إخفاء الفقاعة من شاشتك فقط."),
-          actions: [
-            if (canCancel)
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  _cancelOrderInFirebase(); // يلغي في السيستم
-                },
-                child: const Text("إلغاء الطلب نهائياً", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-              ),
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text("إدارة الطلب الحالي"),
+        content: Text(canCancel 
+          ? "هل تريد إلغاء الطلب نهائياً أم إخفاء الفقاعة فقط؟" 
+          : "الطلب قيد التنفيذ الآن. يمكنك إخفاء الفقاعة من شاشتك فقط."),
+        actions: [
+          if (canCancel)
             TextButton(
               onPressed: () {
                 Navigator.pop(ctx);
-                _clearOrder(); // يخفي من الشاشة فقط
+                _cancelOrderInFirebase(); 
               },
-              child: const Text("إخفاء الفقاعة فقط"),
+              child: const Text("إلغاء الطلب نهائياً", 
+                style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
             ),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text("رجوع", style: TextStyle(color: Colors.grey)),
-            ),
-          ],
-        ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _clearOrder(); 
+            },
+            child: const Text("إخفاء الفقاعة فقط"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("رجوع", style: TextStyle(color: Colors.grey)),
+          ),
+        ],
       ),
     );
   }
