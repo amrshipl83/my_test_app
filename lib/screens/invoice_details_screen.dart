@@ -1,6 +1,6 @@
-// lib/screens/invoice_details_screen.dart
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart'; // تأكد من إضافة هذه المكتبة في pubspec.yaml
 
 class InvoiceDetailsScreen extends StatelessWidget {
   final String invoiceId;
@@ -12,8 +12,37 @@ class InvoiceDetailsScreen extends StatelessWidget {
     required this.invoiceData
   });
 
+  // دالة لفتح رابط الدفع في المتصفح الخارجي
+  Future<void> _openPaymentLink(BuildContext context) async {
+    final String? link = invoiceData['paymentLink']; // سحب الرابط من حقل paymentLink في Firestore
+
+    if (link == null || link.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('عذراً، رابط الدفع غير متوفر حالياً')),
+      );
+      return;
+    }
+
+    final Uri url = Uri.parse(link);
+    
+    try {
+      // محاولة فتح الرابط في متصفح خارجي لضمان الأمان والتوافق
+      if (await canLaunchUrl(url)) {
+        await launchUrl(url, mode: LaunchMode.externalApplication);
+      } else {
+        throw 'Could not launch $url';
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('حدث خطأ أثناء محاولة فتح بوابة الدفع')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    bool isPaid = invoiceData['status'] == 'paid';
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('تفاصيل الفاتورة'),
@@ -21,7 +50,7 @@ class InvoiceDetailsScreen extends StatelessWidget {
         foregroundColor: Colors.white,
         centerTitle: true,
       ),
-      body: SingleChildScrollView( // أضفنا سكرول لضمان عدم حدوث Overflow
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -29,7 +58,6 @@ class InvoiceDetailsScreen extends StatelessWidget {
             _buildInfoCard(),
             const SizedBox(height: 25),
             
-            // بيانات أساسية
             _buildSectionTitle("البيانات الأساسية"),
             _buildInfoTile("رقم الفاتورة المرجعي", invoiceId.substring(0, 8).toUpperCase()),
             _buildInfoTile("تاريخ الإصدار", _formatDate(invoiceData['creationDate'])),
@@ -38,7 +66,6 @@ class InvoiceDetailsScreen extends StatelessWidget {
             
             const Divider(height: 40),
             
-            // التفاصيل المالية
             _buildSectionTitle("التفاصيل المالية"),
             _buildInfoTile("إجمالي العمولة", "${invoiceData['totalCommission'] ?? 0} ج.م"),
             _buildInfoTile("الضريبة المضافة", "${invoiceData['vatAmount'] ?? 0} ج.م"),
@@ -46,26 +73,26 @@ class InvoiceDetailsScreen extends StatelessWidget {
             
             const Divider(height: 40),
             
-            // حالة الدفع
             _buildStatusRow(),
             if (invoiceData['paymentMethod'] != null)
               _buildInfoTile("طريقة السداد", "${invoiceData['paymentMethod']}"),
 
             const SizedBox(height: 40),
 
-            if (invoiceData['status'] != 'paid')
+            // زرار الدفع يظهر فقط إذا كانت الحالة ليست paid
+            if (!isPaid)
               SizedBox(
                 width: double.infinity,
                 height: 55,
-                child: ElevatedButton(
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.payment, color: Colors.white),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 2,
                   ),
-                  onPressed: () {
-                    // منطق بوابة الدفع سيضاف هنا لاحقاً
-                  },
-                  child: const Text(
+                  onPressed: () => _openPaymentLink(context), // استدعاء دالة الفتح
+                  label: const Text(
                     "سداد الفاتورة الآن",
                     style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)
                   ),
@@ -77,6 +104,7 @@ class InvoiceDetailsScreen extends StatelessWidget {
     );
   }
 
+  // الدوال المساعدة (Helper Methods) دون تغيير كبير لتوافق التصميم السابق
   Widget _buildSectionTitle(String title) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -157,11 +185,9 @@ class InvoiceDetailsScreen extends StatelessWidget {
         DateTime dt = DateTime.parse(dateVal);
         return DateFormat('yyyy/MM/dd').format(dt);
       }
-      // إذا كان Timestamp من فايربيز
       return DateFormat('yyyy/MM/dd').format(dateVal.toDate());
     } catch (e) {
       return dateVal.toString();
     }
   }
 }
-
