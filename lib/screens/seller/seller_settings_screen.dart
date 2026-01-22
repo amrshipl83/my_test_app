@@ -10,7 +10,7 @@ import 'package:sizer/sizer.dart';
 // 🎯 الألوان والثوابت المعتمدة
 const Color primaryColor = Color(0xff28a745);
 
-// 🎯 معرفات كلوديناري النهائية (تم التثبيت بناءً على طلبك)
+// 🎯 معرفات كلوديناري النهائية
 const String CLOUDINARY_URL = "https://api.cloudinary.com/v1_1/dgmmx6jbu/image/upload";
 const String UPLOAD_PRESET = "commerce"; 
 
@@ -113,7 +113,6 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
         var jsonRes = json.decode(responseData);
         String newUrl = jsonRes['secure_url'];
 
-        // 🎯 الحقل الموحد الآن هو logoUrl كما في Firestore الخاص بك
         await _firestore.collection("sellers").doc(widget.currentSellerId).update({
           'logoUrl': newUrl
         });
@@ -130,6 +129,52 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
     }
   }
 
+  // 🎯 دالة حذف الحساب (Soft Delete) استجابةً لمتطلبات جوجل بلاي
+  Future<void> _deleteAccount() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('⚠️ حذف الحساب', textAlign: TextAlign.right, style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold)),
+        content: const Text(
+          'هل أنت متأكد من رغبتك في حذف حسابك؟ سيتم إخفاء نشاطك التجاري وستفقد الوصول للتطبيق خلال 14 يوماً.',
+          textAlign: TextAlign.right,
+          style: TextStyle(fontFamily: 'Cairo'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('إلغاء')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('تأكيد الحذف', style: TextStyle(color: Colors.white, fontFamily: 'Cairo')),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _isLoading = true);
+    try {
+      // تنفيذ الحذف الناعم في Firestore
+      await _firestore.collection("sellers").doc(widget.currentSellerId).update({
+        'isDeleted': true,
+        'deletedAt': FieldValue.serverTimestamp(),
+        'status': 'inactive',
+      });
+
+      // تسجيل الخروج والعودة للبداية
+      await _auth.signOut();
+      if (mounted) {
+        Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+      }
+    } catch (e) {
+      _showFloatingAlert("❌ حدث خطأ أثناء معالجة الطلب", isError: true);
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
   Future<void> _addSubUser() async {
     final phone = _subUserPhoneController.text.trim();
     if (phone.isEmpty) {
@@ -139,7 +184,6 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
 
     setState(() => _isLoading = true);
     try {
-      // 🎯 توحيد الدومين ليكون @aksab.com دائماً
       String fakeEmail = "$phone@aksab.com";
       try {
         await _auth.createUserWithEmailAndPassword(email: fakeEmail, password: "123456");
@@ -176,7 +220,6 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // 🎯 استخدام logoUrl من الكاش المحدث
     final String? logoUrl = sellerDataCache['logoUrl'];
 
     return Directionality(
@@ -220,6 +263,18 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
                     _buildMainButton("إضافة موظف جديد", Icons.person_add, _addSubUser, color: Colors.blueGrey[800]!),
                     SizedBox(height: 3.h),
                     _buildSubUsersList(),
+                    
+                    // 🎯 قسم حذف الحساب (متطلب جوجل بلاي)
+                    SizedBox(height: 4.h),
+                    const Divider(color: Colors.redAccent, thickness: 0.5),
+                    TextButton.icon(
+                      onPressed: _deleteAccount,
+                      icon: const Icon(Icons.delete_forever, color: Colors.redAccent),
+                      label: const Text(
+                        "حذف حساب التاجر نهائياً",
+                        style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
+                      ),
+                    ),
                     SizedBox(height: 5.h),
                   ],
                 ),
@@ -227,6 +282,8 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
       ),
     );
   }
+
+  // --- المكونات المساعدة (UI Helpers) ---
 
   Widget _buildLogoHeader(String? logoUrl) {
     return Stack(
@@ -397,4 +454,3 @@ class _SellerSettingsScreenState extends State<SellerSettingsScreen> {
     );
   }
 }
-
