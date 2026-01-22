@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:url_launcher/url_launcher.dart'; // تأكد من إضافة هذه المكتبة في pubspec.yaml
+import 'package:url_launcher/url_launcher.dart';
 
 class InvoiceDetailsScreen extends StatelessWidget {
   final String invoiceId;
@@ -12,29 +12,43 @@ class InvoiceDetailsScreen extends StatelessWidget {
     required this.invoiceData
   });
 
-  // دالة لفتح رابط الدفع في المتصفح الخارجي
+  // دالة مطورة لفتح رابط الدفع مع رسائل توضيحية للمستخدم
   Future<void> _openPaymentLink(BuildContext context) async {
-    final String? link = invoiceData['paymentLink']; // سحب الرابط من حقل paymentLink في Firestore
+    final String? link = invoiceData['paymentLink'];
 
     if (link == null || link.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('عذراً، رابط الدفع غير متوفر حالياً')),
+        const SnackBar(
+          content: Text('⏳ جاري تجهيز رابط الدفع بأمان، يرجى المحاولة بعد لحظات'),
+          backgroundColor: Colors.orange,
+        ),
       );
       return;
     }
 
     final Uri url = Uri.parse(link);
     
+    // إشعار المستخدم بالانتقال لبوابة خارجية (مطلب هام لجوجل بلاي)
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('🔒 جاري الانتقال الآمن لبوابة Paymob لسداد فاتورتك...'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+
     try {
-      // محاولة فتح الرابط في متصفح خارجي لضمان الأمان والتوافق
       if (await canLaunchUrl(url)) {
+        // الفتح في تطبيق خارجي لضمان أقصى درجات الأمان والتوافق
         await launchUrl(url, mode: LaunchMode.externalApplication);
       } else {
         throw 'Could not launch $url';
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('حدث خطأ أثناء محاولة فتح بوابة الدفع')),
+        const SnackBar(
+          content: Text('❌ تعذر فتح بوابة الدفع، تأكد من وجود متصفح إنترنت على جهازك'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -42,10 +56,11 @@ class InvoiceDetailsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     bool isPaid = invoiceData['status'] == 'paid';
+    bool hasLink = invoiceData['paymentLink'] != null && invoiceData['paymentLink'].toString().isNotEmpty;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('تفاصيل الفاتورة'),
+        title: const Text('تفاصيل الفاتورة', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
         backgroundColor: const Color(0xFF007bff),
         foregroundColor: Colors.white,
         centerTitle: true,
@@ -77,34 +92,52 @@ class InvoiceDetailsScreen extends StatelessWidget {
             if (invoiceData['paymentMethod'] != null)
               _buildInfoTile("طريقة السداد", "${invoiceData['paymentMethod']}"),
 
-            const SizedBox(height: 40),
+            const SizedBox(height: 30),
 
-            // زرار الدفع يظهر فقط إذا كانت الحالة ليست paid
-            if (!isPaid)
+            // جزء سداد الفاتورة مع رسالة الخصوصية والأمان
+            if (!isPaid) ...[
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.only(bottom: 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.security, size: 14, color: Colors.grey),
+                      SizedBox(width: 5),
+                      Text(
+                        "الدفع مشفر وآمن تماماً عبر بوابة Paymob المرخصة",
+                        style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
               SizedBox(
                 width: double.infinity,
                 height: 55,
                 child: ElevatedButton.icon(
                   icon: const Icon(Icons.payment, color: Colors.white),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
+                    // يتغير اللون للرمادي لو الرابط لسه مش جاهز
+                    backgroundColor: hasLink ? Colors.green : Colors.grey.shade400,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    elevation: 2,
+                    elevation: hasLink ? 2 : 0,
                   ),
-                  onPressed: () => _openPaymentLink(context), // استدعاء دالة الفتح
-                  label: const Text(
-                    "سداد الفاتورة الآن",
-                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)
+                  onPressed: hasLink ? () => _openPaymentLink(context) : null, 
+                  label: Text(
+                    hasLink ? "سداد الفاتورة الآن" : "جاري تجهيز الرابط...",
+                    style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)
                   ),
                 ),
-              )
+              ),
+            ]
           ],
         ),
       ),
     );
   }
 
-  // الدوال المساعدة (Helper Methods) دون تغيير كبير لتوافق التصميم السابق
+  // الدوال المساعدة دون تغيير في الهوية البصرية
   Widget _buildSectionTitle(String title) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
