@@ -1,5 +1,6 @@
 // lib/screens/seller_screen.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // ✅ مطلوب لعملية إغلاق التطبيق
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -22,6 +23,9 @@ class SellerScreen extends StatefulWidget {
 class _SellerScreenState extends State<SellerScreen> {
   String _activeRoute = 'نظرة عامة';
   Widget _activeScreen = const SellerOverviewScreen();
+  
+  // ✅ متغير للتحكم في توقيت الضغط المزدوج
+  DateTime? _lastPressedAt;
 
   @override
   void initState() {
@@ -35,7 +39,6 @@ class _SellerScreenState extends State<SellerScreen> {
     });
   }
 
-  // --- نظام الإشعارات المطور ---
   void _setupNotifications() async {
     try {
       FirebaseMessaging messaging = FirebaseMessaging.instance;
@@ -79,13 +82,12 @@ class _SellerScreenState extends State<SellerScreen> {
   Widget build(BuildContext context) {
     final controller = Provider.of<SellerDashboardController>(context);
 
-    // ✅ إضافة PopScope للتحكم في زرار الرجوع
     return PopScope(
-      canPop: false, // نمنع الخروج التلقائي
+      canPop: false, // نمنع الخروج التلقائي لتفعيل المنطق الخاص بنا
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
 
-        // 1. لو المستخدم في شاشة فرعية جوه مسار البائع، نرجعه لـ "نظرة عامة"
+        // 1. العودة للشاشة الرئيسية إذا كان المستخدم في شاشة فرعية
         if (_activeRoute != 'نظرة عامة') {
           setState(() {
             _activeRoute = 'نظرة عامة';
@@ -94,30 +96,35 @@ class _SellerScreenState extends State<SellerScreen> {
           return;
         }
 
-        // 2. لو هو في الرئيسية، نسأله قبل الخروج (عشان جوجل بلاي)
-        final shouldExit = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-            title: const Text('تأكيد الخروج', textAlign: TextAlign.right, style: TextStyle(fontFamily: 'Cairo')),
-            content: const Text('هل تريد العودة للشاشة السابقة أو الخروج؟', textAlign: TextAlign.right, style: TextStyle(fontFamily: 'Cairo')),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo')),
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('خروج', style: TextStyle(fontFamily: 'Cairo', color: Colors.white)),
-              ),
-            ],
-          ),
-        );
+        // 2. منطق الضغط المزدوج للخروج (Double Tap to Exit)
+        final now = DateTime.now();
+        final isWarningTarget = _lastPressedAt == null || 
+            now.difference(_lastPressedAt!) > const Duration(seconds: 2);
 
-        if (shouldExit == true && context.mounted) {
-          // يسمح بالخروج الفعلي للـ Stack السابق (سواء كان شاشة Buyer أو Login)
-          Navigator.of(context).maybePop();
+        if (isWarningTarget) {
+          _lastPressedAt = now;
+          
+          // إظهار رسالة تنبيه Toast احترافية
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text(
+                'اضغط مرة أخرى للخروج من التطبيق',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontFamily: 'Cairo', color: Colors.white),
+              ),
+              backgroundColor: Colors.black87,
+              duration: const Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              margin: EdgeInsets.only(bottom: 10.h, left: 20.w, right: 20.w),
+            ),
+          );
+          return;
+        }
+
+        // 3. الخروج الفعلي من التطبيق دون تسجيل خروج (Stay Logged In)
+        if (context.mounted) {
+          SystemNavigator.pop(); 
         }
       },
       child: Scaffold(
@@ -129,72 +136,7 @@ class _SellerScreenState extends State<SellerScreen> {
           backgroundColor: Theme.of(context).colorScheme.primary,
           foregroundColor: Colors.white,
           actions: [
-            StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('notifications')
-                  .where('userId', isEqualTo: UserSession.userId)
-                  .orderBy('createdAt', descending: true)
-                  .limit(10)
-                  .snapshots(),
-              builder: (context, snapshot) {
-                bool hasNotifications = snapshot.hasData && snapshot.data!.docs.isNotEmpty;
-
-                return PopupMenuButton<int>(
-                  offset: const Offset(0, 50),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 12),
-                        child: Icon(Icons.notifications_none_rounded, size: 28),
-                      ),
-                      if (hasNotifications)
-                        Positioned(
-                          top: 15,
-                          right: 15,
-                          child: Container(
-                            width: 10,
-                            height: 10,
-                            decoration: BoxDecoration(
-                              color: Colors.redAccent, 
-                              shape: BoxShape.circle, 
-                              border: Border.all(color: Colors.white, width: 1.5)
-                            ),
-                          ),
-                        )
-                    ],
-                  ),
-                  itemBuilder: (context) {
-                    if (!hasNotifications) {
-                      return [
-                        const PopupMenuItem(
-                          enabled: false,
-                          child: Center(child: Text("لا توجد إشعارات", style: TextStyle(fontFamily: 'Cairo', fontSize: 12))),
-                        )
-                      ];
-                    }
-                    return snapshot.data!.docs.map((doc) {
-                      final data = doc.data() as Map<String, dynamic>;
-                      return PopupMenuItem<int>(
-                        enabled: false,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(data['title'] ?? 'تنبيه جديد', 
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, fontFamily: 'Cairo', color: Colors.black)),
-                            const SizedBox(height: 4),
-                            Text(data['message'] ?? '', 
-                              style: const TextStyle(fontSize: 11, color: Colors.black54, fontFamily: 'Cairo')),
-                            const Divider(),
-                          ],
-                        ),
-                      );
-                    }).toList();
-                  },
-                );
-              }
-            ),
+            _buildNotificationBell(),
             const SizedBox(width: 10),
           ],
         ),
@@ -228,6 +170,64 @@ class _SellerScreenState extends State<SellerScreen> {
           sellerId: UserSession.ownerId ?? controller.sellerId,
         ),
       ),
+    );
+  }
+
+  // ميثود منفصلة لبناء جرس الإشعارات لتنظيف الكود
+  Widget _buildNotificationBell() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('notifications')
+          .where('userId', isEqualTo: UserSession.userId)
+          .orderBy('createdAt', descending: true)
+          .limit(10)
+          .snapshots(),
+      builder: (context, snapshot) {
+        bool hasNotifications = snapshot.hasData && snapshot.data!.docs.isNotEmpty;
+        return PopupMenuButton<int>(
+          offset: const Offset(0, 50),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 12),
+                child: Icon(Icons.notifications_none_rounded, size: 28),
+              ),
+              if (hasNotifications)
+                Positioned(
+                  top: 15, right: 15,
+                  child: Container(
+                    width: 10, height: 10,
+                    decoration: BoxDecoration(
+                      color: Colors.redAccent, shape: BoxShape.circle, 
+                      border: Border.all(color: Colors.white, width: 1.5)),
+                  ),
+                )
+            ],
+          ),
+          itemBuilder: (context) {
+            if (!hasNotifications) {
+              return [const PopupMenuItem(enabled: false, child: Center(child: Text("لا توجد إشعارات", style: TextStyle(fontFamily: 'Cairo', fontSize: 12))))];
+            }
+            return snapshot.data!.docs.map((doc) {
+              final data = doc.data() as Map<String, dynamic>;
+              return PopupMenuItem<int>(
+                enabled: false,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(data['title'] ?? 'تنبيه جديد', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, fontFamily: 'Cairo', color: Colors.black)),
+                    const SizedBox(height: 4),
+                    Text(data['message'] ?? '', style: const TextStyle(fontSize: 11, color: Colors.black54, fontFamily: 'Cairo')),
+                    const Divider(),
+                  ],
+                ),
+              );
+            }).toList();
+          },
+        );
+      }
     );
   }
 }
