@@ -34,14 +34,13 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
     super.dispose();
   }
 
-  // مسح الطلب محلياً من الجهاز وإخفاء الفقاعة
   Future<void> _clearOrder() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('active_special_order_id');
     BubbleService.hide();
   }
 
-  // 🛡️ منطق الإلغاء الذكي المعدل لضمان عدم توقف الشاشة
+  // 🛡️ إصلاح الشاشة السوداء: الترتيب الصحيح (قفل الديالوج -> تحديث الداتا -> العودة للرئيسية)
   Future<void> _handleSmartCancelFromBubble(String currentStatus) async {
     bool isAccepted = currentStatus != 'pending';
     String targetStatus = isAccepted 
@@ -49,18 +48,15 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
         : 'cancelled_by_user_before_accept';
 
     try {
-      // 1. تحديث الفايربيز بالحالة الجديدة
+      // 1. تحديث فايربيز أولاً
       await FirebaseFirestore.instance.collection('specialRequests').doc(widget.orderId).update({
         'status': targetStatus,
         'cancelledAt': FieldValue.serverTimestamp(),
         'cancelledBy': 'customer'
       });
       
-      // 2. مسح بيانات الطلب وإخفاء الفقاعة من الـ Overlay
-      await _clearOrder();
-
       if (mounted) {
-        // 3. العودة للشاشة الرئيسية فوراً لتنظيف الـ Stack ومنع الشاشة السوداء
+        // 2. العودة للشاشة الرئيسية فوراً لتنظيف الـ Stack (تجنب السواد)
         navigatorKey.currentState?.pushNamedAndRemoveUntil('/', (route) => false);
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -70,6 +66,10 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
           ),
         );
       }
+
+      // 3. مسح البيانات المحلية وإخفاء الفقاعة (آخر خطوة لضمان ثبات الخريطة أثناء القفل)
+      await _clearOrder();
+
     } catch (e) {
       debugPrint("Bubble Cancel Error: $e");
     }
@@ -94,7 +94,6 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
         String status = data['status'] ?? 'pending';
         String? vehicleType = data['vehicleType'];
 
-        // تحديث سلوك الإخفاء: أي حالة تحتوي على 'cancelled' تجعل الفقاعة تختفي
         if (status.contains('cancelled') || 
             status == 'delivered' || 
             status == 'rejected' || 
@@ -136,13 +135,11 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
     );
   }
 
-  // ✅ منطق التبديل (Toggle) لفتح وإغلاق الصفحة
   void _handleBubbleTap(BuildContext context) {
     final navState = navigatorKey.currentState;
     if (navState == null) return;
 
     bool isTrackingPageOpen = false;
-
     navState.popUntil((route) {
       if (route.settings.name == '/customerTracking') {
         isTrackingPageOpen = true;
@@ -151,7 +148,7 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
     });
 
     if (isTrackingPageOpen) {
-      navState.pop();
+      navState.pushNamedAndRemoveUntil('/', (route) => false);
     } else {
       navState.push(
         MaterialPageRoute(
@@ -163,8 +160,6 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
   }
 
   void _showOptionsDialog(BuildContext context, String status) {
-    bool isAccepted = status != 'pending';
-
     showDialog(
       context: context,
       builder: (ctx) => Directionality(
@@ -172,25 +167,25 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
         child: AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: const Text("إدارة الطلب", style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold)),
-          content: Text(isAccepted 
+          content: Text(status != 'pending'
             ? "⚠️ المندوب قبل الطلب. إلغاء الطلب الآن قد يخصم من نقاطك. هل تريد الاستمرار؟" 
             : "هل تريد إلغاء الطلب نهائياً أم إخفاء هذه الفقاعة فقط؟", style: const TextStyle(fontFamily: 'Cairo')),
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(ctx);
-                _handleSmartCancelFromBubble(status); 
+                Navigator.of(ctx).pop(); // ✅ أولاً: نقفل الديالوج بـ context الخاص به
+                _handleSmartCancelFromBubble(status); // ثانياً: ننظف الـ Stack ونلغي الطلب
               },
               child: const Text("إلغاء الطلب نهائياً", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
             ),
             TextButton(
               onPressed: () {
-                Navigator.pop(ctx);
+                Navigator.of(ctx).pop(); 
                 _clearOrder(); 
               },
               child: const Text("إخفاء من الشاشة فقط", style: TextStyle(fontFamily: 'Cairo')),
             ),
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("رجوع", style: TextStyle(fontFamily: 'Cairo'))),
+            TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text("رجوع", style: TextStyle(fontFamily: 'Cairo'))),
           ],
         ),
       ),
