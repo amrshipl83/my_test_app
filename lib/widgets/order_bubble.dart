@@ -41,7 +41,7 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
     BubbleService.hide();
   }
 
-  // 🛡️ الترتيب الصحيح للإلغاء لمنع الشاشة السوداء
+  // 🛡️ الترتيب الصحيح للإلغاء لمنع الشاشة السوداء والـ Stack Errors
   Future<void> _handleSmartCancelFromBubble(String currentStatus) async {
     bool isAccepted = currentStatus != 'pending';
     String targetStatus = isAccepted 
@@ -70,7 +70,7 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
     }
   }
 
-  // ⭐ نظام التقييم الاحترافي
+  // ⭐ نظام التقييم الاحترافي المربوط بالـ EC2 والـ Dashboard
   void _showRatingDialog(String? driverId, String driverName) {
     double selectedRating = 5.0;
 
@@ -86,13 +86,13 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
               children: [
                 Icon(Icons.check_circle_rounded, color: Colors.green, size: 45.sp),
                 const SizedBox(height: 10),
-                const Text("وصل طلبك!", style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold)),
+                const Text("وصل طلبك بحمد الله!", style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold)),
               ],
             ),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text("كيف كانت تجربتك مع $driverName؟", textAlign: TextAlign.center, style: const TextStyle(fontFamily: 'Cairo')),
+                Text("كيف كانت تجربتك مع كابتن $driverName؟", textAlign: TextAlign.center, style: const TextStyle(fontFamily: 'Cairo')),
                 const SizedBox(height: 20),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -117,7 +117,7 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.orange[900],
-                      minimumSize: Size(60.w, 45),
+                      minimumSize: Size(65.w, 45),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                     ),
                     onPressed: () async {
@@ -150,11 +150,23 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
     return "ضعيف 😞";
   }
 
+  // 🚀 إرسال التقييم المزدوج
   Future<void> _submitRating(String driverId, double rating) async {
-    await FirebaseFirestore.instance.collection('freeDrivers').doc(driverId).update({
-      'totalStars': FieldValue.increment(rating),
-      'reviewsCount': FieldValue.increment(1),
-    });
+    try {
+      // 1. تحديث إحصائيات المندوب التراكمية (للعرض في الـ Dashboard)
+      await FirebaseFirestore.instance.collection('freeDrivers').doc(driverId).update({
+        'totalStars': FieldValue.increment(rating),
+        'reviewsCount': FieldValue.increment(1),
+      });
+
+      // 2. إضافة التقييم للطلب (إشارة للـ EC2 ليرسل إشعار فوري للمندوب)
+      await FirebaseFirestore.instance.collection('specialRequests').doc(widget.orderId).update({
+        'ratingByCustomer': rating,
+        'ratedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint("Rating Submission Error: $e");
+    }
   }
 
   @override
@@ -168,15 +180,15 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
         String status = data['status'] ?? 'pending';
         String? vehicleType = data['vehicleType'];
 
-        // إذا تم التوصيل: اظهر التقييم بدل الإخفاء المباشر
+        // فحص حالة التوصيل لإظهار الديالوج
         if (status == 'delivered' && !_ratingShown) {
           _ratingShown = true;
           Future.microtask(() => _showRatingDialog(data['driverId'], data['driverName'] ?? "المندوب"));
           return const SizedBox.shrink();
         }
 
-        // الحالات الأخرى التي تتطلب الإخفاء الفوري
-        if (status.contains('cancelled') || status == 'rejected' || status == 'expired') {
+        // إخفاء الفقاعة في حالات الإلغاء أو الرفض
+        if (status.contains('cancelled') || status == 'rejected' || status == 'expired' || status == 'no_drivers_available') {
           Future.microtask(() => _clearOrder());
           return const SizedBox.shrink();
         }
@@ -242,13 +254,13 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: const Text("إدارة الطلب", style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold)),
           content: Text(status != 'pending'
-            ? "⚠️ المندوب قبل الطلب. إلغاء الطلب الآن قد يخصم من نقاطك." 
-            : "هل تريد إلغاء الطلب نهائياً أم إخفاء الفقاعة؟", style: const TextStyle(fontFamily: 'Cairo')),
+            ? "⚠️ المندوب قبل الطلب. إلغاء الطلب الآن قد يخصم من نقاطك. هل تريد الاستمرار؟" 
+            : "هل تريد إلغاء الطلب نهائياً أم إخفاء هذه الفقاعة فقط؟", style: const TextStyle(fontFamily: 'Cairo')),
           actions: [
             TextButton(onPressed: () { Navigator.pop(ctx); _handleSmartCancelFromBubble(status); },
-              child: const Text("إلغاء نهائي", style: TextStyle(color: Colors.red, fontFamily: 'Cairo'))),
+              child: const Text("إلغاء الطلب", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontFamily: 'Cairo'))),
             TextButton(onPressed: () { Navigator.pop(ctx); _clearOrder(); },
-              child: const Text("إخفاء فقط", style: TextStyle(fontFamily: 'Cairo'))),
+              child: const Text("إخفاء الفقاعة", style: TextStyle(fontFamily: 'Cairo'))),
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("رجوع", style: TextStyle(fontFamily: 'Cairo'))),
           ],
         ),
