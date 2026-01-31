@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../providers/delivery_settings_provider.dart';
 import '../providers/buyer_data_provider.dart'; 
 import 'package:flutter/services.dart'; 
+// تأكد من استيراد الصفحة هنا إذا لم تكن مضافة في الـ Routes
+import 'subscription_plans_screen.dart'; 
 
 class UpdateDeliverySettingsScreen extends StatelessWidget {
   const UpdateDeliverySettingsScreen({super.key});
@@ -62,7 +64,7 @@ class _UpdateDeliverySettingsFormState extends State<UpdateDeliverySettingsForm>
     super.dispose();
   }
 
-  // 🟢 ودجت كارت ترقية الحساب
+  // 🟢 ودجت كارت ترقية الحساب - تم التعديل للنقل المباشر
   Widget _buildUpgradeAccountCard() {
     return Container(
       width: double.infinity,
@@ -100,9 +102,10 @@ class _UpdateDeliverySettingsFormState extends State<UpdateDeliverySettingsForm>
           ),
           ElevatedButton(
             onPressed: () {
-              // سيتم ربطها بصفحة الباقات الديناميكية لاحقاً
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('جاري تحميل باقات الاشتراك...', style: TextStyle(fontFamily: 'Cairo')))
+              // 🚀 النقل المباشر للصفحة المطلوبة
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SubscriptionPlansScreen()),
               );
             },
             style: ElevatedButton.styleFrom(
