@@ -1,285 +1,166 @@
-// المسار: lib/screens/my_details_screen.dart
-
 import 'package:flutter/material.dart';
-// يجب التأكد من تثبيت هاتين المكتبتين في pubspec.yaml
-import 'package:font_awesome_flutter/font_awesome_flutter.dart'; 
-// يجب التأكد من تثبيت هذه المكتبات
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart'; 
+import 'package:firebase_auth/firebase_auth.dart';
 
-// 🚨 ملاحظة هامة: يجب تعريف هذه الشاشة في ملف main.dart
-// routes: { 
-//   '/myDetails': (context) => const MyDetailsScreen(),
-//   // يجب تعريف مسارات العودة الرئيسية:
-//   '/buyerHome': (context) => const BuyerHomeScreen(), 
-//   '/consumerHome': (context) => const ConsumerHomeScreen(),
-//   '/login': (context) => const LoginScreen(), 
-// }
-
-
-// 🟢 تعريف الألوان مباشرة (Hardcoded)
-const Color _primaryColor = Color(0xFF2c3e50); // لون Header الخلفي الداكن
-const Color _buttonPrimaryColor = Color(0xFF4CAF50); // اللون الأخضر الأساسي
-const Color _deleteButtonColor = Color(0xFFDC3545); // اللون الأحمر للحذف
-
+// 🟢 الألوان المعتمدة للهوية البصرية
+const Color _primaryColor = Color(0xFF2c3e50);
+const Color _accentColor = Color(0xFF4CAF50);
+const Color _deleteColor = Color(0xFFE74C3C);
 
 class MyDetailsScreen extends StatefulWidget {
   const MyDetailsScreen({super.key});
+  static const routeName = '/myDetails';
 
   @override
   State<MyDetailsScreen> createState() => _MyDetailsScreenState();
 }
 
 class _MyDetailsScreenState extends State<MyDetailsScreen> {
-  // حالة لعرض بيانات المستخدم
   Map<String, dynamic>? _userData;
   bool _isLoading = true;
+  bool _isUpdating = false;
+
+  // المتحكمات لتعديل البيانات المسموحة
+  late TextEditingController _nameController;
+  late TextEditingController _addressController;
 
   @override
   void initState() {
     super.initState();
-    _fetchAndDisplayProfile();
+    _nameController = TextEditingController();
+    _addressController = TextEditingController();
+    _fetchProfile();
   }
 
-  // دالة لجلب البيانات بناءً على الدور (محاكاة لمنطق HTML/JS)
-  Future<void> _fetchAndDisplayProfile() async {
+  Future<void> _fetchProfile() async {
     final user = FirebaseAuth.instance.currentUser;
-    
-    // 1. التحقق من تسجيل الدخول
-    if (user == null) {
-      if (mounted) Navigator.of(context).pushReplacementNamed('/login');
-      return;
-    }
-
-    // 2. محاولة جلب دور المستخدم من Firestore أولاً لتحديد المجموعة
-    // سنبدأ بمحاولة جلب المستند من مجموعة 'users' (للمشترين/التجار)
-    // إذا لم نجده، نحاول جلب الدور من 'consumers' (للمستهلكين)
-
-    String collectionName = 'users'; // الافتراض الأول
-    String nameField = 'name'; 
+    if (user == null) return;
 
     try {
-      DocumentSnapshot docSnap = await FirebaseFirestore.instance.collection(collectionName).doc(user.uid).get();
-
-      // إذا لم يتم العثور عليه في 'users' (المشترين/التجار)، نحاول في 'consumers'
+      // محاولة الجلب من المجموعتين
+      DocumentSnapshot docSnap = await FirebaseFirestore.instance.collection('consumers').doc(user.uid).get();
+      String col = 'consumers';
+      
       if (!docSnap.exists) {
-        collectionName = 'consumers';
-        nameField = 'fullname';
-        docSnap = await FirebaseFirestore.instance.collection(collectionName).doc(user.uid).get();
+        col = 'users';
+        docSnap = await FirebaseFirestore.instance.collection(col).doc(user.uid).get();
       }
 
       if (docSnap.exists) {
-        final userData = docSnap.data() as Map<String, dynamic>;
-
-        // تعيين حقل الاسم الصحيح
-        if (collectionName == 'consumers') {
-           nameField = 'fullname';
-        } else {
-           // للمشترين/التجار، إذا لم يكن هناك 'name'، نستخدم 'fullname' (افتراضي)
-           nameField = (userData.containsKey('name') && userData['name'] != null) ? 'name' : 'fullname';
-        }
-
+        final data = docSnap.data() as Map<String, dynamic>;
         setState(() {
-          _userData = userData;
-          _userData?['collectionName'] = collectionName; // حفظ اسم المجموعة لإعادة استخدامه في الحذف
-          _userData?['display_name_field'] = nameField; // حفظ اسم حقل الاسم
+          _userData = data;
+          _userData?['activeCollection'] = col;
+          // تعبئة المتحكمات بالبيانات الحالية
+          _nameController.text = data['fullname'] ?? data['name'] ?? '';
+          _addressController.text = data['address'] ?? '';
           _isLoading = false;
         });
-      } else {
-        // لم يتم العثور على بيانات الحساب في كلا المجموعتين
-        print('User data not found in Firestore. Logging out.');
-        await FirebaseAuth.instance.signOut();
-        if (mounted) Navigator.of(context).pushReplacementNamed('/login');
       }
     } catch (e) {
-      print('Error fetching profile: $e');
-      setState(() {
-        _isLoading = false;
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-           const SnackBar(content: Text('حدث خطأ أثناء تحميل بياناتك.')),
-        );
-      }
+      setState(() => _isLoading = false);
     }
   }
 
+  // 🟢 دالة التحديث الاحترافية (تعديل الاسم والعنوان فقط)
+  Future<void> _updateProfile() async {
+    setState(() => _isUpdating = true);
+    final user = FirebaseAuth.instance.currentUser;
+    final col = _userData?['activeCollection'];
 
-  // 2. دالة التعامل مع طلب حذف الحساب (تغيير الحالة إلى inactive)
-  Future<void> _handleDeleteAccount() async {
-    // عرض نافذة التأكيد (Modal)
-    final bool? confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => Directionality(
-        textDirection: TextDirection.rtl,
-        child: AlertDialog(
-          title: Text('تحذير: حذف الحساب نهائي!', style: TextStyle(color: _deleteButtonColor)),
-          content: const Text(
-            'أنت على وشك طلب حذف حسابك نهائياً. هذا الإجراء سيجعل حسابك غير نشط ولن تتمكن من تسجيل الدخول مرة أخرى.'
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: Text('إلغاء', style: TextStyle(color: _primaryColor))),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              style: ElevatedButton.styleFrom(backgroundColor: _deleteButtonColor),
-              child: const Text('تأكيد الحذف', style: TextStyle(color: Colors.white)),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (confirm == true) {
-      final user = FirebaseAuth.instance.currentUser;
-      final collectionName = _userData?['collectionName'] as String?;
-
-      if (user == null || collectionName == null) return;
+    try {
+      Map<String, dynamic> updates = {
+        'address': _addressController.text.trim(),
+      };
       
-      try {
-        await FirebaseFirestore.instance
-            .collection(collectionName)
-            .doc(user.uid)
-            .update({'status': 'inactive'}); // تحديث الحالة إلى غير نشط
-
-        // بعد تغيير الحالة، تسجيل الخروج
-        await FirebaseAuth.instance.signOut();
-        
-        if (mounted) {
-           ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('تم تغيير حالة حسابك إلى غير نشط بنجاح.')),
-           );
-           // التوجيه لصفحة تسجيل الدخول وإلغاء جميع المسارات السابقة
-           Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
-        }
-      } catch (e) {
-        print('Error deleting account: $e');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-             const SnackBar(content: Text('حدث خطأ أثناء محاولة حذف الحساب.')),
-          );
-        }
+      // تحديث حقل الاسم حسب نوع المجموعة
+      if (col == 'consumers') {
+        updates['fullname'] = _nameController.text.trim();
+      } else {
+        updates['name'] = _nameController.text.trim();
       }
+
+      await FirebaseFirestore.instance.collection(col).doc(user!.uid).update(updates);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم تحديث البيانات بنجاح'), backgroundColor: _accentColor),
+      );
+      _fetchProfile(); // إعادة الجلب للتأكيد
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('فشل التحديث')));
+    } finally {
+      setState(() => _isUpdating = false);
     }
   }
-
-  // 3. دالة العودة للرئيسية الذكية
-  void _backToHome() {
-    // يجب استبدال هذا المنطق بالدور الفعلي للمستخدم في تطبيقك
-    final String? collectionName = _userData?['collectionName'] as String?; 
-
-    if (collectionName == 'consumers') {
-      // للمستهلك
-      Navigator.of(context).pushNamedAndRemoveUntil('/consumerHome', (route) => false);
-    } else {
-      // للمشتري والتاجر (buyer/seller)
-      Navigator.of(context).pushNamedAndRemoveUntil('/buyerHome', (route) => false);
-    }
-  }
-
 
   @override
   Widget build(BuildContext context) {
-    // التأكد من أن الاتجاه هو من اليمين لليسار
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
+        backgroundColor: Colors.grey[50],
         appBar: AppBar(
-          title: const Text('حسابي'),
-          backgroundColor: _primaryColor, 
-          foregroundColor: Colors.white, // لون الأيقونات والنص
+          title: const Text('الملف الشخصي', style: TextStyle(fontWeight: FontWeight.bold)),
+          backgroundColor: _primaryColor,
+          foregroundColor: Colors.white,
+          centerTitle: true,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
         ),
         body: _isLoading
-            ? const Center(child: CircularProgressIndicator())
+            ? const Center(child: CircularProgressIndicator(color: _accentColor))
             : SingleChildScrollView(
-                padding: const EdgeInsets.all(20.0),
+                padding: const EdgeInsets.all(20),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // رسالة الترحيب
-                    Text(
-                      'أهلاً بك، ${_userData?[_userData?['display_name_field']] ?? 'مستخدم'}!',
-                      textAlign: TextAlign.right,
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _primaryColor),
-                    ),
-                    const SizedBox(height: 30),
-        
-                    // معلومات الحساب
-                    Card(
-                      elevation: 4,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      child: Padding(
-                        padding: const EdgeInsets.all(20.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            _buildInfoRow(context, 'اسم المستخدم:', _userData?[_userData?['display_name_field']] ?? 'غير متوفر', FontAwesomeIcons.user),
-                            _buildInfoRow(context, 'البريد الإلكتروني:', _userData?['email'] ?? 'غير متوفر', FontAwesomeIcons.envelope),
-                            _buildInfoRow(context, 'هاتف المستخدم:', _userData?['phone'] ?? 'غير متوفر', FontAwesomeIcons.phone),
-                          ],
-                        ),
-                      ),
-                    ),
-                    
-                    const SizedBox(height: 30),
-        
-                    // زر حذف الحساب
-                    ElevatedButton.icon(
-                      onPressed: _handleDeleteAccount,
-                      icon: const Icon(FontAwesomeIcons.trashAlt, size: 18, color: Colors.white),
-                      label: const Text('حذف الحساب', style: TextStyle(color: Colors.white, fontSize: 16)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _deleteButtonColor, // اللون الأحمر
-                        padding: const EdgeInsets.symmetric(vertical: 15),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        elevation: 5,
-                      ),
-                    ),
-        
-                    const SizedBox(height: 15),
-                    
-                    // زر العودة للرئيسية
-                    ElevatedButton.icon(
-                      onPressed: _backToHome,
-                      icon: const Icon(FontAwesomeIcons.arrowRight, size: 18, color: Colors.white),
-                      label: const Text('العودة للرئيسية', style: TextStyle(color: Colors.white, fontSize: 16)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _buttonPrimaryColor, // اللون الأخضر
-                        padding: const EdgeInsets.symmetric(vertical: 15),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        elevation: 5,
-                      ),
-                    ),
+                    _buildHeaderCard(),
+                    const SizedBox(height: 25),
+                    _buildEditableSection(),
+                    const SizedBox(height: 25),
+                    _buildReadOnlySection(),
+                    const SizedBox(height: 40),
+                    _buildActionButtons(),
                   ],
                 ),
               ),
       ),
     );
   }
-  
-  // دالة مساعدة لبناء صفوف المعلومات
-  Widget _buildInfoRow(BuildContext context, String label, String value, IconData icon) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
+
+  // 1. كارت الهوية (عرض النقاط والاسم الحالي)
+  Widget _buildHeaderCard() {
+    bool isConsumer = _userData?['activeCollection'] == 'consumers';
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: _primaryColor,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 10, offset: const Offset(0, 4))],
+      ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: _buttonPrimaryColor),
-          const SizedBox(width: 10),
-          // تم توسيع النص لملء المساحة المتاحة
+          const CircleAvatar(
+            radius: 35,
+            backgroundColor: Colors.white24,
+            child: Icon(Icons.person, size: 40, color: Colors.white),
+          ),
+          const SizedBox(width: 20),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  label,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  textAlign: TextAlign.right,
-                ),
-                Text(
-                  value,
-                  style: const TextStyle(fontSize: 16, color: Colors.black54),
-                  textAlign: TextAlign.right,
-                ),
+                Text(_nameController.text, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                if (isConsumer)
+                  Container(
+                    margin: const EdgeInsets.only(top: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(color: _accentColor, borderRadius: BorderRadius.circular(20)),
+                    child: Text('نقاط أكسب: ${_userData?['loyaltyPoints'] ?? 0}', style: const TextStyle(color: Colors.white, fontSize: 12)),
+                  ),
               ],
             ),
           ),
@@ -287,5 +168,126 @@ class _MyDetailsScreenState extends State<MyDetailsScreen> {
       ),
     );
   }
-}
 
+  // 2. قسم البيانات القابلة للتعديل
+  Widget _buildEditableSection() {
+    return _buildSectionContainer(
+      title: 'بيانات مسموح بتعديلها',
+      icon: Icons.edit_note,
+      children: [
+        _buildTextField('الاسم بالكامل', _nameController, Icons.person_outline),
+        _buildTextField('العنوان المعتمد', _addressController, Icons.location_on_outlined),
+        const SizedBox(height: 10),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: _isUpdating ? null : _updateProfile,
+            style: ElevatedButton.styleFrom(backgroundColor: _accentColor, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+            child: _isUpdating ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('حفظ التعديلات', style: TextStyle(color: Colors.white)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // 3. قسم البيانات الثابتة (للعرض فقط)
+  Widget _buildReadOnlySection() {
+    return _buildSectionContainer(
+      title: 'بيانات ثابتة (للأمان)',
+      icon: Icons.lock_outline,
+      children: [
+        _buildReadOnlyField('رقم الهاتف (معرف الحساب)', _userData?['phone'] ?? 'غير متوفر', Icons.phone_android),
+        _buildReadOnlyField('البريد الإلكتروني', _userData?['email'] ?? 'غير متوفر', Icons.alternate_email),
+        _buildReadOnlyField('تاريخ الانضمام', _userData?['createdAt'] != null ? (_userData!['createdAt'] as Timestamp).toDate().toString().split(' ')[0] : 'غير متوفر', Icons.calendar_today),
+      ],
+    );
+  }
+
+  // 4. أزرار التحكم السفلى
+  Widget _buildActionButtons() {
+    return Column(
+      children: [
+        TextButton.icon(
+          onPressed: () => _showDeleteDialog(),
+          icon: const Icon(Icons.no_accounts, color: _deleteColor),
+          label: const Text('طلب إغلاق الحساب نهائياً', style: TextStyle(color: _deleteColor)),
+        ),
+        const SizedBox(height: 10),
+        const Text('منصة أسواق أكسب - النسخة v2.0', style: TextStyle(color: Colors.grey, fontSize: 10)),
+      ],
+    );
+  }
+
+  // --- Widgets مساعدة للتصميم الاحترافي ---
+
+  Widget _buildSectionContainer({required String title, required IconData icon, required List<Widget> children}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(right: 10, bottom: 10),
+          child: Row(
+            children: [
+              Icon(icon, size: 18, color: _primaryColor),
+              const SizedBox(width: 8),
+              Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: _primaryColor)),
+            ],
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.all(15),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.grey.shade200)),
+          child: Column(children: children),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTextField(String label, TextEditingController controller, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 15),
+      child: TextField(
+        controller: controller,
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: Icon(icon, color: _accentColor),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 15),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReadOnlyField(String label, String value, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: Colors.grey),
+          const SizedBox(width: 15),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.black87)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('تأكيد الحذف'),
+        content: const Text('هل أنت متأكد من رغبتك في تعطيل الحساب؟ لا يمكن التراجع عن هذا الإجراء.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
+          ElevatedButton(onPressed: () => Navigator.pop(context), style: ElevatedButton.styleFrom(backgroundColor: _deleteColor), child: const Text('تأكيد', style: TextStyle(color: Colors.white))),
+        ],
+      ),
+    );
+  }
+}
