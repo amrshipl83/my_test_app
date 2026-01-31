@@ -5,17 +5,14 @@ import 'package:url_launcher/url_launcher.dart';
 class SubscriptionPlansScreen extends StatelessWidget {
   const SubscriptionPlansScreen({super.key});
 
-  // دالة التعامل مع الدفع (فتح الرابط الخارجي)
   Future<void> _processPayment(BuildContext context, String planName, double price) async {
-    // هنا مستقبلاً هنكلم السيرفر (EC2) يبعتلنا رابط الدفع
-    // حالياً هنفترض وجود رابط تجريبي
+    // رابط الدفع التجريبي أو الربط مع EC2 لاحقاً
     final String paymentLink = "https://your-payment-gateway.com/pay?amount=$price";
-    
     if (await canLaunchUrl(Uri.parse(paymentLink))) {
       await launchUrl(Uri.parse(paymentLink), mode: LaunchMode.externalApplication);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('عذراً، تعذر فتح بوابة الدفع حالياً')),
+        const SnackBar(content: Text('عذراً، تعذر فتح بوابة الدفع')),
       );
     }
   }
@@ -23,79 +20,107 @@ class SubscriptionPlansScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
-        title: const Text('باقات الاشتراك', style: TextStyle(fontFamily: 'Cairo')),
+        title: const Text('باقات الاشتراك المتاحة', style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold)),
         backgroundColor: const Color(0xFF2c3e50),
         centerTitle: true,
+        elevation: 0,
       ),
       body: StreamBuilder<QuerySnapshot>(
-        // جلب الباقات من Firestore
-        stream: FirebaseFirestore.instance.collection('subscription_plans').snapshots(),
+        stream: FirebaseFirestore.instance.collection('subscription_plans').orderBy('price').snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(child: Text('لا توجد باقات متاحة حالياً'));
+            return const Center(child: Text('لا توجد باقات متاحة حالياً', style: TextStyle(fontFamily: 'Cairo')));
           }
 
           final plans = snapshot.data!.docs;
 
           return ListView.builder(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 25),
             itemCount: plans.length,
             itemBuilder: (context, index) {
+              final planId = plans[index].id;
               final plan = plans[index].data() as Map<String, dynamic>;
               
-              return Card(
-                elevation: 5,
-                margin: const EdgeInsets.only(bottom: 20),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+              // استخراج المصفوفة المعقدة للمميزات
+              final List<dynamic> features = plan['features'] ?? [];
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: 25),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))
+                  ],
+                ),
                 child: Column(
                   children: [
-                    // رأس الكارت (الاسم والسعر)
+                    // الجزء العلوي: اسم الباقة والسعر
                     Container(
-                      padding: const EdgeInsets.all(20),
+                      padding: const EdgeInsets.all(25),
                       width: double.infinity,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF2c3e50),
-                        borderRadius: BorderRadius.only(
-                          topLeft: Radius.circular(15),
-                          topRight: Radius.circular(15),
-                        ),
+                      decoration: BoxDecoration(
+                        color: plan['price'] > 0 ? const Color(0xFFB21F2D) : const Color(0xFF34495e),
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
                       ),
                       child: Column(
                         children: [
                           Text(
-                            plan['planName'] ?? 'باقة غير مسمى',
-                            style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
+                            plan['planName'] ?? 'باقة',
+                            style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
                           ),
                           const SizedBox(height: 10),
-                          Text(
-                            '${plan['price']} ج.م',
-                            style: const TextStyle(color: Color(0xFFf1c40f), fontSize: 24, fontWeight: FontWeight.bold),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                '${plan['price']}',
+                                style: const TextStyle(color: Color(0xFFf1c40f), fontSize: 32, fontWeight: FontWeight.bold),
+                              ),
+                              const Text(' ج.م', style: TextStyle(color: Colors.white, fontSize: 16, fontFamily: 'Cairo')),
+                            ],
                           ),
                           Text(
-                            'صحيحة لمدة ${plan['durationDays']} يوم',
-                            style: const TextStyle(color: Colors.white70, fontSize: 12, fontFamily: 'Cairo'),
+                            'لمدة ${plan['durationDays']} يوم',
+                            style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 13, fontFamily: 'Cairo'),
                           ),
                         ],
                       ),
                     ),
                     
-                    // قائمة المميزات
+                    // قائمة المميزات الذكية (بناءً على الـ Array والـ Map)
                     Padding(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(20),
                       child: Column(
-                        children: (plan['features'] as List? ?? []).map((feature) {
+                        children: features.map((featureMap) {
+                          final bool isAvailable = featureMap['value'] ?? false;
+                          final String label = featureMap['label'] ?? "";
+
                           return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            padding: const EdgeInsets.symmetric(vertical: 8),
                             child: Row(
                               children: [
-                                const Icon(Icons.check_circle, color: Colors.green, size: 20),
-                                const SizedBox(width: 10),
-                                Text(feature.toString(), style: const TextStyle(fontSize: 14, fontFamily: 'Cairo')),
+                                Icon(
+                                  isAvailable ? Icons.check_circle : Icons.cancel,
+                                  color: isAvailable ? Colors.green : Colors.red.shade300,
+                                  size: 22,
+                                ),
+                                const SizedBox(width: 15),
+                                Text(
+                                  label,
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontFamily: 'Cairo',
+                                    color: isAvailable ? Colors.black87 : Colors.grey,
+                                    decoration: isAvailable ? null : TextDecoration.lineThrough,
+                                  ),
+                                ),
                               ],
                             ),
                           );
@@ -105,16 +130,20 @@ class SubscriptionPlansScreen extends StatelessWidget {
 
                     // زر الاشتراك
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 25),
                       child: ElevatedButton(
                         onPressed: () => _processPayment(context, plan['planName'], (plan['price'] as num).toDouble()),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF27ae60),
+                          backgroundColor: plan['price'] > 0 ? const Color(0xFFB21F2D) : const Color(0xFF27ae60),
                           foregroundColor: Colors.white,
-                          minimumSize: const Size(double.infinity, 50),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          minimumSize: const Size(double.infinity, 55),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                          elevation: 2,
                         ),
-                        child: const Text('اشترك الآن', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+                        child: Text(
+                          plan['price'] > 0 ? 'اشترك الآن' : 'تفعيل الباقة مجاناً',
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
+                        ),
                       ),
                     ),
                   ],
