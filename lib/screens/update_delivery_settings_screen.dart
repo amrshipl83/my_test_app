@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../providers/delivery_settings_provider.dart';
 import '../providers/buyer_data_provider.dart'; 
 import 'package:flutter/services.dart'; 
-// تأكد من استيراد الصفحة هنا إذا لم تكن مضافة في الـ Routes
 import 'subscription_plans_screen.dart'; 
 
 class UpdateDeliverySettingsScreen extends StatelessWidget {
@@ -64,57 +63,75 @@ class _UpdateDeliverySettingsFormState extends State<UpdateDeliverySettingsForm>
     super.dispose();
   }
 
-  // 🟢 ودجت كارت ترقية الحساب - تم التعديل للنقل المباشر
-  Widget _buildUpgradeAccountCard() {
-    return Container(
+  // 🔴 الكارت الذكي المطور: يتغير شكله بناءً على حالة الاشتراك
+  Widget _buildUpgradeAccountCard(DeliverySettingsProvider provider) {
+    // التحقق من حالة الصلاحية (بناءً على منطق اللمدا والفايربيز)
+    bool isExpired = provider.subscriptionStatus == 'expired';
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 500),
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       margin: const EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF2c3e50), Color(0xFF4b6584)],
+        gradient: LinearGradient(
+          colors: isExpired 
+              ? [const Color(0xFFe74c3c), const Color(0xFFc0392b)] // أحمر تحذيري
+              : [const Color(0xFF2c3e50), const Color(0xFF4b6584)], // أزرق تطوير
           begin: Alignment.centerRight,
           end: Alignment.centerLeft,
         ),
         borderRadius: BorderRadius.circular(15),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 8, offset: const Offset(0, 4))
+          BoxShadow(
+            color: isExpired ? Colors.red.withOpacity(0.3) : Colors.black.withOpacity(0.2), 
+            blurRadius: 8, 
+            offset: const Offset(0, 4)
+          )
         ],
       ),
       child: Row(
         children: [
-          const Icon(Icons.stars_rounded, color: Color(0xFFf1c40f), size: 40),
+          Icon(
+            isExpired ? Icons.warning_amber_rounded : Icons.stars_rounded, 
+            color: const Color(0xFFf1c40f), 
+            size: 40
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
+              children: [
                 Text(
-                  'طور أعمالك مع الباقات المميزة',
-                  style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
+                  isExpired ? 'متجرك متوقف حالياً!' : 'طور أعمالك مع الباقات المميزة',
+                  style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
                 ),
                 Text(
-                  'ظهور أعلى، إعلانات، ومميزات حصرية لمتجرك.',
-                  style: TextStyle(color: Colors.white70, fontSize: 11, fontFamily: 'Cairo'),
+                  isExpired 
+                      ? 'انتهت صلاحية حسابك ومنتجاتك غير ظاهرة. جدد الآن.'
+                      : 'ظهور أعلى، إعلانات، ومميزات حصرية لمتجرك.',
+                  style: const TextStyle(color: Colors.white70, fontSize: 11, fontFamily: 'Cairo'),
                 ),
               ],
             ),
           ),
           ElevatedButton(
             onPressed: () {
-              // 🚀 النقل المباشر للصفحة المطلوبة
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const SubscriptionPlansScreen()),
               );
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFf1c40f),
-              foregroundColor: Colors.black,
+              backgroundColor: isExpired ? Colors.white : const Color(0xFFf1c40f),
+              foregroundColor: isExpired ? const Color(0xFFc0392b) : Colors.black,
               padding: const EdgeInsets.symmetric(horizontal: 12),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
-            child: const Text('ترقية', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+            child: Text(
+              isExpired ? 'تجديد' : 'ترقية', 
+              style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')
+            ),
           ),
         ],
       ),
@@ -156,8 +173,8 @@ class _UpdateDeliverySettingsFormState extends State<UpdateDeliverySettingsForm>
               padding: const EdgeInsets.all(20.0),
               child: Column(
                 children: [
-                  // عرض كارت الترقية في البداية
-                  _buildUpgradeAccountCard(),
+                  // عرض كارت الترقية الذكي
+                  _buildUpgradeAccountCard(provider),
 
                   Container(
                     padding: const EdgeInsets.all(20.0),
@@ -268,6 +285,17 @@ class _UpdateDeliverySettingsFormState extends State<UpdateDeliverySettingsForm>
                               padding: const EdgeInsets.only(top: 20.0),
                               child: ElevatedButton(
                                 onPressed: () {
+                                  // منع الحفظ إذا كان الاشتراك منتهياً
+                                  if (provider.subscriptionStatus == 'expired') {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('عذراً، يجب تجديد الاشتراك لتتمكن من حفظ الإعدادات', style: TextStyle(fontFamily: 'Cairo')),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                    return;
+                                  }
+                                  
                                   if (_formKey.currentState!.validate()) {
                                     _submitForm(context, provider);
                                   }
