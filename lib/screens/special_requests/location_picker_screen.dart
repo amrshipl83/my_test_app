@@ -34,6 +34,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
 
   PickerStep _currentStep = PickerStep.pickup;
   
+  // ✅ تم تغيير المركز الابتدائي ليكون موقع المستخدم الفعلي لاحقاً
   late LatLng _currentMapCenter;
   LatLng? _pickupLocation;
   String _pickupAddress = "جاري جلب العنوان...";
@@ -41,7 +42,11 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   String _dropoffAddress = "";
   
   double _estimatedPrice = 0.0;
-  Map<String, double> _pricingDetails = {'totalPrice': 0.0, 'commissionAmount': 0.0, 'driverNet': 0.0};
+  Map<String, double> _pricingDetails = {
+    'totalPrice': 0.0,
+    'commissionAmount': 0.0,
+    'driverNet': 0.0
+  };
 
   String _tempAddress = "جاري تحديد موقعك الحالي...";
   bool _isLoading = false;
@@ -56,7 +61,8 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   @override
   void initState() {
     super.initState();
-    _currentMapCenter = widget.initialLocation ?? const LatLng(30.0444, 31.2357); // القاهرة كافتراضي آمن
+    // ✅ نبدأ بالموقع الممرر (لو موجود) أو إحداثيات صفرية مؤقتاً حتى يعمل الـ GPS
+    _currentMapCenter = widget.initialLocation ?? const LatLng(0, 0);
     _determinePosition();
   }
 
@@ -66,56 +72,37 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     super.dispose();
   }
 
-  // ✅ إضافة رسالة الاطمئنان الاحترافية
-  Future<void> _showLocationExplanation() async {
-    return showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => Directionality(
-        textDirection: TextDirection.rtl,
-        child: AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Text("تفعيل خرائط أكسب", style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
-          content: const Text("عشان نحدد مكان الاستلام بدقة ونوصلك بأقرب مندوب، بنحتاج منك تفعيل إذن الوصول للموقع الجغرافي."),
-          actions: [
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.green[800], shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text("موافق، فهمت", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+  String _generateOTP() {
+    var rng = Random();
+    return (1000 + rng.nextInt(9000)).toString();
   }
 
   Future<void> _determinePosition() async {
+    // 1. لو الشاشة جاية بموقع محدد مسبقاً
     if (widget.initialLocation != null) {
       _getAddress(widget.initialLocation!);
       return;
     }
 
+    // 2. التحقق من أذونات الموقع
     LocationPermission permission = await Geolocator.checkPermission();
-    
-    // ✅ لا تظهر الرسالة إلا لو الإذن مرفوض
     if (permission == LocationPermission.denied) {
-      await _showLocationExplanation();
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) return;
     }
 
-    if (permission == LocationPermission.deniedForever) return;
-
+    // 3. جلب الموقع الحالي بدقة عالية
     try {
-      Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high
+      );
+      
       LatLng myLocation = LatLng(position.latitude, position.longitude);
 
       if (mounted) {
         setState(() {
           _currentMapCenter = myLocation;
+          // ✅ تحريك الكاميرا فوراً لموقع المستخدم الفعلي (الإسكندرية أو غيرها)
           _mapController.move(myLocation, 15);
           _getAddress(myLocation);
         });
@@ -132,8 +119,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
         Placemark place = placemarks[0];
         if (mounted) {
           setState(() {
-            // ✅ استخدام ?? آمن لمنع الـ Null
-            _tempAddress = "${place.street ?? ''}, ${place.subLocality ?? ''}, ${place.locality ?? ''}";
+            _tempAddress = "${place.street}, ${place.subLocality}, ${place.locality}";
           });
         }
       }
@@ -142,7 +128,33 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     }
   }
 
-  // ✅ إصلاح دالة الانتقال بين الخطوات
+  Future<void> _updatePricing(String vehicleType) async {
+    if (_pickupLocation == null || _dropoffLocation == null) return;
+    
+    try {
+      double distance = _deliveryService.calculateDistance(
+          _pickupLocation!.latitude, _pickupLocation!.longitude,
+          _dropoffLocation!.latitude, _dropoffLocation!.longitude
+      );
+
+      final results = await _deliveryService.calculateDetailedTripCost(
+          distanceInKm: distance,
+          vehicleType: vehicleType
+      );
+
+      setState(() {
+        _pricingDetails = results;
+        _estimatedPrice = results['totalPrice']!;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(backgroundColor: Colors.red, content: Text("خطأ في حساب السعر لـ $vehicleType"))
+        );
+      }
+    }
+  }
+
   void _handleNextStep() async {
     if (_currentStep == PickerStep.pickup) {
       _pickupLocation = _currentMapCenter;
@@ -160,30 +172,21 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     }
   }
 
-  // ... (دوال السعر والرفع تبقى كما هي)
-  Future<void> _updatePricing(String vehicleType) async {
-    if (_pickupLocation == null || _dropoffLocation == null) return;
-    try {
-      double distance = _deliveryService.calculateDistance(
-          _pickupLocation!.latitude, _pickupLocation!.longitude,
-          _dropoffLocation!.latitude, _dropoffLocation!.longitude);
-      final results = await _deliveryService.calculateDetailedTripCost(distanceInKm: distance, vehicleType: vehicleType);
-      setState(() {
-        _pricingDetails = results;
-        _estimatedPrice = results['totalPrice']!;
-      });
-    } catch (e) {
-       debugPrint("Pricing Error: $e");
-    }
-  }
-
   Future<void> _finalizeAndUpload() async {
-    if (_pricingDetails['totalPrice'] == 0) return;
+    if (_pricingDetails['totalPrice'] == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("برجاء اختيار وسيلة نقل صحيحة أولاً"))
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
     try {
       final user = FirebaseAuth.instance.currentUser;
       String rawEmail = user?.email ?? ""; 
       String derivedPhone = rawEmail.contains('@') ? rawEmail.split('@')[0] : (user?.phoneNumber ?? "0000000000");
+
+      final String securityCode = _generateOTP();
 
       final docRef = await FirebaseFirestore.instance.collection('specialRequests').add({
         'userId': user?.uid ?? 'anonymous',
@@ -198,6 +201,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
         'vehicleType': _selectedVehicle,
         'details': _detailsController.text,
         'status': 'pending',
+        'verificationCode': securityCode,
         'createdAt': FieldValue.serverTimestamp(),
       });
 
@@ -207,10 +211,14 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
       BubbleService.show(docRef.id);
 
       if (!mounted) return;
-      Navigator.of(context).pop(); // غلق الـ BottomSheet
-      Navigator.of(context).pop(); // الرجوع للرئيسية
+      Navigator.pop(context); // إغلاق المودال
+      Navigator.pop(context); // العودة من الخريطة
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(backgroundColor: Colors.green, content: Text("🚀 طلبك وصل للمناديب!"))
+      );
     } catch (e) {
-      debugPrint("Upload Error: $e");
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("خطأ: $e")));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -224,8 +232,10 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
         appBar: AppBar(
           backgroundColor: Colors.white,
           elevation: 2,
-          title: Text(_currentStep == PickerStep.pickup ? "1. مكان الاستلام" : "2. وجهة التوصيل",
-            style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: Colors.black)),
+          title: Text(
+            _currentStep == PickerStep.pickup ? "1. مكان الاستلام" : "2. وجهة التوصيل",
+            style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: Colors.black),
+          ),
           centerTitle: true,
         ),
         body: Stack(
@@ -236,8 +246,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                 initialCenter: _currentMapCenter,
                 initialZoom: 15.0,
                 onPositionChanged: (pos, hasGesture) {
-                  // ✅ الحل السحري: فحص الـ Null قبل الإسناد
-                  if (hasGesture && pos.center != null) {
+                  if (hasGesture) {
                     _currentMapCenter = pos.center!;
                     _getAddress(_currentMapCenter);
                   }
@@ -252,8 +261,12 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
             ),
             Center(
               child: Padding(
-                padding: const EdgeInsets.all(35),
-                child: Icon(Icons.location_on_sharp, size: 50, color: _currentStep == PickerStep.pickup ? Colors.green[800] : Colors.red[800]),
+                padding: const EdgeInsets.only(bottom: 35),
+                child: Icon(
+                  Icons.location_on_sharp,
+                  size: 50,
+                  color: _currentStep == PickerStep.pickup ? Colors.green[800] : Colors.red[800],
+                ),
               ),
             ),
             _buildActionCard(),
@@ -264,27 +277,42 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     );
   }
 
-  // ... (بقية الـ Widgets تبقى كما هي)
   Widget _buildActionCard() {
     return Positioned(
       bottom: 25, left: 15, right: 15,
       child: Container(
         padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(30), boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 20)]),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(30),
+          boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 20)],
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Row(children: [
+            Row(
+              children: [
                 Icon(Icons.location_searching, color: Colors.blue[800], size: 28),
                 const SizedBox(width: 15),
-                Expanded(child: Text(_tempAddress, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17))),
-            ]),
+                Expanded(
+                  child: Text(_tempAddress, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
+                ),
+              ],
+            ),
             const SizedBox(height: 20),
-            SizedBox(width: double.infinity, height: 65,
+            SizedBox(
+              width: double.infinity,
+              height: 65,
               child: ElevatedButton(
                 onPressed: _handleNextStep,
-                style: ElevatedButton.styleFrom(backgroundColor: _currentStep == PickerStep.pickup ? Colors.green[800] : Colors.red[800], shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))),
-                child: Text(_currentStep == PickerStep.pickup ? "تأكيد مكان الاستلام" : "تأكيد وجهة التوصيل", style: const TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _currentStep == PickerStep.pickup ? Colors.green[800] : Colors.red[800],
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                ),
+                child: Text(
+                  _currentStep == PickerStep.pickup ? "تأكيد مكان الاستلام" : "تأكيد وجهة التوصيل",
+                  style: const TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.bold),
+                ),
               ),
             )
           ],
@@ -294,32 +322,102 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   }
 
   void _showFinalConfirmation() {
-    // ... (نفس كود المودال السابق)
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        padding: EdgeInsets.fromLTRB(25, 20, 25, MediaQuery.of(ctx).padding.bottom + 30),
-        decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(35))),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text("إتمام طلب التوصيل", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
-              const Divider(height: 30),
-              // ... بقية عناصر المودال
-              SizedBox(width: double.infinity, height: 60,
-                child: ElevatedButton(
-                  onPressed: _finalizeAndUpload,
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.blue[900], shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))),
-                  child: const Text("تأكيد وإرسال", style: TextStyle(color: Colors.white, fontSize: 18)),
-                ),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) {
+          return Container(
+            padding: EdgeInsets.fromLTRB(25, 20, 25, MediaQuery.of(context).padding.bottom + 30),
+            decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(35))),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text("إتمام طلب التوصيل", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
+                  const Divider(height: 30),
+                  SizedBox(
+                    height: 100,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _vehicles.length,
+                      itemBuilder: (context, index) {
+                        final v = _vehicles[index];
+                        bool isSelected = _selectedVehicle == v['id'];
+                        return GestureDetector(
+                          onTap: () async {
+                            setModalState(() => _selectedVehicle = v['id']);
+                            await _updatePricing(v['id']);
+                            setModalState(() {}); 
+                          },
+                          child: Container(
+                            width: 100,
+                            margin: const EdgeInsets.only(left: 12),
+                            decoration: BoxDecoration(
+                              color: isSelected ? Colors.blue.withOpacity(0.05) : Colors.white,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: isSelected ? Colors.blue : Colors.grey[200]!, width: 2),
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(v['icon'], color: isSelected ? Colors.blue : Colors.grey, size: 35),
+                                Text(v['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 25),
+                  TextField(
+                    controller: _detailsController,
+                    decoration: InputDecoration(
+                      hintText: "ملاحظات للمندوب...",
+                      filled: true,
+                      fillColor: Colors.grey[100],
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
+                    ),
+                  ),
+                  const SizedBox(height: 25),
+                  _buildSummaryItem(Icons.circle, Colors.green, "من: $_pickupAddress"),
+                  _buildSummaryItem(Icons.location_on, Colors.red, "إلى: $_dropoffAddress"),
+                  const Divider(height: 40),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text("التكلفة:", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      Text("${_estimatedPrice.toStringAsFixed(2)} ج.م", style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.w900, fontSize: 22)),
+                    ],
+                  ),
+                  const SizedBox(height: 30),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 60,
+                    child: ElevatedButton(
+                      onPressed: _finalizeAndUpload,
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.blue[900], shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))),
+                      child: const Text("تأكيد وإرسال", style: TextStyle(color: Colors.white, fontSize: 18)),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
+    );
+  }
+
+  Widget _buildSummaryItem(IconData icon, Color color, String text) {
+    return Row(
+      children: [
+        Icon(icon, color: color, size: 16),
+        const SizedBox(width: 10),
+        Expanded(child: Text(text, maxLines: 1, overflow: TextOverflow.ellipsis)),
+      ],
     );
   }
 }
