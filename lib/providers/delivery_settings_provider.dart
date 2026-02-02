@@ -12,8 +12,15 @@ class DealerProfile {
   final String address;
   final LocationModel? location;                  
   final String phone;
+  final String subscriptionStatus; // ✅ تم إضافة الحقل المفقود هنا
                                                   
-  DealerProfile({required this.name, required this.address, this.location, required this.phone});                                               
+  DealerProfile({
+    required this.name, 
+    required this.address, 
+    this.location, 
+    required this.phone,
+    required this.subscriptionStatus, // ✅ مطلوب عند إنشاء الكائن
+  });                                               
 }
                                                 
 class DeliverySettingsProvider with ChangeNotifier {                                              
@@ -63,14 +70,13 @@ class DeliverySettingsProvider with ChangeNotifier {
   }                                                                                               
 
   // ------------------------------------
-  // وظائف إدارة الحالة (محسنة)
+  // وظائف إدارة الحالة
   // ------------------------------------
   void showNotification(String msg, bool success) {                                                 
     _message = msg;                                 
     _isSuccess = success;
     notifyListeners();                            
 
-    // 🟢 ميزة الاختفاء التلقائي الاحترافي بعد 3 ثوانٍ
     _messageTimer?.cancel(); 
     _messageTimer = Timer(const Duration(seconds: 3), () {
       _message = null;
@@ -95,18 +101,18 @@ class DeliverySettingsProvider with ChangeNotifier {
   }                                                                                               
 
   // ------------------------------------         
-  // وظائف تحميل البيانات (معدلة لمنع الخطأ الوهمي)
+  // وظائف تحميل البيانات (معدلة لجلب حالة الاشتراك)
   // ------------------------------------       
   Future<void> loadDeliveryData() async {           
     setIsLoading(true);                             
-    _message = null; // بدء التحميل بصمت بدون رسائل قديمة
+    _message = null; 
     
     if (_currentDealerId.isEmpty) {                    
         setIsLoading(false);                            
         return;                                      
     }                                                                                                                                               
     try {                                               
-        // 1. جلب بيانات التاجر الأساسية
+        // 1. جلب بيانات التاجر الأساسية من مجموعة users
         final dealerDocSnap = await _firestore.collection(USERS_COLLECTION).doc(_currentDealerId).get();                                                
         if (dealerDocSnap.exists) {
             final data = dealerDocSnap.data()!;                                                             
@@ -122,7 +128,9 @@ class DeliverySettingsProvider with ChangeNotifier {
                 name: data['fullname'] ?? data['name'] ?? 'تاجر معتمد',                                          
                 address: data['address'] ?? 'العنوان المسجل',                                                        
                 location: locationModel,                        
-                phone: data['phone'] ?? '' 
+                phone: data['phone'] ?? '',
+                // ✅ جلب حالة الاشتراك من Firestore (القيمة الافتراضية active)
+                subscriptionStatus: data['subscriptionStatus'] ?? 'active', 
             );                                                                                              
             _currentDealerOriginalPhone = _dealerProfile!.phone;                                                                                        
         } 
@@ -141,13 +149,11 @@ class DeliverySettingsProvider with ChangeNotifier {
             _minimumOrderValue = _settings!.minimumOrderValue.toStringAsFixed(2);                                                                           
             _descriptionForDelivery = _settings!.descriptionForDelivery;
         } else {                                            
-            // إذا لم يتم العثور على مستند الدليفري (تاجر جديد لم يضبط إعداداته بعد)
             _settings = DeliverySettingsModel(ownerId: _currentDealerId); 
             _deliveryActive = false;                    
-            _message = null; // نضمن عدم وجود رسالة "حدث خطأ"
+            _message = null;
         }                                                    
     } catch (e) {                                       
-        // 🔴 لا يظهر هنا إلا إذا حدث خطأ تقني حقيقي (إنترنت أو صلاحيات)
         debugPrint('Error loading delivery data: $e');
     }                                                                                               
     setIsLoading(false);                          
@@ -205,7 +211,6 @@ class DeliverySettingsProvider with ChangeNotifier {
             showNotification('تم حفظ وتفعيل إعدادات الدليفري بنجاح!', true);                                                                            
         }
                                                         
-        // إعادة التحميل بصمت لتحديث الواجهة
         await loadDeliveryData();
 
     } catch (e) {                               
@@ -217,7 +222,7 @@ class DeliverySettingsProvider with ChangeNotifier {
 
   @override
   void dispose() {
-    _messageTimer?.cancel(); // تنظيف التايمر عند إغلاق الشاشة
+    _messageTimer?.cancel();
     super.dispose();
   }                                             
 }
