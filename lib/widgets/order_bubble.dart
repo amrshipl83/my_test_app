@@ -35,13 +35,14 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
     super.dispose();
   }
 
+  // ✅ تنظيف الطلب وإخفاء الفقاعة بأمان
   Future<void> _clearOrder() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('active_special_order_id');
     BubbleService.hide();
   }
 
-  // 🛡️ الترتيب الصحيح للإلغاء لمنع الشاشة السوداء والـ Stack Errors
+  // 🛡️ الترتيب الصحيح للإلغاء لمنع الشاشة السوداء
   Future<void> _handleSmartCancelFromBubble(String currentStatus) async {
     bool isAccepted = currentStatus != 'pending';
     String targetStatus = isAccepted 
@@ -56,7 +57,12 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
       });
       
       if (mounted) {
+        // ✅ إخفاء الفقاعة أولاً قبل أي عملية تنقل
+        BubbleService.hide();
+        
+        // ✅ العودة للرئيسية باستخدام المفتاح العالمي لضمان التركيز (Focus)
         navigatorKey.currentState?.pushNamedAndRemoveUntil('/', (route) => false);
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(isAccepted ? "تم الإلغاء (سيتم مراجعة نقاطك)" : "تم إلغاء الطلب بنجاح"),
@@ -64,18 +70,21 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
           ),
         );
       }
-      await _clearOrder();
+      
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('active_special_order_id');
+      
     } catch (e) {
       debugPrint("Bubble Cancel Error: $e");
     }
   }
 
-  // ⭐ نظام التقييم الاحترافي المربوط بالـ EC2 والـ Dashboard
+  // ⭐ نظام التقييم الاحترافي
   void _showRatingDialog(String? driverId, String driverName) {
     double selectedRating = 5.0;
 
     showDialog(
-      context: context,
+      context: navigatorKey.currentContext!, // استخدام سياق النافيجيتور لضمان الظهور
       barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) => Directionality(
@@ -150,16 +159,13 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
     return "ضعيف 😞";
   }
 
-  // 🚀 إرسال التقييم المزدوج
   Future<void> _submitRating(String driverId, double rating) async {
     try {
-      // 1. تحديث إحصائيات المندوب التراكمية (للعرض في الـ Dashboard)
       await FirebaseFirestore.instance.collection('freeDrivers').doc(driverId).update({
         'totalStars': FieldValue.increment(rating),
         'reviewsCount': FieldValue.increment(1),
       });
 
-      // 2. إضافة التقييم للطلب (إشارة للـ EC2 ليرسل إشعار فوري للمندوب)
       await FirebaseFirestore.instance.collection('specialRequests').doc(widget.orderId).update({
         'ratingByCustomer': rating,
         'ratedAt': FieldValue.serverTimestamp(),
@@ -180,14 +186,12 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
         String status = data['status'] ?? 'pending';
         String? vehicleType = data['vehicleType'];
 
-        // فحص حالة التوصيل لإظهار الديالوج
         if (status == 'delivered' && !_ratingShown) {
           _ratingShown = true;
           Future.microtask(() => _showRatingDialog(data['driverId'], data['driverName'] ?? "المندوب"));
           return const SizedBox.shrink();
         }
 
-        // إخفاء الفقاعة في حالات الإلغاء أو الرفض
         if (status.contains('cancelled') || status == 'rejected' || status == 'expired' || status == 'no_drivers_available') {
           Future.microtask(() => _clearOrder());
           return const SizedBox.shrink();
@@ -209,7 +213,7 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
                 });
               },
               child: GestureDetector(
-                onTap: () => _handleBubbleTap(context),
+                onTap: () => _handleBubbleTap(), // تم إزالة الـ context
                 onLongPress: () => _showOptionsDialog(context, status),
                 child: isAccepted
                     ? _buildBubbleUI(isAccepted, false, vehicleType)
@@ -225,7 +229,8 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
     );
   }
 
-  void _handleBubbleTap(BuildContext context) {
+  // ✅ التنقل الآمن باستخدام الـ navigatorKey
+  void _handleBubbleTap() {
     final navState = navigatorKey.currentState;
     if (navState == null) return;
 
@@ -236,12 +241,10 @@ class _OrderBubbleState extends State<OrderBubble> with SingleTickerProviderStat
     });
 
     if (isTrackingOpen) {
+      // إذا كانت مفتوحة، نرجع للرئيسية لتجنب السواد
       navState.pushNamedAndRemoveUntil('/', (route) => false);
     } else {
-      navState.push(MaterialPageRoute(
-        settings: const RouteSettings(name: '/customerTracking'),
-        builder: (context) => CustomerTrackingScreen(orderId: widget.orderId),
-      ));
+      navState.pushNamed('/customerTracking', arguments: widget.orderId);
     }
   }
 
