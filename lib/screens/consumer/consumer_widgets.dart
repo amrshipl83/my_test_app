@@ -1,3 +1,5 @@
+// lib/screens/consumer/consumer_widgets.dart
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -6,7 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'consumer_data_models.dart';
 import 'package:my_test_app/screens/consumer/consumer_category_screen.dart'; 
 
-// 1. الشريط الجانبي (Side Menu)
+// 1. الشريط الجانبي (Side Menu) كما هو بدون تغيير
 class ConsumerSideMenu extends StatelessWidget {
   const ConsumerSideMenu({super.key});
 
@@ -65,7 +67,7 @@ class ConsumerSideMenu extends StatelessWidget {
   }
 }
 
-// 2. شريط التنقل السفلي (Footer Nav) - تم تحديث حالات التتبع لضمان الاستمرارية
+// 2. شريط التنقل السفلي (Footer Nav) - تم إضافة حالة delivered لضمان ظهور التقييم
 class ConsumerFooterNav extends StatelessWidget {
   final int cartCount;
   final int activeIndex;
@@ -75,8 +77,8 @@ class ConsumerFooterNav extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     
-    // الحالات التي يظهر فيها زر التتبع مفعلاً (من الطلب حتى قبل التسليم النهائي)
-    final List<String> trackingStatuses = ['pending', 'accepted', 'at_pickup', 'picked_up'];
+    // قائمة الحالات النشطة + حالة delivered لضمان وصول العميل لصفحة التقييم
+    final List<String> trackingStatuses = ['pending', 'accepted', 'at_pickup', 'picked_up', 'delivered'];
 
     return BottomNavigationBar(
       currentIndex: activeIndex == -1 ? 0 : activeIndex,
@@ -89,7 +91,7 @@ class ConsumerFooterNav extends StatelessWidget {
         const BottomNavigationBarItem(icon: Icon(Icons.store), label: 'المتجر'),
         const BottomNavigationBarItem(icon: Icon(Icons.receipt_long), label: 'طلباتي'),
         
-        // ✨ أيقونة "تتبع الطلب" الذكية (تظهر باللون البرتقالي في كل مراحل الرحلة)
+        // ✨ أيقونة "تتبع الطلب" الذكية
         BottomNavigationBarItem(
           icon: StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
@@ -99,12 +101,20 @@ class ConsumerFooterNav extends StatelessWidget {
                 .snapshots(),
             builder: (context, snapshot) {
               bool hasActiveOrder = snapshot.hasData && snapshot.data!.docs.isNotEmpty;
+              
+              // تغيير اللون للأخضر إذا تم التسليم لتنبيه العميل بالتقييم
+              Color iconColor = Colors.grey;
+              if (hasActiveOrder) {
+                final lastStatus = snapshot.data!.docs.first['status'];
+                iconColor = (lastStatus == 'delivered') ? Colors.green : Colors.orange;
+              }
+
               return Stack(
                 alignment: Alignment.center,
                 children: [
                   Icon(
                     Icons.radar,
-                    color: hasActiveOrder ? Colors.orange : Colors.grey,
+                    color: iconColor,
                     size: hasActiveOrder ? 28 : 24,
                   ),
                   if (hasActiveOrder)
@@ -114,7 +124,10 @@ class ConsumerFooterNav extends StatelessWidget {
                       child: Container(
                         width: 8,
                         height: 8,
-                        decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                        decoration: BoxDecoration(
+                          color: iconColor == Colors.green ? Colors.green : Colors.red, 
+                          shape: BoxShape.circle
+                        ),
                       ),
                     ),
                 ],
@@ -137,7 +150,6 @@ class ConsumerFooterNav extends StatelessWidget {
       onTap: (index) async {
         if (index == activeIndex) return;
 
-        // منطق أيقونة التتبع (Index 2)
         if (index == 2) {
           final snapshot = await FirebaseFirestore.instance
               .collection('specialRequests')
@@ -168,7 +180,7 @@ class ConsumerFooterNav extends StatelessWidget {
   }
 }
 
-// 3. العناوين (Section Titles)
+// 3. العناوين (Section Titles) كما هي
 class ConsumerSectionTitle extends StatelessWidget {
   final String title;
   const ConsumerSectionTitle({super.key, required this.title});
@@ -184,7 +196,7 @@ class ConsumerSectionTitle extends StatelessWidget {
   }
 }
 
-// 4. بانر الأقسام (Main Categories)
+// 4. بانر الأقسام (Main Categories) كما هي
 class ConsumerCategoriesBanner extends StatelessWidget {
   final List<ConsumerCategory> categories;
   const ConsumerCategoriesBanner({super.key, required this.categories});
