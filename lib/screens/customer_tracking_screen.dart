@@ -1,3 +1,4 @@
+// lib/screens/customer_tracking_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -13,6 +14,7 @@ class CustomerTrackingScreen extends StatelessWidget {
 
   final String mapboxToken = "pk.eyJ1IjoiYW1yc2hpcGwiLCJhIjoiY21lajRweGdjMDB0eDJsczdiemdzdXV6biJ9.E--si9vOB93NGcAq7uVgGw";
 
+  // 🛡️ منطق الإلغاء الذكي
   Future<void> _handleSmartCancel(BuildContext context, String currentStatus) async {
     bool isAccepted = currentStatus != 'pending';
     String targetStatus = isAccepted 
@@ -27,7 +29,7 @@ class CustomerTrackingScreen extends StatelessWidget {
           child: AlertDialog(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             title: const Text("تنبيه هام"),
-            content: const Text("المندوب في طريقه إليك الآن. إلغاء الطلب في هذه المرحلة سيؤدي لخصم من نقاطك. هل تريد الاستمرار؟"),
+            content: const Text("المندوب في طريقه إليك الآن. إلغاء الطلب الآن سيؤدي لخصم تعويض للمندوب من نقاطك. هل تريد الاستمرار؟"),
             actions: [
               TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("تراجع")),
               TextButton(
@@ -67,7 +69,8 @@ class CustomerTrackingScreen extends StatelessWidget {
         var orderData = orderSnapshot.data!.data() as Map<String, dynamic>;
         String status = orderData['status'] ?? "pending";
         
-        if (status.contains('cancelled') || status == 'delivered' || status == 'no_drivers_available') {
+        // خروج تلقائي عند انتهاء الرحلة
+        if (status.contains('cancelled') || status == 'delivered') {
            WidgetsBinding.instance.addPostFrameCallback((_) {
             if (context.mounted) Navigator.of(context).popUntil((route) => route.isFirst);
           });
@@ -103,7 +106,8 @@ class CustomerTrackingScreen extends StatelessWidget {
                 appBar: AppBar(
                   backgroundColor: Colors.white.withOpacity(0.9),
                   elevation: 0,
-                  title: Text("تتبع الرحلة", style: TextStyle(fontSize: 14.sp, color: Colors.black)),
+                  iconTheme: const IconThemeData(color: Colors.black),
+                  title: Text("تتبع الرحلة", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16.sp, color: Colors.black)),
                   centerTitle: true,
                 ),
                 body: Stack(
@@ -114,8 +118,8 @@ class CustomerTrackingScreen extends StatelessWidget {
                         TileLayer(urlTemplate: 'https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=$mapboxToken'),
                         MarkerLayer(
                           markers: [
-                            Marker(point: pickupLatLng, width: 40, height: 40, child: const Icon(Icons.location_on, color: Colors.green, size: 35)),
-                            Marker(point: dropoffLatLng, width: 40, height: 40, child: const Icon(Icons.flag_circle, color: Colors.red, size: 35)),
+                            Marker(point: pickupLatLng, width: 45, height: 45, child: const Icon(Icons.location_on, color: Colors.green, size: 40)),
+                            Marker(point: dropoffLatLng, width: 45, height: 45, child: const Icon(Icons.flag_circle, color: Colors.red, size: 40)),
                             if (driverLatLng != null)
                               Marker(point: driverLatLng, width: 60, height: 60, child: _buildDriverMarker(orderData['vehicleType'] ?? 'motorcycle')),
                           ],
@@ -134,28 +138,82 @@ class CustomerTrackingScreen extends StatelessWidget {
   }
 
   Widget _buildUnifiedBottomPanel(BuildContext context, String status, Map<String, dynamic> order, Map<String, dynamic>? driver, String code) {
+    double progress = 0.1;
+    String statusDesc = "بانتظار قبول مندوب...";
+    Color mainColor = Colors.orange;
+
+    if (status == 'accepted') { progress = 0.4; statusDesc = "المندوب وافق وفي طريقه إليك"; mainColor = Colors.blue; }
+    else if (status == 'at_pickup') { progress = 0.6; statusDesc = "المندوب وصل لموقع الاستلام"; mainColor = Colors.indigo; }
+    else if (status == 'picked_up') { progress = 0.8; statusDesc = "جاري التوصيل الآن"; mainColor = Colors.green; }
+
     return Positioned(
-      bottom: 20, left: 12, right: 12,
+      bottom: 15, left: 10, right: 10,
       child: Container(
-        padding: const EdgeInsets.all(15),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 10)]),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(25), boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 15)]),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text("حالة الطلب: $status", style: const TextStyle(fontWeight: FontWeight.bold)),
-            const Divider(),
+            // شريط التقدم
             Row(
               children: [
-                const CircleAvatar(child: Icon(Icons.person)),
+                Expanded(child: LinearProgressIndicator(value: progress, minHeight: 6, backgroundColor: Colors.grey[200], color: mainColor)),
                 const SizedBox(width: 10),
-                Text(driver != null ? driver['fullname'] : "جاري البحث..."),
-                const Spacer(),
-                if (driver != null)
-                  IconButton(onPressed: () => _makePhoneCall(driver['phone']), icon: const Icon(Icons.phone, color: Colors.green)),
+                Text("${(progress * 100).toInt()}%", style: const TextStyle(fontWeight: FontWeight.bold)),
               ],
             ),
-            if (status == 'pending' || status == 'accepted')
-              TextButton(onPressed: () => _handleSmartCancel(context, status), child: const Text("إلغاء الطلب", style: TextStyle(color: Colors.red))),
+            const SizedBox(height: 12),
+            Text(statusDesc, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13.sp, color: mainColor)),
+            const Divider(height: 25),
+
+            // كود التسليم الذهبي
+            if (status == 'accepted' || status == 'at_pickup' || status == 'picked_up')
+              Container(
+                margin: const EdgeInsets.only(bottom: 15),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: Colors.amber[50], borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.amber)),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.security, color: Colors.amber),
+                    const SizedBox(width: 10),
+                    const Text("كود التسليم: ", style: TextStyle(fontWeight: FontWeight.bold)),
+                    Text(code, style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w900, color: Colors.red[900])),
+                  ],
+                ),
+              ),
+
+            // بيانات المندوب والاتصال
+            Row(
+              children: [
+                CircleAvatar(radius: 25, backgroundColor: Colors.blue[50], child: const Icon(Icons.person, color: Colors.blue)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(driver != null ? driver['fullname'] : "بحث عن مندوب...", style: const TextStyle(fontWeight: FontWeight.bold)),
+                      const Text("موثق من أكسب", style: TextStyle(fontSize: 10, color: Colors.grey)),
+                    ],
+                  ),
+                ),
+                if (driver != null)
+                  IconButton(
+                    onPressed: () async => await launchUrl(Uri.parse("tel:${driver['phone']}")),
+                    icon: const Icon(Icons.phone_in_talk, color: Colors.green, size: 30),
+                  ),
+              ],
+            ),
+            
+            // زر الإلغاء
+            if (status == 'pending' || status == 'accepted' || status == 'at_pickup')
+              Padding(
+                padding: const EdgeInsets.top(10),
+                child: TextButton(
+                  onPressed: () => _handleSmartCancel(context, status),
+                  child: const Text("إلغاء الطلب", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                ),
+              ),
           ],
         ),
       ),
@@ -163,11 +221,9 @@ class CustomerTrackingScreen extends StatelessWidget {
   }
 
   Widget _buildDriverMarker(String vehicleType) {
-    return const Icon(Icons.delivery_dining, color: Colors.blue, size: 40);
-  }
-
-  Future<void> _makePhoneCall(String phoneNumber) async {
-    final Uri launchUri = Uri(scheme: 'tel', path: phoneNumber);
-    if (await canLaunchUrl(launchUri)) await launchUrl(launchUri);
+    return Container(
+      decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, border: Border.all(color: Colors.blue, width: 2)),
+      child: const Icon(Icons.delivery_dining, color: Colors.blue, size: 30),
+    );
   }
 }
