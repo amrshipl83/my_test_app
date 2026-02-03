@@ -66,7 +66,7 @@ class ConsumerSideMenu extends StatelessWidget {
   }
 }
 
-// 2. شريط التنقل السفلي (Footer Nav) - تم إرجاعه لـ 4 أيقونات والمسارات الأصلية
+// 2. شريط التنقل السفلي (Footer Nav) - تم إضافة الأيقونة الذكية (تتبع الطلب)
 class ConsumerFooterNav extends StatelessWidget {
   final int cartCount;
   final int activeIndex;
@@ -74,14 +74,54 @@ class ConsumerFooterNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+
     return BottomNavigationBar(
       currentIndex: activeIndex == -1 ? 0 : activeIndex,
       selectedItemColor: const Color(0xFF43A047),
       unselectedItemColor: Colors.grey,
       type: BottomNavigationBarType.fixed,
+      selectedLabelStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+      unselectedLabelStyle: const TextStyle(fontSize: 10),
       items: [
         const BottomNavigationBarItem(icon: Icon(Icons.store), label: 'المتجر'),
         const BottomNavigationBarItem(icon: Icon(Icons.receipt_long), label: 'طلباتي'),
+        
+        // ✨ أيقونة "تتبع الطلب" الذكية
+        BottomNavigationBarItem(
+          icon: StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('specialRequests')
+                .where('userId', isEqualTo: user?.uid)
+                .where('status', whereIn: ['pending', 'accepted'])
+                .snapshots(),
+            builder: (context, snapshot) {
+              bool hasActiveOrder = snapshot.hasData && snapshot.data!.docs.isNotEmpty;
+              return Stack(
+                alignment: Alignment.center,
+                children: [
+                  Icon(
+                    Icons.radar,
+                    color: hasActiveOrder ? Colors.orange : Colors.grey,
+                    size: hasActiveOrder ? 28 : 24,
+                  ),
+                  if (hasActiveOrder)
+                    Positioned(
+                      top: 0,
+                      right: 0,
+                      child: Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+          label: 'تتبع الطلب',
+        ),
+
         BottomNavigationBarItem(
           icon: Badge(
             label: Text(cartCount.toString()),
@@ -92,17 +132,42 @@ class ConsumerFooterNav extends StatelessWidget {
         ),
         const BottomNavigationBarItem(icon: Icon(Icons.person), label: 'حسابي'),
       ],
-      onTap: (index) {
+      onTap: (index) async {
         if (index == activeIndex) return;
-        // المسارات الأصلية الموجودة في مشروعك
-        final routes = ['/consumerhome', '/consumer-purchases', '/cart', '/myDetails'];
-        Navigator.pushNamed(context, routes[index]);
+
+        // منطق أيقونة التتبع (Index 2)
+        if (index == 2) {
+          final snapshot = await FirebaseFirestore.instance
+              .collection('specialRequests')
+              .where('userId', isEqualTo: user?.uid)
+              .where('status', whereIn: ['pending', 'accepted'])
+              .limit(1)
+              .get();
+
+          if (snapshot.docs.isNotEmpty) {
+            final orderId = snapshot.docs.first.id;
+            if (context.mounted) Navigator.pushNamed(context, '/track-order', arguments: orderId);
+          } else {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("لا توجد طلبات نشطة حالياً")),
+              );
+            }
+          }
+          return;
+        }
+
+        // المسارات الأصلية مع مراعاة وجود 5 عناصر الآن
+        final routes = ['/consumerhome', '/consumer-purchases', '', '/cart', '/myDetails'];
+        if (routes[index].isNotEmpty) {
+          Navigator.pushNamed(context, routes[index]);
+        }
       },
     );
   }
 }
 
-// 3. العناوين (Section Titles)
+// 3. العناوين (Section Titles) كما هي
 class ConsumerSectionTitle extends StatelessWidget {
   final String title;
   const ConsumerSectionTitle({super.key, required this.title});
@@ -118,7 +183,7 @@ class ConsumerSectionTitle extends StatelessWidget {
   }
 }
 
-// 4. بانر الأقسام (Main Categories) - تم ربطه بصفحة الأقسام الجديدة
+// 4. بانر الأقسام (Main Categories) كما هي
 class ConsumerCategoriesBanner extends StatelessWidget {
   final List<ConsumerCategory> categories;
   const ConsumerCategoriesBanner({super.key, required this.categories});
@@ -135,7 +200,6 @@ class ConsumerCategoriesBanner extends StatelessWidget {
           final category = categories[index];
           return GestureDetector(
             onTap: () {
-              // 🎯 التوجيه لصفحة الأقسام الجديدة (النسخة المستقلة)
               Navigator.push(
                 context,
                 MaterialPageRoute(
