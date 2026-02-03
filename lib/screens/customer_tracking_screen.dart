@@ -14,7 +14,6 @@ class CustomerTrackingScreen extends StatelessWidget {
 
   final String mapboxToken = "pk.eyJ1IjoiYW1yc2hpcGwiLCJhIjoiY21lajRweGdjMDB0eDJsczdiemdzdXV6biJ9.E--si9vOB93NGcAq7uVgGw";
 
-  // 🛡️ منطق الإلغاء الذكي
   Future<void> _handleSmartCancel(BuildContext context, String currentStatus) async {
     bool isAccepted = currentStatus != 'pending';
     String targetStatus = isAccepted 
@@ -49,7 +48,7 @@ class CustomerTrackingScreen extends StatelessWidget {
         'cancelledAt': FieldValue.serverTimestamp(),
         'cancelledBy': 'customer'
       });
-      if (context.mounted) Navigator.pop(context);
+      if (context.mounted) Navigator.of(context).popUntil((route) => route.isFirst);
     } catch (e) {
       debugPrint("Cancel Error: $e");
     }
@@ -69,7 +68,6 @@ class CustomerTrackingScreen extends StatelessWidget {
         var orderData = orderSnapshot.data!.data() as Map<String, dynamic>;
         String status = orderData['status'] ?? "pending";
         
-        // خروج تلقائي عند انتهاء الرحلة
         if (status.contains('cancelled') || status == 'delivered') {
            WidgetsBinding.instance.addPostFrameCallback((_) {
             if (context.mounted) Navigator.of(context).popUntil((route) => route.isFirst);
@@ -154,7 +152,6 @@ class CustomerTrackingScreen extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // شريط التقدم
             Row(
               children: [
                 Expanded(child: LinearProgressIndicator(value: progress, minHeight: 6, backgroundColor: Colors.grey[200], color: mainColor)),
@@ -166,7 +163,6 @@ class CustomerTrackingScreen extends StatelessWidget {
             Text(statusDesc, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13.sp, color: mainColor)),
             const Divider(height: 25),
 
-            // كود التسليم الذهبي
             if (status == 'accepted' || status == 'at_pickup' || status == 'picked_up')
               Container(
                 margin: const EdgeInsets.only(bottom: 15),
@@ -183,7 +179,6 @@ class CustomerTrackingScreen extends StatelessWidget {
                 ),
               ),
 
-            // بيانات المندوب والاتصال
             Row(
               children: [
                 CircleAvatar(radius: 25, backgroundColor: Colors.blue[50], child: const Icon(Icons.person, color: Colors.blue)),
@@ -205,10 +200,9 @@ class CustomerTrackingScreen extends StatelessWidget {
               ],
             ),
             
-            // زر الإلغاء
             if (status == 'pending' || status == 'accepted' || status == 'at_pickup')
               Padding(
-                padding: const EdgeInsets.top(10),
+                padding: const EdgeInsets.only(top: 10), // ✅ السطر المصحح
                 child: TextButton(
                   onPressed: () => _handleSmartCancel(context, status),
                   child: const Text("إلغاء الطلب", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
