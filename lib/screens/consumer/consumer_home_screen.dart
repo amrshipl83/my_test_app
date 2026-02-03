@@ -1,3 +1,5 @@
+// lib/screens/consumer/consumer_home_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:my_test_app/screens/consumer/consumer_widgets.dart';
 import 'package:my_test_app/screens/consumer/consumer_data_models.dart';
@@ -7,7 +9,6 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:my_test_app/screens/consumer/consumer_store_search_screen.dart';
 import 'package:my_test_app/screens/consumer/points_loyalty_screen.dart';
-import 'package:my_test_app/screens/consumer/consumer_category_screen.dart'; 
 import 'package:my_test_app/widgets/promo_slider_widget.dart'; 
 import 'package:my_test_app/widgets/chat_support_widget.dart'; 
 import 'package:latlong2/latlong.dart';
@@ -47,8 +48,14 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTick
     }
   }
 
+  // 🔔 تصليح: ظهور الرسالة مرة واحدة فقط
   Future<void> _requestNotificationPermissions() async {
-    if (!mounted) return;
+    final prefs = await SharedPreferences.getInstance();
+    bool alreadyAsked = prefs.getBool('notifications_asked') ?? false;
+    
+    // لو سألناه قبل كدة مظهرش الرسالة تاني
+    if (alreadyAsked || !mounted) return;
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -62,6 +69,7 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTick
             TextButton(
               onPressed: () async {
                 Navigator.pop(ctx);
+                await prefs.setBool('notifications_asked', true); // حفظ الإجابة
                 FirebaseMessaging messaging = FirebaseMessaging.instance;
                 await messaging.requestPermission(alert: true, badge: true, sound: true);
                 String? token = await messaging.getToken();
@@ -105,6 +113,20 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTick
       await prefs.setBool('welcome_anim_shown_v2', true);
     } else {
       _requestNotificationPermissions();
+    }
+  }
+
+  // 📍 تصليح: إرجاع منطق إرسال الموقع لصفحة البحث (الرادار)
+  Future<void> _handleSmartRadarNavigation() async {
+    try {
+      Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      LatLng currentLatLng = LatLng(position.latitude, position.longitude);
+      if (!mounted) return;
+      // نرسل الموقع لصفحة البحث كما كان سابقاً
+      Navigator.pushNamed(context, ConsumerStoreSearchScreen.routeName, arguments: {'userLocation': currentLatLng});
+    } catch (e) {
+      // في حالة فشل الحصول على الموقع، نفتح البحث بالموقع الافتراضي (القاهرة)
+      Navigator.pushNamed(context, ConsumerStoreSearchScreen.routeName, arguments: {'userLocation': const LatLng(30.0444, 31.2357)});
     }
   }
 
@@ -190,7 +212,7 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTick
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
       child: InkWell(
-        onTap: () => Navigator.pushNamed(context, ConsumerStoreSearchScreen.routeName),
+        onTap: _handleSmartRadarNavigation, // تم إرجاع المنطق القديم هنا
         child: Container(
           height: 100,
           decoration: BoxDecoration(
@@ -260,7 +282,6 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTick
     );
   }
 
-  // ✅ تم تصحيح الـ Type هنا لضمان نجاح الـ Build
   Widget _buildNotificationIcon(String? uid) {
     if (uid == null) return const SizedBox.shrink();
     return StreamBuilder<QuerySnapshot>(
@@ -297,6 +318,7 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen> with SingleTick
   Widget _buildBannersSection() => FutureBuilder<List<ConsumerBanner>>(future: dataService.fetchPromoBanners(), builder: (context, snapshot) => snapshot.hasData ? PromoSliderWidget(banners: snapshot.data!, height: 160.0) : const SizedBox.shrink());
 }
 
+// الكلاس الترحيبي يبقى كما هو (مغلق)
 class _CelebrationWidget extends StatefulWidget {
   final int points;
   final VoidCallback onDismiss;
@@ -314,6 +336,6 @@ class _CelebrationWidgetState extends State<_CelebrationWidget> with SingleTicke
   void dispose() { _controller.dispose(); super.dispose(); }
   @override
   Widget build(BuildContext context) { 
-    return Material(color: Colors.black45, child: Center(child: ScaleTransition(scale: _scale, child: Container(margin: const EdgeInsets.all(30), padding: const EdgeInsets.all(30), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(30)), child: Column(mainAxisSize: MainAxisSize.min, children: [Text("🎉", style: TextStyle(fontSize: 40.sp)), const SizedBox(height: 20), Text("هدية ترحيبية!", style: TextStyle(fontSize: 22.sp, fontWeight: FontWeight.bold, color: Colors.orange)), const SizedBox(height: 10), Text("لقد حصلت على ${widget.points} نقطة", style: TextStyle(fontSize: 16.sp)), const SizedBox(height: 30), ElevatedButton(onPressed: widget.onDismiss, child: const Text("استمتع الآن"))]))))); 
+    return Material(color: Colors.black54, child: Center(child: ScaleTransition(scale: _scale, child: Container(margin: const EdgeInsets.all(30), padding: const EdgeInsets.all(30), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(30)), child: Column(mainAxisSize: MainAxisSize.min, children: [Text("🎉", style: TextStyle(fontSize: 40.sp)), const SizedBox(height: 20), Text("هدية ترحيبية!", style: TextStyle(fontSize: 22.sp, fontWeight: FontWeight.bold, color: Colors.orange)), const SizedBox(height: 10), Text("لقد حصلت على ${widget.points} نقطة", style: TextStyle(fontSize: 16.sp)), const SizedBox(height: 30), ElevatedButton(onPressed: widget.onDismiss, child: const Text("استمتع الآن"))]))))); 
   }
 }
