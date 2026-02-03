@@ -4,10 +4,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'consumer_data_models.dart';
-// 🎯 استيراد صفحة الأقسام الجديدة للمستهلك
 import 'package:my_test_app/screens/consumer/consumer_category_screen.dart'; 
 
-// 1. الشريط الجانبي (Side Menu) كما هو
+// 1. الشريط الجانبي (Side Menu)
 class ConsumerSideMenu extends StatelessWidget {
   const ConsumerSideMenu({super.key});
 
@@ -66,7 +65,7 @@ class ConsumerSideMenu extends StatelessWidget {
   }
 }
 
-// 2. شريط التنقل السفلي (Footer Nav) - تم إضافة الأيقونة الذكية (تتبع الطلب)
+// 2. شريط التنقل السفلي (Footer Nav) - تم تحديث حالات التتبع لضمان الاستمرارية
 class ConsumerFooterNav extends StatelessWidget {
   final int cartCount;
   final int activeIndex;
@@ -75,6 +74,9 @@ class ConsumerFooterNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
+    
+    // الحالات التي يظهر فيها زر التتبع مفعلاً (من الطلب حتى قبل التسليم النهائي)
+    final List<String> trackingStatuses = ['pending', 'accepted', 'at_pickup', 'picked_up'];
 
     return BottomNavigationBar(
       currentIndex: activeIndex == -1 ? 0 : activeIndex,
@@ -87,13 +89,13 @@ class ConsumerFooterNav extends StatelessWidget {
         const BottomNavigationBarItem(icon: Icon(Icons.store), label: 'المتجر'),
         const BottomNavigationBarItem(icon: Icon(Icons.receipt_long), label: 'طلباتي'),
         
-        // ✨ أيقونة "تتبع الطلب" الذكية
+        // ✨ أيقونة "تتبع الطلب" الذكية (تظهر باللون البرتقالي في كل مراحل الرحلة)
         BottomNavigationBarItem(
           icon: StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
                 .collection('specialRequests')
                 .where('userId', isEqualTo: user?.uid)
-                .where('status', whereIn: ['pending', 'accepted'])
+                .where('status', whereIn: trackingStatuses)
                 .snapshots(),
             builder: (context, snapshot) {
               bool hasActiveOrder = snapshot.hasData && snapshot.data!.docs.isNotEmpty;
@@ -140,7 +142,7 @@ class ConsumerFooterNav extends StatelessWidget {
           final snapshot = await FirebaseFirestore.instance
               .collection('specialRequests')
               .where('userId', isEqualTo: user?.uid)
-              .where('status', whereIn: ['pending', 'accepted'])
+              .where('status', whereIn: trackingStatuses)
               .limit(1)
               .get();
 
@@ -157,7 +159,6 @@ class ConsumerFooterNav extends StatelessWidget {
           return;
         }
 
-        // المسارات الأصلية مع مراعاة وجود 5 عناصر الآن
         final routes = ['/consumerhome', '/consumer-purchases', '', '/cart', '/myDetails'];
         if (routes[index].isNotEmpty) {
           Navigator.pushNamed(context, routes[index]);
@@ -167,7 +168,7 @@ class ConsumerFooterNav extends StatelessWidget {
   }
 }
 
-// 3. العناوين (Section Titles) كما هي
+// 3. العناوين (Section Titles)
 class ConsumerSectionTitle extends StatelessWidget {
   final String title;
   const ConsumerSectionTitle({super.key, required this.title});
@@ -183,7 +184,7 @@ class ConsumerSectionTitle extends StatelessWidget {
   }
 }
 
-// 4. بانر الأقسام (Main Categories) كما هي
+// 4. بانر الأقسام (Main Categories)
 class ConsumerCategoriesBanner extends StatelessWidget {
   final List<ConsumerCategory> categories;
   const ConsumerCategoriesBanner({super.key, required this.categories});
