@@ -1,235 +1,173 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:sizer/sizer.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'consumer_data_models.dart';
-// 🎯 استيراد صفحة الأقسام الجديدة للمستهلك
-import 'package:my_test_app/screens/consumer/consumer_category_screen.dart'; 
 
-// 1. الشريط الجانبي (Side Menu)
-class ConsumerSideMenu extends StatelessWidget {
-  const ConsumerSideMenu({super.key});
+class CustomerTrackingScreen extends StatelessWidget {
+  static const routeName = '/customerTracking';
+  final String orderId;
+
+  const CustomerTrackingScreen({super.key, required this.orderId});
+
+  final String mapboxToken = "pk.eyJ1IjoiYW1yc2hpcGwiLCJhIjoiY21lajRweGdjMDB0eDJsczdiemdzdXV6biJ9.E--si9vOB93NGcAq7uVgGw";
+
+  Future<void> _handleSmartCancel(BuildContext context, String currentStatus) async {
+    bool isAccepted = currentStatus != 'pending';
+    String targetStatus = isAccepted 
+        ? 'cancelled_by_user_after_accept' 
+        : 'cancelled_by_user_before_accept';
+
+    if (isAccepted) {
+      bool confirm = await showDialog(
+        context: context,
+        builder: (ctx) => Directionality(
+          textDirection: TextDirection.rtl,
+          child: AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: const Text("تنبيه هام"),
+            content: const Text("المندوب في طريقه إليك الآن. إلغاء الطلب في هذه المرحلة سيؤدي لخصم من نقاطك. هل تريد الاستمرار؟"),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("تراجع")),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true), 
+                child: const Text("تأكيد وإلغاء", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold))
+              ),
+            ],
+          ),
+        ),
+      ) ?? false;
+      if (!confirm) return;
+    }
+
+    try {
+      await FirebaseFirestore.instance.collection('specialRequests').doc(orderId).update({
+        'status': targetStatus,
+        'cancelledAt': FieldValue.serverTimestamp(),
+        'cancelledBy': 'customer'
+      });
+      if (context.mounted) Navigator.pop(context);
+    } catch (e) {
+      debugPrint("Cancel Error: $e");
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: Drawer(
+    if (orderId.isEmpty) return const Scaffold(body: Center(child: Text("طلب غير موجود")));
+
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance.collection('specialRequests').doc(orderId).snapshots(),
+      builder: (context, orderSnapshot) {
+        if (!orderSnapshot.hasData || !orderSnapshot.data!.exists) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
+
+        var orderData = orderSnapshot.data!.data() as Map<String, dynamic>;
+        String status = orderData['status'] ?? "pending";
+        
+        if (status.contains('cancelled') || status == 'delivered' || status == 'no_drivers_available') {
+           WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (context.mounted) Navigator.of(context).popUntil((route) => route.isFirst);
+          });
+        }
+
+        String? driverId = orderData['driverId'];
+        String verificationCode = orderData['verificationCode'] ?? "----";
+        GeoPoint pickup = orderData['pickupLocation'];
+        GeoPoint dropoff = orderData['dropoffLocation'];
+        LatLng pickupLatLng = LatLng(pickup.latitude, pickup.longitude);
+        LatLng dropoffLatLng = LatLng(dropoff.latitude, dropoff.longitude);
+
+        return StreamBuilder<DocumentSnapshot>(
+          stream: (driverId != null && driverId.isNotEmpty)
+              ? FirebaseFirestore.instance.collection('freeDrivers').doc(driverId).snapshots()
+              : const Stream.empty(),
+          builder: (context, driverSnapshot) {
+            Map<String, dynamic>? driverData;
+            LatLng? driverLatLng;
+
+            if (driverSnapshot.hasData && driverSnapshot.data!.exists) {
+              driverData = driverSnapshot.data!.data() as Map<String, dynamic>;
+              if (driverData != null && driverData.containsKey('location')) {
+                GeoPoint dLoc = driverData['location'];
+                driverLatLng = LatLng(dLoc.latitude, dLoc.longitude);
+              }
+            }
+
+            return Directionality(
+              textDirection: TextDirection.rtl,
+              child: Scaffold(
+                extendBodyBehindAppBar: true,
+                appBar: AppBar(
+                  backgroundColor: Colors.white.withOpacity(0.9),
+                  elevation: 0,
+                  title: Text("تتبع الرحلة", style: TextStyle(fontSize: 14.sp, color: Colors.black)),
+                  centerTitle: true,
+                ),
+                body: Stack(
+                  children: [
+                    FlutterMap(
+                      options: MapOptions(initialCenter: driverLatLng ?? pickupLatLng, initialZoom: 14.5),
+                      children: [
+                        TileLayer(urlTemplate: 'https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=$mapboxToken'),
+                        MarkerLayer(
+                          markers: [
+                            Marker(point: pickupLatLng, width: 40, height: 40, child: const Icon(Icons.location_on, color: Colors.green, size: 35)),
+                            Marker(point: dropoffLatLng, width: 40, height: 40, child: const Icon(Icons.flag_circle, color: Colors.red, size: 35)),
+                            if (driverLatLng != null)
+                              Marker(point: driverLatLng, width: 60, height: 60, child: _buildDriverMarker(orderData['vehicleType'] ?? 'motorcycle')),
+                          ],
+                        ),
+                      ],
+                    ),
+                    _buildUnifiedBottomPanel(context, status, orderData, driverData, verificationCode),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildUnifiedBottomPanel(BuildContext context, String status, Map<String, dynamic> order, Map<String, dynamic>? driver, String code) {
+    return Positioned(
+      bottom: 20, left: 12, right: 12,
+      child: Container(
+        padding: const EdgeInsets.all(15),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 10)]),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            StreamBuilder<DocumentSnapshot>(
-              stream: FirebaseFirestore.instance.collection('consumers').doc(user?.uid).snapshots(),
-              builder: (context, snapshot) {
-                String name = "مستخدِم كسبان";
-                if (snapshot.hasData && snapshot.data!.exists) {
-                  final data = snapshot.data!.data() as Map<String, dynamic>;
-                  name = data['fullname'] ?? "مستخدِم كسبان";
-                }
-                return UserAccountsDrawerHeader(
-                  decoration: const BoxDecoration(color: Color(0xFF43A047)),
-                  currentAccountPicture: const CircleAvatar(
-                    backgroundColor: Colors.white,
-                    child: Icon(Icons.person_rounded, size: 50, color: Color(0xFF43A047)),
-                  ),
-                  accountName: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                  accountEmail: Text(user?.email ?? ""),
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.privacy_tip_outlined, color: Color(0xFF43A047), size: 28),
-              title: const Text('سياسة الخصوصية', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              onTap: () async {
-                final url = Uri.parse('https://amrshipl83.github.io/aksabprivce/');
-                if (await canLaunchUrl(url)) await launchUrl(url, mode: LaunchMode.externalApplication);
-              },
-            ),
-            const Spacer(),
+            Text("حالة الطلب: $status", style: const TextStyle(fontWeight: FontWeight.bold)),
             const Divider(),
-            ListTile(
-              leading: const Icon(Icons.logout_rounded, color: Colors.red, size: 28),
-              title: const Text('تسجيل الخروج', style: TextStyle(color: Colors.red, fontSize: 16, fontWeight: FontWeight.bold)),
-              onTap: () async {
-                final prefs = await SharedPreferences.getInstance();
-                await prefs.clear();
-                await FirebaseAuth.instance.signOut();
-                if (context.mounted) Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
-              },
+            Row(
+              children: [
+                const CircleAvatar(child: Icon(Icons.person)),
+                const SizedBox(width: 10),
+                Text(driver != null ? driver['fullname'] : "جاري البحث..."),
+                const Spacer(),
+                if (driver != null)
+                  IconButton(onPressed: () => _makePhoneCall(driver['phone']), icon: const Icon(Icons.phone, color: Colors.green)),
+              ],
             ),
-            const SizedBox(height: 20),
+            if (status == 'pending' || status == 'accepted')
+              TextButton(onPressed: () => _handleSmartCancel(context, status), child: const Text("إلغاء الطلب", style: TextStyle(color: Colors.red))),
           ],
         ),
       ),
     );
   }
-}
 
-// 2. شريط التنقل السفلي (Footer Nav) - الإصدار الذكي النهائي
-class ConsumerFooterNav extends StatelessWidget {
-  final int cartCount;
-  final int activeIndex;
-  const ConsumerFooterNav({super.key, required this.cartCount, required this.activeIndex});
-
-  @override
-  Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-
-    return BottomNavigationBar(
-      currentIndex: activeIndex == -1 ? 0 : activeIndex,
-      selectedItemColor: const Color(0xFF43A047),
-      unselectedItemColor: Colors.grey,
-      type: BottomNavigationBarType.fixed,
-      selectedLabelStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
-      unselectedLabelStyle: const TextStyle(fontSize: 10, fontFamily: 'Cairo'),
-      items: [
-        const BottomNavigationBarItem(icon: Icon(Icons.store), label: 'المتجر'),
-        const BottomNavigationBarItem(icon: Icon(Icons.receipt_long), label: 'طلباتي'),
-        
-        // ✨ أيقونة "تتبع الطلب" الذكية (تم ربطها بمسار صفحتك الفعلي)
-        BottomNavigationBarItem(
-          icon: StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('specialRequests')
-                .where('userId', isEqualTo: user?.uid)
-                .where('status', whereIn: ['pending', 'accepted', 'at_pickup', 'picked_up'])
-                .snapshots(),
-            builder: (context, snapshot) {
-              bool hasActiveOrder = snapshot.hasData && snapshot.data!.docs.isNotEmpty;
-              return Stack(
-                alignment: Alignment.center,
-                children: [
-                  Icon(
-                    Icons.radar,
-                    color: hasActiveOrder ? Colors.orange : Colors.grey,
-                    size: hasActiveOrder ? 28 : 24,
-                  ),
-                  if (hasActiveOrder)
-                    Positioned(
-                      top: 0,
-                      right: 0,
-                      child: Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
-                      ),
-                    ),
-                ],
-              );
-            },
-          ),
-          label: 'تتبع الطلب',
-        ),
-
-        BottomNavigationBarItem(
-          icon: Badge(
-            label: Text(cartCount.toString()),
-            isLabelVisible: cartCount > 0,
-            child: const Icon(Icons.shopping_cart),
-          ),
-          label: 'السلة',
-        ),
-        const BottomNavigationBarItem(icon: Icon(Icons.person), label: 'حسابي'),
-      ],
-      onTap: (index) async {
-        if (index == activeIndex) return;
-
-        // منطق أيقونة التتبع (Index 2)
-        if (index == 2) {
-          final snapshot = await FirebaseFirestore.instance
-              .collection('specialRequests')
-              .where('userId', isEqualTo: user?.uid)
-              .where('status', whereIn: ['pending', 'accepted', 'at_pickup', 'picked_up'])
-              .limit(1)
-              .get();
-
-          if (snapshot.docs.isNotEmpty) {
-            final orderId = snapshot.docs.first.id;
-            // ✅ تم تعديل المسار ليتطابق مع CustomerTrackingScreen.routeName
-            if (context.mounted) Navigator.pushNamed(context, '/customerTracking', arguments: orderId);
-          } else {
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text("لا توجد طلبات نشطة حالياً في خدمة ابعتلي حد", style: TextStyle(fontFamily: 'Cairo')),
-                  backgroundColor: Colors.black87,
-                ),
-              );
-            }
-          }
-          return;
-        }
-
-        // المسارات الأصلية مع مراعاة الترتيب الجديد
-        final routes = ['/consumerhome', '/consumer-purchases', '', '/cart', '/myDetails'];
-        if (routes[index].isNotEmpty) {
-          Navigator.pushNamed(context, routes[index]);
-        }
-      },
-    );
+  Widget _buildDriverMarker(String vehicleType) {
+    return const Icon(Icons.delivery_dining, color: Colors.blue, size: 40);
   }
-}
 
-// 3. العناوين (Section Titles)
-class ConsumerSectionTitle extends StatelessWidget {
-  final String title;
-  const ConsumerSectionTitle({super.key, required this.title});
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-      child: Align(
-        alignment: Alignment.centerRight,
-        child: Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-      ),
-    );
-  }
-}
-
-// 4. بانر الأقسام (Main Categories)
-class ConsumerCategoriesBanner extends StatelessWidget {
-  final List<ConsumerCategory> categories;
-  const ConsumerCategoriesBanner({super.key, required this.categories});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 120,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        itemCount: categories.length,
-        itemBuilder: (context, index) {
-          final category = categories[index];
-          return GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => ConsumerCategoryScreen(
-                    mainCategoryId: category.id,
-                    categoryName: category.name,
-                  ),
-                ),
-              );
-            },
-            child: Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Column(
-                children: [
-                  CircleAvatar(
-                    radius: 30, 
-                    backgroundImage: NetworkImage(category.imageUrl)
-                  ),
-                  const SizedBox(height: 5),
-                  Text(category.name, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
+  Future<void> _makePhoneCall(String phoneNumber) async {
+    final Uri launchUri = Uri(scheme: 'tel', path: phoneNumber);
+    if (await canLaunchUrl(launchUri)) await launchUrl(launchUri);
   }
 }
