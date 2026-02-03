@@ -1,4 +1,3 @@
-// lib/main.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
@@ -24,8 +23,6 @@ import 'package:my_test_app/providers/cashback_provider.dart';
 import 'package:my_test_app/controllers/seller_dashboard_controller.dart';
 import 'package:my_test_app/models/logged_user.dart';
 import 'package:my_test_app/services/user_session.dart';
-
-// ✅ استيراد موديل الأدوار لاستخدامه في البحث
 import 'package:my_test_app/models/user_role.dart';
 
 // استيراد الشاشات
@@ -60,12 +57,7 @@ import 'package:my_test_app/screens/delivery/delivery_offers_screen.dart';
 import 'package:my_test_app/screens/seller/add_offer_screen.dart';
 import 'package:my_test_app/screens/seller/create_gift_promo_screen.dart';
 import 'package:my_test_app/screens/delivery_area_screen.dart';
-import 'package:my_test_app/services/bubble_service.dart';
-
-// ✅ شاشة البحث
 import 'package:my_test_app/screens/search/search_screen.dart';
-
-// استيراد الصفحات الجديدة لخدمة "ابعتلي حد" والتتبع
 import 'package:my_test_app/screens/special_requests/abaatly_had_pro_screen.dart';
 import 'package:my_test_app/screens/customer_tracking_screen.dart';
 
@@ -138,9 +130,7 @@ class MyApp extends StatelessWidget {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          supportedLocales: const [
-            Locale('ar', 'EG'),
-          ],
+          supportedLocales: const [Locale('ar', 'EG')],
           themeMode: themeNotifier.themeMode,
           theme: ThemeData(
             brightness: Brightness.light,
@@ -161,18 +151,15 @@ class MyApp extends StatelessWidget {
             LoginScreen.routeName: (context) => const LoginScreen(),
             SellerScreen.routeName: (context) => const SellerScreen(),
             BuyerHomeScreen.routeName: (context) => const BuyerHomeScreen(),
-            ConsumerHomeScreen.routeName: (context) => ConsumerHomeScreen(),
+            ConsumerHomeScreen.routeName: (context) => const ConsumerHomeScreen(),
             CartScreen.routeName: (context) => const CartScreen(),
             CheckoutScreen.routeName: (context) => const CheckoutScreen(),
             MyOrdersScreen.routeName: (context) => const MyOrdersScreen(),
-            
-            // ✅ إضافة مسار شاشة البحث مع تمرير نوع المستخدم
             SearchScreen.routeName: (context) => SearchScreen(
               userRole: Provider.of<BuyerDataProvider>(context, listen: false).userRole == 'consumer' 
                   ? UserRole.consumer 
                   : UserRole.buyer
             ),
-
             '/register': (context) => const NewClientScreen(),
             '/traders': (context) => const TradersScreen(),
             '/wallet': (context) => const WalletScreen(),
@@ -193,82 +180,54 @@ class MyApp extends StatelessWidget {
             '/add-offer': (context) => const AddOfferScreen(),
             '/create-gift': (context) => const CreateGiftPromoScreen(currentSellerId: ''),
             '/delivery-areas': (context) => const DeliveryAreaScreen(currentSellerId: ''),
-
             '/abaatly-had': (context) {
               final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
               return AbaatlyHadProScreen(
-                userCurrentLocation: args?['location'] ?? LatLng(30.0444, 31.2357),
+                userCurrentLocation: args?['location'] ?? const LatLng(30.0444, 31.2357),
                 isStoreOwner: args?['isStoreOwner'] ?? false,
               );
             },
-
             '/customerTracking': (context) {
               final orderId = ModalRoute.of(context)?.settings.arguments as String? ?? '';
               return CustomerTrackingScreen(orderId: orderId);
             },
           },
-          onGenerateRoute: (settings) {
-            if (settings.name == MarketplaceHomeScreen.routeName) {
-              final args = settings.arguments as Map<String, dynamic>?;
-              return MaterialPageRoute(
-                builder: (context) => MarketplaceHomeScreen(
-                  currentStoreId: args?['storeId'] ?? '',
-                  currentStoreName: args?['storeName'] ?? 'المتجر',
-                ),
-              );
-            }
-            if (settings.name == '/subcategories') {
-              final args = settings.arguments as Map<String, dynamic>?;
-              return MaterialPageRoute(
-                builder: (context) => ConsumerSubCategoryScreen(
-                  mainCategoryId: args?['mainId'] ?? '',
-                  ownerId: args?['ownerId'] ?? '',
-                  mainCategoryName: args?['mainCategoryName'] ?? '',
-                ),
-              );
-            }
-            if (settings.name == ConsumerProductListScreen.routeName) {
-              final args = settings.arguments as Map<String, dynamic>?;
-              return MaterialPageRoute(
-                builder: (context) => ConsumerProductListScreen(
-                  ownerId: args?['ownerId'] ?? '',
-                  mainId: args?['mainId'] ?? '',
-                  subId: args?['subId'] ?? '',
-                  subCategoryName: args?['subCategoryName'] ?? 'المنتجات',
-                ),
-              );
-            }
-            if (settings.name == '/productDetails') {
-              final args = settings.arguments as Map<String, dynamic>?;
-              return MaterialPageRoute(
-                builder: (context) => ProductDetailsScreen(
-                  productId: args?['productId'] ?? '',
-                  offerId: args?['offerId'],
-                ),
-              );
-            }
-            if (settings.name == TraderOffersScreen.routeName) {
-              final sellerId = settings.arguments as String? ?? '';
-              return MaterialPageRoute(builder: (context) => TraderOffersScreen(sellerId: sellerId));
-            }
-            if (settings.name == '/category') {
-              final mainId = settings.arguments as String? ?? '';
-              return MaterialPageRoute(builder: (context) => BuyerCategoryScreen(mainCategoryId: mainId));
-            }
-            if (settings.name == '/products') {
-              final args = settings.arguments as Map<String, dynamic>? ?? {};
-              return MaterialPageRoute(
-                builder: (context) => BuyerProductListScreen(
-                  mainCategoryId: args['mainId'] ?? '',
-                  subCategoryId: args['subId'] ?? '',
-                ),
-              );
-            }
-            return null;
-          },
+          onGenerateRoute: _onGenerateRoute,
         );
       },
     );
+  }
+
+  Route? _onGenerateRoute(RouteSettings settings) {
+    if (settings.name == MarketplaceHomeScreen.routeName) {
+      final args = settings.arguments as Map<String, dynamic>?;
+      return MaterialPageRoute(builder: (context) => MarketplaceHomeScreen(currentStoreId: args?['storeId'] ?? '', currentStoreName: args?['storeName'] ?? 'المتجر'));
+    }
+    if (settings.name == '/subcategories') {
+      final args = settings.arguments as Map<String, dynamic>?;
+      return MaterialPageRoute(builder: (context) => ConsumerSubCategoryScreen(mainCategoryId: args?['mainId'] ?? '', ownerId: args?['ownerId'] ?? '', mainCategoryName: args?['mainCategoryName'] ?? ''));
+    }
+    if (settings.name == ConsumerProductListScreen.routeName) {
+      final args = settings.arguments as Map<String, dynamic>?;
+      return MaterialPageRoute(builder: (context) => ConsumerProductListScreen(ownerId: args?['ownerId'] ?? '', mainId: args?['mainId'] ?? '', subId: args?['subId'] ?? '', subCategoryName: args?['subCategoryName'] ?? 'المنتجات'));
+    }
+    if (settings.name == '/productDetails') {
+      final args = settings.arguments as Map<String, dynamic>?;
+      return MaterialPageRoute(builder: (context) => ProductDetailsScreen(productId: args?['productId'] ?? '', offerId: args?['offerId']));
+    }
+    if (settings.name == TraderOffersScreen.routeName) {
+      final sellerId = settings.arguments as String? ?? '';
+      return MaterialPageRoute(builder: (context) => TraderOffersScreen(sellerId: sellerId));
+    }
+    if (settings.name == '/category') {
+      final mainId = settings.arguments as String? ?? '';
+      return MaterialPageRoute(builder: (context) => BuyerCategoryScreen(mainCategoryId: mainId));
+    }
+    if (settings.name == '/products') {
+      final args = settings.arguments as Map<String, dynamic>? ?? {};
+      return MaterialPageRoute(builder: (context) => BuyerProductListScreen(mainCategoryId: args['mainId'] ?? '', subCategoryId: args['subId'] ?? ''));
+    }
+    return null;
   }
 }
 
@@ -285,17 +244,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
   void initState() {
     super.initState();
     _userFuture = _checkUserLoginStatus();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkAndShowActiveOrderBubble();
-    });
-  }
-
-  void _checkAndShowActiveOrderBubble() async {
-    final prefs = await SharedPreferences.getInstance();
-    final activeOrderId = prefs.getString('active_special_order_id');
-    if (activeOrderId != null) {
-      BubbleService.show(activeOrderId);
-    }
   }
 
   Future<LoggedInUser?> _checkUserLoginStatus() async {
@@ -305,8 +253,9 @@ class _AuthWrapperState extends State<AuthWrapper> {
       try {
         await UserSession.loadSession();
         final user = LoggedInUser.fromJson(jsonDecode(userJson));
-        await Provider.of<BuyerDataProvider>(context, listen: false)
-            .initializeData(user.id, user.id, user.fullname);
+        // 🚀 التأمين العام: انتظر تحميل البيانات بالكامل قبل الدخول
+        final buyerProvider = Provider.of<BuyerDataProvider>(context, listen: false);
+        await buyerProvider.initializeData(user.id, user.id, user.fullname);
         return user;
       } catch (e) {
         await prefs.remove('loggedUser');
@@ -322,12 +271,12 @@ class _AuthWrapperState extends State<AuthWrapper> {
       future: _userFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+          return const Scaffold(body: Center(child: CircularProgressIndicator(color: Color(0xFF43A047))));
         }
         if (snapshot.hasData && snapshot.data != null) {
           final user = snapshot.data!;
           if (user.role == "seller") return const SellerScreen();
-          if (user.role == "consumer") return ConsumerHomeScreen();
+          if (user.role == "consumer") return const ConsumerHomeScreen();
           return const BuyerHomeScreen();
         }
         return const LoginScreen();
@@ -350,11 +299,9 @@ class PostRegistrationMessageScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(isSeller ? Icons.pending_actions : Icons.check_circle,
-                color: isSeller ? Colors.orange : Colors.green, size: 80),
+            Icon(isSeller ? Icons.pending_actions : Icons.check_circle, color: isSeller ? Colors.orange : Colors.green, size: 80),
             const SizedBox(height: 20),
-            Text(isSeller ? 'حسابك قيد المراجعة' : 'تم التسجيل بنجاح',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Text(isSeller ? 'حسابك قيد المراجعة' : 'تم التسجيل بنجاح', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 40),
             const CircularProgressIndicator(),
           ],
