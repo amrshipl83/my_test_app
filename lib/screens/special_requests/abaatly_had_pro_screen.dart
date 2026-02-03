@@ -1,10 +1,14 @@
+// lib/screens/consumer/abaatly_had_pro_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:sizer/sizer.dart';
-import 'package:geolocator/geolocator.dart'; // لإدارة أذونات الموقع
+import 'package:geolocator/geolocator.dart';
+import 'package:my_test_app/screens/consumer/consumer_widgets.dart'; // استيراد الشريط السفلي
 import 'location_picker_screen.dart';
 
 class AbaatlyHadProScreen extends StatefulWidget {
+  static const routeName = '/abaatly-had';
   final LatLng userCurrentLocation;
   final bool isStoreOwner;
 
@@ -26,30 +30,25 @@ class _AbaatlyHadProScreenState extends State<AbaatlyHadProScreen> {
   LatLng? _dropoffCoords;
   bool _pickupConfirmed = false;
   bool _dropoffConfirmed = false;
-  late LatLng _liveLocation; // لتخزين الموقع المحدث
+  late LatLng _liveLocation;
 
   @override
   void initState() {
     super.initState();
     _liveLocation = widget.userCurrentLocation;
-    _checkPermissionAndGetLocation(); // التأكد من الأذونات فور الدخول
+    _checkPermissionAndGetLocation();
   }
 
-  // دالة للتأكد من أن الموقع متاح وإلا تطلبه من المستخدم
   Future<void> _checkPermissionAndGetLocation() async {
-    bool serviceEnabled;
-    LocationPermission permission;
-
-    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) return;
 
-    permission = await Geolocator.checkPermission();
+    LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) return;
     }
     
-    // تحديث الموقع الحالي لضمان فتح الخريطة بدقة
     Position position = await Geolocator.getCurrentPosition();
     setState(() {
       _liveLocation = LatLng(position.latitude, position.longitude);
@@ -57,7 +56,6 @@ class _AbaatlyHadProScreenState extends State<AbaatlyHadProScreen> {
   }
 
   Future<void> _pickLocation(bool isPickup) async {
-    // الخريطة ستفتح الآن عند _liveLocation (موقع المستخدم الحالي المحدث)
     final LatLng? result = await Navigator.push(
       context,
       MaterialPageRoute(
@@ -91,45 +89,133 @@ class _AbaatlyHadProScreenState extends State<AbaatlyHadProScreen> {
         backgroundColor: const Color(0xFFFBFBFB),
         appBar: AppBar(
           title: Text("إعداد مسار التوصيل", 
-            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18.sp)),
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18.sp, color: Colors.black)),
           centerTitle: true,
           backgroundColor: Colors.white,
-          elevation: 0,
+          elevation: 0.5,
           leading: IconButton(
-            icon: const Icon(Icons.close, color: Colors.black, size: 30), 
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black, size: 25), 
             onPressed: () => Navigator.pop(context)
           ),
         ),
         body: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 25),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // كارت الاستلام
               _buildLocationCard(
                 label: "من أين سيستلم المندوب؟",
                 controller: _pickupController,
                 icon: Icons.location_on,
-                color: Colors.green[700]!,
+                color: const Color(0xFF43A047),
                 isConfirmed: _pickupConfirmed,
                 onTap: () => _pickLocation(true),
               ),
-              const Center(child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 15),
-                child: Icon(Icons.keyboard_double_arrow_down_rounded, color: Colors.grey, size: 45),
-              )),
+              
+              // سهم الربط بتصميم أنيق
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: Icon(Icons.south_rounded, color: Colors.grey[300], size: 40),
+                ),
+              ),
+
+              // كارت التسليم
               _buildLocationCard(
                 label: "أين سيتم تسليم الشحنة؟",
                 controller: _dropoffController,
                 icon: Icons.flag_rounded,
-                color: Colors.red[700]!,
+                color: const Color(0xFFE53935),
                 isConfirmed: _dropoffConfirmed,
                 onTap: () => _pickLocation(false),
               ),
+
               const SizedBox(height: 35),
+              
+              // قسم الشروط بتنسيق أوضح
               _buildTermsSection(),
+              
               const SizedBox(height: 30),
+              
+              // زر التأكيد يظهر فقط عند اكتمال البيانات
               if (_pickupConfirmed && _dropoffConfirmed)
                 _buildConfirmButton(),
+              
+              const SizedBox(height: 50), // مساحة إضافية للسكرول
+            ],
+          ),
+        ),
+        // ✨ إضافة الشريط السفلي لضمان تتبع أي طلبات أخرى قائمة
+        bottomNavigationBar: const ConsumerFooterNav(cartCount: 0, activeIndex: -1),
+      ),
+    );
+  }
+
+  Widget _buildLocationCard({
+    required String label, 
+    required TextEditingController controller, 
+    required IconData icon, 
+    required Color color, 
+    required bool isConfirmed, 
+    required VoidCallback onTap
+  }) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(22),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(
+              color: isConfirmed ? color.withOpacity(0.5) : Colors.transparent, 
+              width: 2
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04), 
+                blurRadius: 20, 
+                offset: const Offset(0, 10)
+              )
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: Icon(icon, color: color, size: 28),
+              ),
+              const SizedBox(width: 15),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 11.sp, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 5),
+                    Text(
+                      controller.text.isEmpty ? "اضغط للتحديد من الخريطة" : controller.text, 
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900, 
+                        fontSize: 13.sp, 
+                        color: isConfirmed ? Colors.black : Colors.orange[800]
+                      )
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                isConfirmed ? Icons.check_circle_rounded : Icons.add_location_alt_outlined, 
+                color: isConfirmed ? Colors.green : Colors.grey[300], 
+                size: 28
+              ),
             ],
           ),
         ),
@@ -137,31 +223,28 @@ class _AbaatlyHadProScreenState extends State<AbaatlyHadProScreen> {
     );
   }
 
-  // --- (دوال _buildTermsSection و _buildTermItem و _buildLocationCard تبقى كما هي في الكود السابق مع تكبير الخط) ---
-  
   Widget _buildTermsSection() {
     return Container(
-      padding: const EdgeInsets.all(22),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.amber.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(25),
-        border: Border.all(color: Colors.amber.withOpacity(0.4), width: 2),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.amber.withOpacity(0.3)),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.shield_outlined, color: Colors.amber, size: 28),
-              const SizedBox(width: 12),
-              Text("شروط الاستخدام والضمان", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16.sp, color: Colors.black87)),
+              const Icon(Icons.gavel_rounded, color: Colors.amber, size: 24),
+              const SizedBox(width: 10),
+              Text("شروط الاستخدام والضمان", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14.sp)),
             ],
           ),
-          const SizedBox(height: 20),
-          _buildTermItem("المنصة وسيط تقني؛ المسؤولية القانونية عن محتوى الشحنة تقع بالكامل على طرفي العملية."),
-          _buildTermItem("يُمنع منعاً باتاً نقل الأموال، المشغولات الذهبية، أو المواد المحظورة قانوناً."),
-          _buildTermItem("كود التسليم (Delivery Code) هو توقيعك الإلكتروني بالاستلام؛ لا تعطه للمندوب إلا بعد فحص الشحنة والتأكد من سلامتها تماماً."),
-          _buildTermItem("يجب مطابقة هوية المندوب وصورته من التطبيق قبل تسليمه أي أغراض."),
+          const Divider(height: 30),
+          _buildTermItem("المسؤولية القانونية عن المحتوى تقع على طرفي العملية."),
+          _buildTermItem("يُمنع نقل الأموال أو المواد المحظورة قانوناً."),
+          _buildTermItem("كود التسليم هو توقيعك؛ لا تعطه للمندوب إلا بعد الفحص."),
+          _buildTermItem("طابق هوية المندوب وصورته من التطبيق قبل التسليم."),
         ],
       ),
     );
@@ -169,50 +252,43 @@ class _AbaatlyHadProScreenState extends State<AbaatlyHadProScreen> {
 
   Widget _buildTermItem(String text) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 15),
+      padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 6), 
-            child: Icon(Icons.check_circle_outline, size: 18, color: Colors.amber[900]),
-          ),
-          const SizedBox(width: 12),
-          Expanded(child: Text(text, style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.w700, color: Colors.black, height: 1.4))),
+          Icon(Icons.circle, size: 8, color: Colors.amber[700]).paddingOnly(top: 8),
+          const SizedBox(width: 10),
+          Expanded(child: Text(text, style: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.w600, color: Colors.black87, height: 1.3))),
         ],
       ),
     );
   }
 
-  Widget _buildLocationCard({required String label, required TextEditingController controller, required IconData icon, required Color color, required bool isConfirmed, required VoidCallback onTap}) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(25),
-      child: Container(
-        padding: const EdgeInsets.all(22),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(25),
-          border: Border.all(color: isConfirmed ? color : Colors.grey[300]!, width: 2),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 8))],
-        ),
-        child: Row(
-          children: [
-            CircleAvatar(radius: 25, backgroundColor: color.withOpacity(0.1), child: Icon(icon, color: color, size: 30)),
-            const SizedBox(width: 18),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(label, style: TextStyle(color: Colors.grey[500], fontSize: 11.sp, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 4),
-              Text(controller.text.isEmpty ? "اضغط للتحديد من الخريطة" : controller.text, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14.sp, color: isConfirmed ? Colors.black : Colors.red[800])),
-            ])),
-            Icon(isConfirmed ? Icons.verified : Icons.add_location_alt_outlined, color: isConfirmed ? Colors.green : Colors.grey[400], size: 30),
-          ],
-        ),
+  Widget _buildConfirmButton() {
+    return Container(
+      width: double.infinity,
+      height: 65,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: const LinearGradient(colors: [Color(0xFF43A047), Color(0xFF2E7D32)]),
+        boxShadow: [BoxShadow(color: Colors.green.withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 8))],
+      ),
+      child: ElevatedButton(
+        onPressed: () {
+          // هنا يتم الانتقال لصفحة تأكيد الطلب أو الدفع
+        }, 
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent, 
+          shadowColor: Colors.transparent,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))
+        ), 
+        child: Text("تأكيد المسار والمتابعة", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15.sp, color: Colors.white))
       ),
     );
   }
+}
 
-  Widget _buildConfirmButton() {
-    return SizedBox(width: double.infinity, height: 60, child: ElevatedButton(onPressed: () {}, style: ElevatedButton.styleFrom(backgroundColor: Colors.green[700], shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)), elevation: 5), child: Text("تأكيد المسار والمتابعة", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16.sp, color: Colors.white))));
-  }
+// إضافة بسيطة لتسهيل الـ Padding في الـ TermItem
+extension OnWidget on Widget {
+  Widget paddingOnly({double top = 0}) => Padding(padding: EdgeInsets.only(top: top), child: this);
 }
