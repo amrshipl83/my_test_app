@@ -8,7 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'consumer_data_models.dart';
 import 'package:my_test_app/screens/consumer/consumer_category_screen.dart'; 
 
-// 1. الشريط الجانبي (Side Menu) كما هو بدون تغيير
+// 1. الشريط الجانبي (Side Menu)
 class ConsumerSideMenu extends StatelessWidget {
   const ConsumerSideMenu({super.key});
 
@@ -67,7 +67,7 @@ class ConsumerSideMenu extends StatelessWidget {
   }
 }
 
-// 2. شريط التنقل السفلي (Footer Nav) - تم إضافة حالة delivered لضمان ظهور التقييم
+// 2. شريط التنقل السفلي (Footer Nav) - تم إضافة الترتيب لضمان جلب أحدث طلب
 class ConsumerFooterNav extends StatelessWidget {
   final int cartCount;
   final int activeIndex;
@@ -77,7 +77,7 @@ class ConsumerFooterNav extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     
-    // قائمة الحالات النشطة + حالة delivered لضمان وصول العميل لصفحة التقييم
+    // الحالات التي يظهر فيها زر التتبع مفعلاً
     final List<String> trackingStatuses = ['pending', 'accepted', 'at_pickup', 'picked_up', 'delivered'];
 
     return BottomNavigationBar(
@@ -94,16 +94,23 @@ class ConsumerFooterNav extends StatelessWidget {
         // ✨ أيقونة "تتبع الطلب" الذكية
         BottomNavigationBarItem(
           icon: StreamBuilder<QuerySnapshot>(
+            // تم إضافة الترتيب التنازلي هنا لضمان فتح الطلب الصحيح
             stream: FirebaseFirestore.instance
                 .collection('specialRequests')
                 .where('userId', isEqualTo: user?.uid)
                 .where('status', whereIn: trackingStatuses)
+                .orderBy('createdAt', descending: true) 
                 .snapshots(),
             builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                // 🛠️ علامة UI: لو ظهرت "!" في الـ Console، يعني محتاج تضغط على رابط الاندكس
+                debugPrint("❌ Firebase Error: ${snapshot.error}");
+                return const Icon(Icons.radar, color: Colors.grey);
+              }
+
               bool hasActiveOrder = snapshot.hasData && snapshot.data!.docs.isNotEmpty;
-              
-              // تغيير اللون للأخضر إذا تم التسليم لتنبيه العميل بالتقييم
               Color iconColor = Colors.grey;
+              
               if (hasActiveOrder) {
                 final lastStatus = snapshot.data!.docs.first['status'];
                 iconColor = (lastStatus == 'delivered') ? Colors.green : Colors.orange;
@@ -151,20 +158,31 @@ class ConsumerFooterNav extends StatelessWidget {
         if (index == activeIndex) return;
 
         if (index == 2) {
-          final snapshot = await FirebaseFirestore.instance
-              .collection('specialRequests')
-              .where('userId', isEqualTo: user?.uid)
-              .where('status', whereIn: trackingStatuses)
-              .limit(1)
-              .get();
+          try {
+            final snapshot = await FirebaseFirestore.instance
+                .collection('specialRequests')
+                .where('userId', isEqualTo: user?.uid)
+                .where('status', whereIn: trackingStatuses)
+                .orderBy('createdAt', descending: true) // 👈 ترتيب ضروري جداً
+                .limit(1)
+                .get();
 
-          if (snapshot.docs.isNotEmpty) {
-            final orderId = snapshot.docs.first.id;
-            if (context.mounted) Navigator.pushNamed(context, '/customerTracking', arguments: orderId);
-          } else {
+            if (snapshot.docs.isNotEmpty) {
+              final orderId = snapshot.docs.first.id;
+              if (context.mounted) Navigator.pushNamed(context, '/customerTracking', arguments: orderId);
+            } else {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("لا توجد طلبات نشطة حالياً")),
+                );
+              }
+            }
+          } catch (e) {
+            debugPrint("❌ Error fetching tracking order: $e");
+            // تنبيه للمبرمج في حالة نقص الاندكس
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("لا توجد طلبات نشطة حالياً")),
+                const SnackBar(content: Text("خطأ في الاتصال، تأكد من إعدادات الاندكس")),
               );
             }
           }
@@ -180,7 +198,7 @@ class ConsumerFooterNav extends StatelessWidget {
   }
 }
 
-// 3. العناوين (Section Titles) كما هي
+// 3. العناوين (Section Titles)
 class ConsumerSectionTitle extends StatelessWidget {
   final String title;
   const ConsumerSectionTitle({super.key, required this.title});
@@ -196,7 +214,7 @@ class ConsumerSectionTitle extends StatelessWidget {
   }
 }
 
-// 4. بانر الأقسام (Main Categories) كما هي
+// 4. بانر الأقسام (Main Categories)
 class ConsumerCategoriesBanner extends StatelessWidget {
   final List<ConsumerCategory> categories;
   const ConsumerCategoriesBanner({super.key, required this.categories});
